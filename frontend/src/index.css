@@ -1,0 +1,342 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* ============================================================================
+   DARK MODE OVERRIDE LAYER
+   The app was built with hardcoded light utilities (bg-white, text-slate-*,
+   border-slate-*, …). Rather than add `dark:` variants to ~90 components, this
+   layer remaps the neutral palette when <html> has the `.dark` class. These
+   rules are intentionally UNLAYERED so they win over Tailwind's layered
+   utilities; `html.dark .x` also raises specificity above the base `.x`.
+   Accent colors (primary/success/warning/error, emerald, indigo, amber) are
+   left as-is so they still read as accents on dark surfaces.
+   ========================================================================== */
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #141a27;
+  color: #d8e0ea;
+}
+
+/* App shells: a soft, lifted dark base with a faint brand-blue glow top-right,
+   rather than a flat near-black. Reads gentler and stays on-brand. */
+html.dark .app-shell {
+  background-image:
+    radial-gradient(1100px 520px at 100% -8%, rgba(37, 99, 235, 0.10), transparent 60%),
+    linear-gradient(160deg, #1b2438 0%, #161d2c 60%) !important;
+  background-color: #161d2c;
+}
+
+/* ---- Surfaces (backgrounds) — soft, slightly blue-tinted slate. Cards sit a
+   notch lighter than the page so they read as raised panels, not flat black. */
+html.dark .bg-white { background-color: #232e42; }
+html.dark .bg-slate-50 { background-color: #1d2534; }
+html.dark .bg-slate-100 { background-color: #303b50; }
+html.dark .bg-slate-200 { background-color: #3f4a60; }
+html.dark .bg-slate-300 { background-color: #5b6b82; }
+html.dark .bg-gray-50 { background-color: #1d2534; }
+html.dark .bg-gray-100 { background-color: #303b50; }
+
+/* Opacity-modified neutral surfaces used across cards/toolbars/navbar */
+html.dark .bg-white\/80 { background-color: rgba(35, 46, 66, 0.8); }
+html.dark .bg-white\/30 { background-color: rgba(35, 46, 66, 0.35); }
+html.dark .bg-white\/20 { background-color: rgba(255, 255, 255, 0.07); }
+html.dark .bg-white\/15 { background-color: rgba(255, 255, 255, 0.07); }
+html.dark .bg-white\/10 { background-color: rgba(255, 255, 255, 0.05); }
+html.dark .bg-white\/5 { background-color: rgba(255, 255, 255, 0.035); }
+html.dark .bg-slate-50\/80 { background-color: rgba(29, 37, 52, 0.8); }
+html.dark .bg-slate-50\/70 { background-color: rgba(29, 37, 52, 0.7); }
+html.dark .bg-slate-50\/60 { background-color: rgba(29, 37, 52, 0.6); }
+html.dark .bg-slate-50\/50 { background-color: rgba(29, 37, 52, 0.5); }
+html.dark .bg-slate-100\/80 { background-color: rgba(48, 59, 80, 0.8); }
+html.dark .bg-slate-200\/50 { background-color: rgba(63, 74, 96, 0.5); }
+
+/* ---- Text — soft whites, gentler contrast (no pure #fff) ---- */
+html.dark .text-slate-900 { color: #ecf0f7; }
+html.dark .text-slate-800 { color: #d8e0ea; }
+html.dark .text-slate-700 { color: #c2ccd9; }
+html.dark .text-slate-600 { color: #9aa6b8; }
+html.dark .text-slate-500 { color: #8a96a9; }
+html.dark .text-slate-400 { color: #6f7b8f; }
+html.dark .text-slate-300 { color: #556074; }
+html.dark .text-gray-900 { color: #ecf0f7; }
+html.dark .text-gray-800 { color: #d8e0ea; }
+html.dark .text-gray-700 { color: #c2ccd9; }
+html.dark .text-gray-500 { color: #8a96a9; }
+
+/* ---- Borders — low-contrast, blue-tinted, tuned to the lighter cards ---- */
+html.dark .border-slate-100 { border-color: #283244; }
+html.dark .border-slate-200 { border-color: #33415a; }
+html.dark .border-slate-300 { border-color: #44526b; }
+html.dark .border-slate-600\/80 { border-color: rgba(71, 85, 105, 0.7); }
+html.dark .border-slate-200\/80 { border-color: rgba(51, 65, 90, 0.8); }
+html.dark .border-slate-200\/70 { border-color: rgba(51, 65, 90, 0.7); }
+html.dark .border-slate-200\/60 { border-color: rgba(51, 65, 90, 0.6); }
+html.dark .border-slate-200\/50 { border-color: rgba(51, 65, 90, 0.5); }
+html.dark .border-gray-100 { border-color: #283244; }
+html.dark .border-gray-200 { border-color: #33415a; }
+
+/* ---- Dividers ---- */
+html.dark .divide-slate-100 > * + * { border-color: #283244; }
+html.dark .divide-slate-200\/80 > * + * { border-color: rgba(51, 65, 90, 0.8); }
+
+/* ---- Form controls & placeholders ---- */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: #d8e0ea;
+}
+html.dark input:disabled,
+html.dark textarea:disabled,
+html.dark select:disabled {
+  color: #8a96a9;
+}
+html.dark .placeholder-slate-400::placeholder { color: #626e82; }
+html.dark .placeholder-slate-300::placeholder { color: #4c5666; }
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #626e82; }
+
+/* ---- Hover states that would otherwise flash light on dark ---- */
+html.dark .hover\:bg-white:hover { background-color: #2c3648; }
+html.dark .hover\:bg-slate-50:hover { background-color: #232d3e; }
+html.dark .hover\:bg-slate-100:hover { background-color: #303b50; }
+html.dark .hover\:bg-slate-200:hover { background-color: #3f4a60; }
+html.dark .hover\:border-slate-300:hover { border-color: #4f5a70; }
+html.dark .hover\:text-slate-900:hover { color: #ecf0f7; }
+html.dark .hover\:text-slate-800:hover { color: #d8e0ea; }
+html.dark .hover\:text-slate-700:hover { color: #c2ccd9; }
+
+/* ---- Neutral gradient stops (decorative glows / light gradient panels) ---- */
+html.dark .via-white { --tw-gradient-via-stops: initial; }
+html.dark .from-white,
+html.dark .via-white,
+html.dark .to-white,
+html.dark .from-slate-50,
+html.dark .via-slate-50,
+html.dark .to-slate-50 {
+  --tw-gradient-from: #232e42;
+  --tw-gradient-via: #232e42;
+  --tw-gradient-to: #232e42;
+}
+
+/* Shadows read as invisible on dark; give them a soft, subtle cast. */
+html.dark .shadow-sm,
+html.dark .shadow,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.35);
+}
+
+/* ---- Sidebar keeps its blue gradient in both themes. Its white pills (logo,
+   badges, collapse toggle) must stay white so their dark content stays legible. */
+html.dark aside .bg-white { background-color: #ffffff; }
+html.dark aside .hover\:bg-white:hover { background-color: #ffffff; }
+
+/* In dark mode the ACTIVE menu item is a soft, on-brand blue highlight (a touch
+   of the dark theme — not stark white, not too dark) with light text/icon.
+   Placed after the .bg-white rule so it wins on the active link. */
+html.dark aside .nav-active { background-color: rgba(96, 165, 250, 0.16); color: #eaf1fd; }
+html.dark aside .nav-active .bg-white { background-color: #bfdbfe; } /* left indicator bar */
+
+/* ---- Accent tints: the very light -50 / -100 pastel fills (icon chips, KPI
+   tiles, badges) look garish on dark surfaces. Replace them with low-opacity
+   washes of the same hue so they read as subtle accents. Icon/text colors are
+   left untouched and remain legible on top. ---- */
+html.dark .bg-primary-50 { background-color: rgba(37, 99, 235, 0.12); }
+html.dark .bg-primary-100 { background-color: rgba(37, 99, 235, 0.18); }
+html.dark .bg-success-50 { background-color: rgba(34, 197, 94, 0.12); }
+html.dark .bg-success-100 { background-color: rgba(34, 197, 94, 0.18); }
+html.dark .bg-warning-50 { background-color: rgba(249, 115, 22, 0.12); }
+html.dark .bg-warning-100 { background-color: rgba(249, 115, 22, 0.18); }
+html.dark .bg-error-50 { background-color: rgba(239, 68, 68, 0.12); }
+html.dark .bg-error-100 { background-color: rgba(239, 68, 68, 0.18); }
+html.dark .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.12); }
+html.dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.18); }
+html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12); }
+html.dark .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.18); }
+html.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.12); }
+html.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.18); }
+html.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12); }
+
+/* Light accent borders → subtle, soft neutral dark borders so cards don't get a
+   bright halo (e.g. the navbar's border-primary-100). */
+html.dark .border-primary-100 { border-color: #2d3a4e; }
+html.dark .border-primary-200 { border-color: #34435c; }
+html.dark .border-success-100 { border-color: #2a3d33; }
+html.dark .border-warning-100 { border-color: #3e3529; }
+html.dark .border-error-100 { border-color: #442f2e; }
+html.dark .border-amber-200\/70 { border-color: rgba(120, 90, 30, 0.45); }
+
+/* Keep the navbar itself readable as a soft translucent dark glass bar. */
+html.dark .backdrop-blur-md.bg-white\/80 { background-color: rgba(31, 41, 58, 0.82); }
+
+/* ---- Hover glows on cards (Dashboard quick actions, KPI tiles, etc.):
+   the light pastel `hover:shadow-*-100` colors and `from-*-50/50` gradient
+   overlays render as harsh white glows on dark. Soften the shadow to a gentle
+   dark cast and dim the overlay tint to a subtle on-brand wash. ---- */
+html.dark .hover\:shadow-primary-100:hover,
+html.dark .hover\:shadow-indigo-100:hover,
+html.dark .hover\:shadow-success-100:hover,
+html.dark .hover\:shadow-warning-100:hover,
+html.dark .hover\:shadow-error-100:hover,
+html.dark .hover\:shadow-emerald-100:hover,
+html.dark .hover\:shadow-amber-100:hover {
+  --tw-shadow-color: rgba(0, 0, 0, 0.45);
+}
+
+html.dark .from-primary-50\/50 { --tw-gradient-from: rgba(59, 130, 246, 0.12); }
+html.dark .from-indigo-50\/50 { --tw-gradient-from: rgba(99, 102, 241, 0.12); }
+html.dark .from-success-50\/50 { --tw-gradient-from: rgba(34, 197, 94, 0.12); }
+html.dark .from-warning-50\/50 { --tw-gradient-from: rgba(249, 115, 22, 0.12); }
+html.dark .from-emerald-50\/50 { --tw-gradient-from: rgba(16, 185, 129, 0.12); }
+
+/* KPI tile sub-labels sit on a raised card, so the shared .text-slate-400 dark
+   value reads too dim there. Lift them (and their hover) a couple of steps. */
+html.dark .kpi-tile-sub { color: #a3aebf; }
+html.dark .group:hover .kpi-tile-sub { color: #c2ccd9; }
+
+/* Opacity-modified accent fills (`bg-red-50/70`, `bg-amber-50/60`, …). Each is a
+   distinct class name, so the base -50/-100 remaps above never reached them and
+   they kept rendering as bright cream/pink bands on dark — which also stranded the
+   lightened text sitting on top (e.g. the OrderTable bulk-action bar). Wash them
+   all down to the same subtle on-hue tints. */
+html.dark .bg-red-50\/70 { background-color: rgba(239, 68, 68, 0.14); }
+html.dark .bg-error-50\/60 { background-color: rgba(239, 68, 68, 0.14); }
+html.dark .bg-error-50\/50 { background-color: rgba(239, 68, 68, 0.12); }
+html.dark .bg-amber-50\/60 { background-color: rgba(245, 158, 11, 0.14); }
+html.dark .bg-amber-50\/50 { background-color: rgba(245, 158, 11, 0.12); }
+html.dark .bg-primary-50\/20 { background-color: rgba(37, 99, 235, 0.10); }
+html.dark .hover\:bg-slate-50\/50:hover { background-color: rgba(29, 37, 52, 0.5); }
+
+/* ---- Red / error ramp. The -600/-700/-800 reds are tuned for white backgrounds
+   and go muddy-to-unreadable on the dark cards, while the -200/-300 borders read
+   as bright pastel halos. Lift the text into the light end of the ramp and dim the
+   borders to low-opacity washes. Both the `error` and raw `red` scales are used
+   across the app, so map them together to keep one consistent red.
+   NOTE: solid fills (bg-error-500/600, bg-red-600 — the destructive buttons) are
+   deliberately left alone: they carry white labels and already read fine on dark. */
+html.dark .text-red-800,
+html.dark .text-error-800 { color: #fecaca; }
+html.dark .text-red-700,
+html.dark .text-error-700 { color: #fca5a5; }
+html.dark .text-red-600,
+html.dark .text-error-600 { color: #f79191; }
+html.dark .text-red-500,
+html.dark .text-error-500 { color: #f87171; }
+html.dark .text-red-400,
+html.dark .text-error-400 { color: #fb8f8f; }
+
+html.dark .border-red-100,
+html.dark .border-error-100 { border-color: rgba(239, 68, 68, 0.22); }
+html.dark .border-red-200,
+html.dark .border-error-200 { border-color: rgba(239, 68, 68, 0.32); }
+html.dark .border-red-300,
+html.dark .border-error-300 { border-color: rgba(239, 68, 68, 0.42); }
+html.dark .border-red-500,
+html.dark .border-error-500 { border-color: rgba(239, 68, 68, 0.65); }
+
+/* ---- Primary/blue text ramp. Like the amber and red ramps, the -600/-700/-800
+   blues are tuned for white backgrounds and go dull and low-contrast on the dark
+   cards (e.g. the OrderTimeline's active "PO Received" stage). Lift them toward the
+   lighter, more luminous end of the blue ramp so they read as live accents.
+   The sidebar is excluded: it keeps its blue gradient in both themes and its
+   text-primary-* sits on WHITE pills (active nav item, badges), where a lightened
+   blue would disappear. Same carve-out the `aside .bg-white` rule above makes. */
+html.dark .text-primary-800:not(aside *) { color: #93c5fd; }
+html.dark .text-primary-700:not(aside *) { color: #7fb8fb; }
+html.dark .text-primary-600:not(aside *) { color: #6aa9f7; }
+html.dark .text-primary-500:not(aside *) { color: #60a5fa; }
+
+/* Filled primary chips (the timeline's current-stage dot) keep a solid blue, but
+   the -600 fill is heavy on dark — brighten it a touch so the white check pops. */
+html.dark .bg-primary-600:not(aside *) { background-color: #3b82f6; }
+html.dark .border-primary-600:not(aside *) { border-color: #3b82f6; }
+
+/* ---- Accent hover fills. `hover:bg-error-100` & co. are distinct class names, so
+   the accent-tint remaps above never applied to them: hovering flashed the raw
+   pastel (e.g. the ErrorPanel header going light pink). Give each the same washed
+   tint as its resting counterpart, one step stronger so the hover still registers. */
+html.dark .hover\:bg-error-50:hover,
+html.dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.12); }
+html.dark .hover\:bg-error-100:hover,
+html.dark .hover\:bg-red-100:hover { background-color: rgba(239, 68, 68, 0.18); }
+html.dark .hover\:bg-primary-50:hover { background-color: rgba(37, 99, 235, 0.12); }
+html.dark .hover\:bg-primary-100:hover { background-color: rgba(37, 99, 235, 0.18); }
+html.dark .hover\:bg-success-50:hover { background-color: rgba(34, 197, 94, 0.12); }
+html.dark .hover\:bg-success-100:hover { background-color: rgba(34, 197, 94, 0.18); }
+html.dark .hover\:bg-warning-50:hover { background-color: rgba(249, 115, 22, 0.12); }
+html.dark .hover\:bg-warning-100:hover { background-color: rgba(249, 115, 22, 0.18); }
+html.dark .hover\:bg-amber-50:hover { background-color: rgba(245, 158, 11, 0.12); }
+html.dark .hover\:bg-amber-100:hover { background-color: rgba(245, 158, 11, 0.18); }
+html.dark .hover\:bg-emerald-50:hover { background-color: rgba(16, 185, 129, 0.12); }
+html.dark .hover\:bg-emerald-100:hover { background-color: rgba(16, 185, 129, 0.18); }
+html.dark .hover\:bg-indigo-50:hover { background-color: rgba(99, 102, 241, 0.12); }
+html.dark .hover\:bg-indigo-100:hover { background-color: rgba(99, 102, 241, 0.18); }
+
+/* Amber accents (Indents: ID column, qty figures, status pills, the card's
+   top rule). The -600/-700 ambers are tuned for white backgrounds and read as a
+   hot, oversaturated orange on the navy cards. Move them up the ramp to a softer,
+   sandier tone, and dim the pill fill and gradient rule to match. */
+html.dark .text-amber-700 { color: #f3c98b; }
+html.dark .text-amber-600 { color: #f0b866; }
+html.dark .text-amber-500 { color: #e0a355; }
+html.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.16); }
+html.dark .from-amber-400 { --tw-gradient-from: rgba(251, 191, 36, 0.55); }
+html.dark .to-orange-500 { --tw-gradient-to: rgba(249, 115, 22, 0.55); }
+
+/* The `warning` accent is the same orange family (Badge variant="warning", used by
+   the bulk-upload preview's Warning pill). Its -600 text and -200 border were never
+   remapped, so they burned just as hot on dark. Match the softened amber above. */
+html.dark .text-warning-600 { color: #f0b866; }
+html.dark .text-warning-700 { color: #f3c98b; }
+html.dark .text-warning-500 { color: #e0a355; }
+html.dark .border-warning-200 { border-color: rgba(249, 115, 22, 0.30); }
+
+/* ── Printing the picklist / PO preview ─────────────────────────────────────
+   The preview is a dialog over the app, so a plain window.print() would put the
+   whole dashboard on the paper. Everything is hidden and only the document is
+   made visible again, then lifted out of the dialog's positioning so it starts
+   at the top of the sheet rather than wherever the modal happened to sit.
+
+   `visibility` rather than `display`, because hiding an ancestor with display
+   would take the document down with it. Scoped to the one id in
+   components/pricing/PicklistPreview.jsx; nothing else prints this way. */
+@media print {
+  body * { visibility: hidden !important; }
+
+  #picklist-document,
+  #picklist-document * { visibility: visible !important; }
+
+  #picklist-document {
+    position: absolute !important;
+    inset: 0 auto auto 0;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Table borders survive the printer's default colour dropping. */
+  #picklist-document table { border-collapse: collapse !important; }
+  #picklist-document th,
+  #picklist-document td { border: 1px solid #94a3b8 !important; }
+
+  @page { margin: 12mm; }
+}

@@ -1,0 +1,41 @@
+node_modules/
+node_modules
+
+# Secrets. `.env.example` is deliberately NOT ignored — it is the file that
+# tells the next person what a deployment needs, and it carries names only.
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# SSH keys for the deployment host. A stray `git add .` would push a private
+# key to a remote.
+*.pem
+*.key
+
+# Frontend build output (built in CI, rsynced to the server — never committed)
+frontend/dist/
+
+# Client data drops — REAL employee PII (names, DOB, PAN, Aadhaar, bank
+# accounts, IFSC). These arrive as spreadsheets for a one-off import and must
+# never reach a remote. `npm run hrms:import` reads them from disk; nothing
+# about the running system depends on them being in the repository.
+imports/
+
+# Import reports are generated FROM that data. They are written to be free of
+# sensitive values, but they name real employees and their codes, so they stay
+# local too.
+documentation/import-reports/
+
+# Locally written upload artefacts. STORAGE_DRIVER=local puts company logos,
+# employee documents, payslips, résumés and attendance selfies here — real PII.
+# Production uses S3, and the server keeps its own directory, so nothing here
+# belongs in the repository.
+#
+# The directory itself is NOT deleted, only untracked.
+backend/uploads/
+
+# Database dumps taken before destructive scripts — contain employee PII
+backend/backups/
+backend/tmp/

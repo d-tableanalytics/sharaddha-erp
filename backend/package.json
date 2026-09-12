@@ -1,0 +1,43 @@
+{
+  "name": "employee-portal-backend",
+  "version": "1.0.0",
+  "description": "Shraddha Impex Employee Portal (HRMS) Backend API",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test --test-reporter=spec \"tests/**/*.test.js\"",
+    "test:watch": "node --test --watch \"tests/**/*.test.js\"",
+    "verify:rbac": "node scripts/verify-rbac.js",
+    "verify:contract": "node scripts/verify-shared-contract.js",
+    "verify:passwords": "node scripts/hrms/verify-password-hashing.js",
+    "verify:sensitive": "node scripts/hrms/verify-no-plaintext-sensitive.js",
+    "hrms:import": "node scripts/hrms/import-client-workbook.js",
+    "hrms:migrate-keys": "node scripts/hrms/migrate-encryption-keys.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-kms": "^3.1123.0",
+    "@aws-sdk/client-s3": "^3.1123.0",
+    "@aws-sdk/s3-request-presigner": "^3.1123.0",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.1",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^4.5.0",
+    "nodemailer": "^9.0.3",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0"
+  }
+}
