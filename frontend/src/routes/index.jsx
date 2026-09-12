@@ -65,6 +65,11 @@ const HrmsInboxPage = lazy(() => import("../pages/Hrms/inbox/InboxPage").then(m 
 const O2dPage = lazy(() => import("../pages/O2d/O2dPage").then(m => ({ default: m.O2dPage })));
 const O2dNewOrderPage = lazy(() => import("../pages/O2d/NewOrderPage").then(m => ({ default: m.NewOrderPage })));
 
+// Checklist & Delegation — part of the Work Queue group.
+const ChecklistPage = lazy(() => import("../pages/Checklist/ChecklistPage").then(m => ({ default: m.ChecklistPage })));
+const DelegationPage = lazy(() => import("../pages/Delegation/DelegationPage").then(m => ({ default: m.DelegationPage })));
+const MyDay = lazy(() => import("../pages/MyDay/MyDay").then(m => ({ default: m.MyDay })));
+
 // ── Public careers (no session: an applicant has no account) ──────────────
 const CareersLayout = lazy(() => import("../pages/Careers/CareersLayout").then(m => ({ default: m.CareersLayout })));
 const CareersHome = lazy(() => import("../pages/Careers/CareersHome").then(m => ({ default: m.CareersHome })));
@@ -368,6 +373,32 @@ export const router = createBrowserRouter([
                 path: "inbox",
                 element: <HrmsProtectedRoute module="inbox" />,
                 children: [{ index: true, element: <HrmsInboxPage /> }],
+              },
+            ],
+          },
+          {
+            /**
+              * Work Queue — My Work ("My Day"), Delegation & Checklist.
+              *
+              * Guarded by O2dProtectedRoute: the Work Queue sidebar
+              * group is gated on `view_o2d`.
+              */
+            element: <O2dProtectedRoute />,
+            children: [
+              { path: "work-queue", element: <MyDay /> },
+              { path: "work-queue/:taskId", element: <MyDay /> },
+              { path: "my-work", element: <MyDay /> },
+              { path: "my-work/:taskId", element: <MyDay /> },
+              { path: "my-tasks", element: <Navigate to="/work-queue" replace /> },
+              { path: "my-tasks/:taskId", element: <MyDay /> },
+              { path: "dashboard", element: <Navigate to="/work-queue" replace /> },
+              {
+                path: "wq",
+                children: [
+                  { path: "delegation", element: <DelegationPage /> },
+                  { path: "delegation/:taskId", element: <DelegationPage /> },
+                  { path: "checklist", element: <ChecklistPage /> },
+                ],
               },
             ],
           },
