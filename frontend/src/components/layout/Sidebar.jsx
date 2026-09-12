@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -116,24 +116,36 @@ export const Sidebar = () => {
       : [];
 
   /**
-   * Order to Dispatch.
+   * FMS — Fulfilment Management System (§1).
    *
-   * One permission decides the whole group: `view_o2d`. What each role can DO
-   * inside it varies enormously - Imports reads, Billing works eight stages -
-   * but that is decided per screen and per stage by the server, not by which
-   * links are visible. Gating individual links on `work_o2d_stage` would hide
-   * My Tasks from Management, who need to see the queue they are accountable
-   * for even though they close nothing in it.
+   * The group the user reads is FMS; the screens under it are O2D's, which is
+   * why every path is `/fms/o2d/...` rather than `/fms/...`. FMS is the section,
+   * O2D is its first workflow, and a second one later slots in beside these
+   * without moving them.
+   *
+   * The permission is still `view_o2d`, and the item ids are still `o2d:*`.
+   * Neither is a naming oversight: the permission is written into live role
+   * rows in the shared database, and the ids are what the nav-order preference
+   * is keyed by. §1 renames a section, which is a label and a URL — it is not a
+   * licence to invalidate stored data.
+   *
+   * One permission decides the whole group. What each role can DO inside it
+   * varies enormously - Imports reads, Billing works eight stages - but that is
+   * decided per screen and per stage by the server, not by which links are
+   * visible. Gating individual links on `work_o2d_stage` would hide My Tasks
+   * from Management, who need to see the queue they are accountable for even
+   * though they close nothing in it.
    */
   const o2dGroups = canUseO2d(user)
     ? [{
         key: "o2d",
-        label: "Order to Dispatch",
+        label: "FMS",
         icon: Truck,
         items: [
-          { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: "/o2d/tasks", icon: ListChecks },
-          { id: "o2d:orders", key: "orders", label: "Order Tracker", path: "/o2d/orders", icon: Truck },
-          { id: "o2d:exits", key: "exits", label: "Exit Register", path: "/o2d/exits", icon: Ban },
+          { id: "o2d:tasks", key: "tasks", label: "O2D — My Tasks", path: "/fms/o2d/tasks", icon: ListChecks },
+          { id: "o2d:orders", key: "orders", label: "O2D — Order Tracker", path: "/fms/o2d/orders", icon: Truck },
+          { id: "o2d:stages", key: "stages", label: "O2D — Stages", path: "/fms/o2d/stages", icon: LayoutGrid },
+          { id: "o2d:exits", key: "exits", label: "O2D — Exit Register", path: "/fms/o2d/exits", icon: Ban },
         ],
       }]
     : [];

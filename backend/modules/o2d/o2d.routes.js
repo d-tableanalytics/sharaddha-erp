@@ -40,6 +40,7 @@ import {
   holdOrderSchema,
   resumeOrderSchema,
   listO2dOrdersQuery,
+  listBookingsQuery,
   myTasksQuery,
   exitOrderSchema,
   reviveOrderSchema,
@@ -103,9 +104,32 @@ router.post('/notifications/read', canView, controller.readNotifications);
 /** The stage master, read-only. Editing it needs MANAGE_O2D_MASTERS (P5). */
 router.get('/stages', canView, controller.listStageMasters);
 
+/**
+ * The stage board — live orders per stage, with the late count (§27).
+ *
+ * Declared AFTER `/stages` but the two cannot collide: both are literal paths,
+ * and there is no `/stages/:param` route for "board" to be swallowed by. If one
+ * is ever added, it must come after this line.
+ */
+router.get('/stages/board', canView, controller.stageBoard);
+
 // ---------------------------------------------------------------------------
 // Orders. Literal paths before `/:id`, so `check-duplicate` is not read as one.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Customer Portal bookings (§3)
+// ---------------------------------------------------------------------------
+//
+// `canCreate`, NOT `canView`. These endpoints read the shared `orders`
+// collection — the customer's own commercial activity — and the sole reason the
+// Employee Portal surfaces it is so Sales can raise an O2D order from a
+// booking. Gated on VIEW_O2D it would hand every role that can read the tracker
+// a browsable list of customer bookings, which is a wider disclosure than
+// anything else in this module makes.
+
+router.get('/bookings', canCreate, validate({ query: listBookingsQuery }), controller.listBookings);
+router.get('/bookings/:bookingId', canCreate, controller.getBooking);
 
 router.get('/orders/check-duplicate', canCreate, controller.checkDuplicate);
 

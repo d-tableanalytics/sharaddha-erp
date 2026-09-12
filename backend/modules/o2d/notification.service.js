@@ -42,7 +42,7 @@ import { O2dOrderStage } from '../../models/o2d/O2dOrderStage.js';
 import { O2dStageMaster } from '../../models/o2d/O2dStageMaster.js';
 import { O2dNotification } from '../../models/o2d/O2dNotification.js';
 import { channelFor } from './channels/index.js';
-import { O2D_EVENTS, COMMUNICATION_CHANNELS } from '../../shared/constants/o2d.js';
+import { O2D_EVENTS, COMMUNICATION_CHANNELS, o2dRoute } from '../../shared/constants/o2d.js';
 
 /**
  * Which channels an event travels on.
@@ -215,7 +215,17 @@ function render(event, { order, stage, payload = {} }) {
   }
 }
 
-const hrefFor = (orderId) => (orderId ? `/o2d/orders?open=${orderId}` : '/o2d/orders');
+/**
+ * Where a notification points.
+ *
+ * Built from `o2dRoute` rather than a literal, because §1 moved these screens
+ * under FMS and this link is the one that OUTLIVES the rename: an overdue-stage
+ * email sits in somebody's inbox for weeks. The router still forwards the old
+ * path, but a notification sent today should name today's URL rather than rely
+ * on a redirect that exists for history.
+ */
+const hrefFor = (orderId) =>
+  (orderId ? `${o2dRoute('orders')}?open=${orderId}` : o2dRoute('orders'));
 
 /**
  * Turn one event into delivered notifications.

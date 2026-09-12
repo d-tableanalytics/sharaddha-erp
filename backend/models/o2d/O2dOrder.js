@@ -115,6 +115,57 @@ const o2dOrderSchema = new mongoose.Schema(
     salesPerson: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     salesPersonName: { type: String, default: null, trim: true, maxlength: 200 },
 
+    /**
+     * The Customer Portal booking this order was raised from (§3, §28).
+     *
+     * The header comment above says O2D and the customer `Order` collection are
+     * deliberately separate, and that "the link is `poNumber` + customer, and it
+     * belongs in a reconciliation service". This is that link, made explicit and
+     * stored rather than inferred — `poNumber` + customer turned out to be the
+     * wrong key, because Sales keys the PO number in by hand AFTER the booking
+     * exists, and a typo there would silently break the reconciliation.
+     *
+     * NULLABLE, and that is a real case rather than a migration artefact: a PO
+     * that arrives by email without a portal booking behind it is ordinary, and
+     * §3 asks for the relationship to be maintained where one exists, not for
+     * one to be invented where it does not.
+     *
+     * The booking's own line data is NOT copied here — §28 forbids duplicating
+     * customer data. Only the id, the key, and the facts that were true at the
+     * moment of linking are stamped, so Order 360 can name the source without a
+     * join and still read through for anything live.
+     */
+    sourceBooking: {
+      type: new mongoose.Schema(
+        {
+          /** `BO-`/`SO-YYYY-######`, as the customer portal issued it. */
+          bookingId: { type: String, required: true, trim: true, maxlength: 80 },
+          /** Uppercased, whitespace-collapsed, for the uniqueness index. */
+          bookingKey: { type: String, required: true },
+
+          /** The booking's own customer, kept to detect later divergence. */
+          customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+          customerName: { type: String, default: null, trim: true, maxlength: 200 },
+
+          bookedAt: { type: Date, default: null },
+
+          /**
+           * The booking's status WHEN IT WAS LINKED, not now.
+           *
+           * A point-in-time copy on purpose: the customer side keeps moving that
+           * field, and an auditor asking "what was this when Sales converted it"
+           * cannot get an answer from a value that tracks the present.
+           */
+          bookingStatusAtLink: { type: String, default: null, trim: true, maxlength: 60 },
+
+          linkedAt: { type: Date, default: null },
+          linkedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+
     // ── Commitment ─────────────────────────────────────────────────────────
     /**
      * What the customer was promised. §27 requires it, or an authorised override.
@@ -205,6 +256,28 @@ o2dOrderSchema.index(
     unique: true,
     partialFilterExpression: {
       parentOrder: null,
+      status: { $in: [ORDER_STATUS.OPEN, ORDER_STATUS.ON_HOLD, ORDER_STATUS.CLOSED] },
+    },
+  },
+);
+
+/**
+ * §28: one live O2D order per customer booking.
+ *
+ * PARTIAL twice over, and both halves are load-bearing:
+ *
+ *   - over LIVE orders only, so cancelling an O2D order frees its booking to be
+ *     converted again — the same escape hatch the PO-number rule gives;
+ *   - over documents that HAVE a `sourceBooking.bookingKey`, because most orders
+ *     legitimately have none. Without the `$exists` clause every unlinked order
+ *     would collide on a null key and only the first could ever be saved.
+ */
+o2dOrderSchema.index(
+  { 'sourceBooking.bookingKey': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      'sourceBooking.bookingKey': { $exists: true },
       status: { $in: [ORDER_STATUS.OPEN, ORDER_STATUS.ON_HOLD, ORDER_STATUS.CLOSED] },
     },
   },

@@ -216,6 +216,25 @@ export const DEFAULT_WORKING_MINUTES_PER_DAY =
 
 export const O2D_API_PREFIX = "/api/v1/o2d";
 
+/**
+ * Where O2D's screens live in the Employee Portal — `FMS → O2D` (§1).
+ *
+ * ⚠ NOT the same string as `O2D_API_PREFIX`, and they must not be derived from
+ * one another. §1 renames a NAVIGATION section; it says nothing about the API,
+ * whose paths are quoted in the route file, the frontend client, and any
+ * integration already pointed at this deployment. Moving the API to match the
+ * menu would be a breaking change made for cosmetic reasons.
+ *
+ * One constant rather than the literal in each page, for exactly the reason
+ * `HRMS_ROUTE_PREFIX` exists: the next rename should be one edit, not a sweep
+ * across every file that happens to call `navigate()`.
+ */
+export const O2D_ROUTE_PREFIX = "/fms/o2d";
+
+/** `o2dRoute('orders')` → `/fms/o2d/orders`. */
+export const o2dRoute = (...segments) =>
+  [O2D_ROUTE_PREFIX, ...segments.filter(Boolean)].join('/');
+
 export const O2D_DOCUMENT_TYPES = Object.freeze([
   'PO',
   'SOR',

@@ -27,6 +27,16 @@ export const o2dApi = {
   /** The twelve stages, as configured. Owners can be changed by an admin. */
   stages: () => o2dClient.get("/stages"),
 
+  /**
+   * Live orders per stage, with the late count — the stage board (§27).
+   *
+   * Distinct from `stages()`: that one is the CONFIGURATION (names, owners,
+   * SLAs) and this one is the CURRENT LOAD. They are fetched together by the
+   * stage view, but a screen that only needs the names should not pay for the
+   * aggregation.
+   */
+  stageBoard: () => o2dClient.get("/stages/board"),
+
   // ── Orders ──────────────────────────────────────────────────────────────
   list: (params = {}) => o2dClient.get("/orders", params),
   get: (id) => o2dClient.get(`/orders/${id}`),
@@ -37,6 +47,15 @@ export const o2dApi = {
   /** The live duplicate check the intake form runs while the user types. */
   checkDuplicate: (poNumber, customerName) =>
     o2dClient.get("/orders/check-duplicate", { poNumber, customerName }),
+
+  // ── Customer Portal bookings (§3) ───────────────────────────────────────
+  //
+  // A booking is addressed by its human-readable id (`BO-`/`SO-YYYY-######`),
+  // not a Mongo id: one booking is several `Order` rows sharing that string, so
+  // no single ObjectId names it. Encoded on the way out — the id is user data,
+  // and a "/" in one would otherwise silently address a different route.
+  bookings: (params = {}) => o2dClient.get("/bookings", params),
+  booking: (bookingId) => o2dClient.get(`/bookings/${encodeURIComponent(bookingId)}`),
 
   // ── Lines ───────────────────────────────────────────────────────────────
   items: (id) => o2dClient.get(`/orders/${id}/items`),

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useParams, useLocation } from "react-router-dom";
 import { lazy } from "react";
 
 import MainLayout from "../components/layout/MainLayout";
@@ -61,9 +61,24 @@ const HrmsSettingsPage = lazy(() => import("../pages/Hrms/settings/SettingsPage"
 const HrmsAuditLogsPage = lazy(() => import("../pages/Hrms/audit/AuditLogsPage").then(m => ({ default: m.AuditLogsPage })));
 const HrmsInboxPage = lazy(() => import("../pages/Hrms/inbox/InboxPage").then(m => ({ default: m.InboxPage })));
 
-// Order to Dispatch. A PORTAL module, not an HRMS one - see O2dProtectedRoute.
+// FMS → O2D. A PORTAL module, not an HRMS one - see O2dProtectedRoute.
 const O2dPage = lazy(() => import("../pages/O2d/O2dPage").then(m => ({ default: m.O2dPage })));
 const O2dNewOrderPage = lazy(() => import("../pages/O2d/NewOrderPage").then(m => ({ default: m.NewOrderPage })));
+
+/**
+ * `/o2d/<anything>` → `/fms/o2d/<anything>` (§1).
+ *
+ * A component rather than a static `<Navigate to="/fms/o2d/tasks">`, because a
+ * blanket redirect to the task list would quietly discard the rest of the URL:
+ * somebody following a link to `/o2d/orders/new` would land on My Tasks and
+ * conclude the link was broken. `useParams()["*"]` is the matched remainder,
+ * and the search string is carried too so a filtered tracker view survives.
+ */
+function LegacyO2dRedirect() {
+  const { "*": rest = "" } = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate to={`/fms/o2d/${rest}${search}${hash}`} replace />;
+}
 
 // ── Public careers (no session: an applicant has no account) ──────────────
 const CareersLayout = lazy(() => import("../pages/Careers/CareersLayout").then(m => ({ default: m.CareersLayout })));
@@ -132,23 +147,44 @@ export const router = createBrowserRouter([
           },
           {
             /**
-             * Order to Dispatch.
+             * FMS → O2D (§1).
+             *
+             * Nested as `fms/o2d` rather than flattened to `fms`, because FMS is
+             * the SECTION and O2D is one workflow inside it. A second FMS
+             * workflow later becomes a sibling here and moves none of these.
              *
              * Guarded by the PORTAL permission `view_o2d`, not by the HRMS
              * guard: Billing and Accounts hold no HRMS grant at all and are
              * exactly who this module is for.
              *
-             * `/o2d/orders/new` is declared BEFORE `/o2d/:tab`, or "orders"
-             * would be read as a tab name and the intake form would never
-             * render.
+             * `orders/new` is declared BEFORE `:tab`, or "orders" would be read
+             * as a tab name and the intake form would never render.
              */
-            path: "o2d",
+            path: "fms/o2d",
             element: <O2dProtectedRoute />,
             children: [
-              { index: true, element: <Navigate to="/o2d/tasks" replace /> },
+              { index: true, element: <Navigate to="/fms/o2d/tasks" replace /> },
               { path: "orders/new", element: <O2dNewOrderPage /> },
               { path: ":tab", element: <O2dPage /> },
             ],
+          },
+          {
+            /**
+             * The old `/o2d/...` URLs, forwarded.
+             *
+             * §1 renames a section; it does not invalidate every link already
+             * pasted into a chat, mailed in a notification, or bookmarked by
+             * the people who work these orders daily. `*` catches the whole
+             * subtree so `/o2d/orders` and `/o2d/orders/new` both survive, and
+             * `replace` keeps the dead URL out of the back button.
+             *
+             * Kept OUTSIDE the guarded branch on purpose: forwarding is not
+             * access, and a user without `view_o2d` should meet the guard at
+             * the destination — one refusal, in one place, rather than two
+             * behaviours depending on which URL they happened to use.
+             */
+            path: "o2d/*",
+            element: <LegacyO2dRedirect />,
           },
           {
             // HRMS. The tree below is unchanged from the Customer Portal, down

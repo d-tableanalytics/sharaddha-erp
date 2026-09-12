@@ -18,8 +18,9 @@ import {
 import { O2dApiError } from "../../services/o2d/client";
 import { OrderDrawer } from "./OrderDrawer";
 import { AnalyticsTab } from "./AnalyticsTab";
+import { StagesTab } from "./StagesTab";
 import { OrderStatusBadge, BucketBadge } from "./o2dShared";
-import { ORDER_STATUS } from "@shared/constants/o2d.js";
+import { ORDER_STATUS, o2dRoute } from "@shared/constants/o2d.js";
 
 /**
  * Order-to-Dispatch, as three tabs over one dataset.
@@ -38,7 +39,7 @@ import { ORDER_STATUS } from "@shared/constants/o2d.js";
  * THE TAB IS IN THE URL
  * ---------------------------------------------------------------------------
  *
- * `/o2d/:tab` — so a link to the Exit Register survives being pasted into chat,
+ * `/fms/o2d/:tab` — so a link to the Exit Register survives being pasted into chat,
  * and the back button moves between tabs the way a user expects. Same shape the
  * HRMS tabbed modules use.
  */
@@ -64,6 +65,9 @@ export function O2dPage() {
     () => [
       { key: "tasks", label: "My Tasks" },
       { key: "orders", label: "Order Tracker" },
+      // Every stage, as its own tab, one level down — see StagesTab for why the
+      // twelve are a second row rather than twelve more tabs up here.
+      { key: "stages", label: "Stages" },
       { key: "exits", label: "Exit Register" },
       // Its own permission, not VIEW_O2D. Seeing the orders you work is a
       // different thing from seeing how fast each team closes them, and the
@@ -80,16 +84,16 @@ export function O2dPage() {
 
   // An unknown or absent tab redirects rather than rendering nothing, so a
   // bare /o2d and a typo both land somewhere real.
-  if (!activeTab) return <Navigate to="/o2d/tasks" replace />;
+  if (!activeTab) return <Navigate to={o2dRoute("tasks")} replace />;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Order to Dispatch"
+        title="FMS — Order to Dispatch"
         subtitle="Every customer PO, from receipt to the AWB."
         actions={
           canCreate && (
-            <Button size="sm" onClick={() => navigate("/o2d/orders/new")}>
+            <Button size="sm" onClick={() => navigate(o2dRoute("orders", "new"))}>
               New order
             </Button>
           )
@@ -102,7 +106,7 @@ export function O2dPage() {
             key={t.key}
             role="tab"
             aria-selected={activeTab === t.key}
-            onClick={() => navigate(`/o2d/${t.key}`)}
+            onClick={() => navigate(o2dRoute(t.key))}
             className={`px-4 py-2 text-sm font-medium ${
               activeTab === t.key
                 ? "border-b-2 border-primary-600 text-primary-700"
@@ -116,6 +120,7 @@ export function O2dPage() {
 
       {activeTab === "tasks" && <MyTasksTab />}
       {activeTab === "orders" && <OrderTrackerTab />}
+      {activeTab === "stages" && <StagesTab />}
       {activeTab === "exits" && <ExitRegisterTab />}
       {activeTab === "analytics" && <AnalyticsTab />}
     </div>

@@ -261,6 +261,28 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
               <Field label="Invoice">{order.invoiceNumber}</Field>
               <Field label="Ordered qty">{order.totalOrderedQty ?? 0}</Field>
               <Field label="Dispatched qty">{order.totalDispatchedQty ?? 0}</Field>
+              {/*
+                §3 — where this order came from.
+                Rendered only when there IS a booking: an order keyed from an
+                emailed PO legitimately has none, and an empty "Booking —" cell
+                reads as missing data rather than as an absent relationship.
+              */}
+              {order.sourceBooking && (
+                <Field label="Customer booking">
+                  {order.sourceBooking.bookingId}
+                  {order.sourceBooking.bookingStatusAtLink && (
+                    <span
+                      className="ml-1 text-xs text-slate-500"
+                      // The booking's status WHEN LINKED, not now — the customer
+                      // side keeps moving it, and the tooltip says so rather
+                      // than letting a stale-looking word confuse the reader.
+                      title={`Booking status when it was linked on ${formatDate(order.sourceBooking.linkedAt)}`}
+                    >
+                      ({order.sourceBooking.bookingStatusAtLink} at link)
+                    </span>
+                  )}
+                </Field>
+              )}
             </dl>
 
             {order.promiseDateOverrideReason && (

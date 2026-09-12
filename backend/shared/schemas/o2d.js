@@ -106,6 +106,19 @@ export const createO2dOrderSchema = z.object({
   customer: objectId.nullish(),
   customerName: text(200),
 
+  /**
+   * The Customer Portal booking this PO came from (§3), if any.
+   *
+   * NOT an `objectId` — a booking is identified by its human-readable
+   * `orderId` (`BO-`/`SO-YYYY-######`) shared across its several line
+   * documents, so there is no single ObjectId that names one.
+   *
+   * Whether the booking exists, belongs to this customer, and is still
+   * unconverted is the service's to decide (see `resolveBookingForIntake`);
+   * all three need the database, which is the boundary this file describes.
+   */
+  sourceBookingId: optionalText(80),
+
   salesPerson: objectId.nullish(),
 
   promiseDate: isoDateTime.nullish(),
@@ -259,6 +272,25 @@ export const listO2dOrdersQuery = z.object({
   sortDir: z.enum(['asc', 'desc']).default('desc'),
 });
 
+/**
+ * The Sales booking picker (§3).
+ *
+ * `status` is a free string rather than an enum of the customer-side lifecycle:
+ * that vocabulary belongs to the Customer Portal's `Order` model and is versioned
+ * there. Mirroring it into the Employee Portal's shared constants would create a
+ * second copy that goes stale the next time the customer side adds a state, and
+ * the only cost of accepting an unknown value here is an empty result.
+ */
+export const listBookingsQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  /** Booking id, customer name, PO number, or SKU. */
+  search: z.string().trim().max(200).optional(),
+  status: z.string().trim().max(60).optional(),
+  /** Show bookings that already have an O2D order, flagged as such. */
+  includeConverted: z.coerce.boolean().default(false),
+});
+
 export const myTasksQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
@@ -282,6 +314,7 @@ export default {
   resumeOrderSchema,
   uploadO2dDocumentSchema,
   listO2dOrdersQuery,
+  listBookingsQuery,
   myTasksQuery,
   exitOrderSchema,
   reviveOrderSchema,

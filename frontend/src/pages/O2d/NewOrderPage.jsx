@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { o2dApi, formatDate } from "../../services/o2d/orders";
+import { o2dRoute } from "@shared/constants/o2d.js";
 import { O2dApiError } from "../../services/o2d/client";
 
 /**
@@ -51,6 +52,12 @@ export function NewOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fieldError, setFieldError] = useState(null);
 
+  // ── the Customer Portal booking behind this PO (§3) ─────────────────────
+  const [bookingSearch, setBookingSearch] = useState("");
+  const [bookingOptions, setBookingOptions] = useState([]);
+  const [booking, setBooking] = useState(null);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   // ── the live duplicate check ────────────────────────────────────────────
@@ -74,6 +81,74 @@ export function NewOrderPage() {
     const t = setTimeout(checkDuplicate, 400);
     return () => clearTimeout(t);
   }, [checkDuplicate]);
+
+  /**
+   * The bookings still waiting for an O2D order (§3).
+   *
+   * Loaded once on mount and re-queried as the user searches. The endpoint
+   * already hides bookings that have a live O2D order, so the list is "what
+   * still needs doing" rather than a full customer ledger.
+   *
+   * A failed load leaves the picker empty and says so rather than blocking the
+   * form: a PO that arrives by email has no booking behind it, and intake must
+   * stay possible when this lookup is unavailable.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    setBookingsLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const { rows } = await o2dApi.bookings({
+          search: bookingSearch.trim() || undefined,
+          pageSize: 25,
+        });
+        if (!cancelled) setBookingOptions(rows ?? []);
+      } catch {
+        if (!cancelled) setBookingOptions([]);
+      } finally {
+        if (!cancelled) setBookingsLoading(false);
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [bookingSearch]);
+
+  /**
+   * Picking a booking PREFILLS the form; it does not lock it.
+   *
+   * The customer name is copied because the server refuses a mismatch, so
+   * leaving the user to retype it exactly would be a trap. Everything else is a
+   * starting point they may correct — the PO number in particular, which is
+   * what the customer wrote on the paper PO and is often not what the portal
+   * generated.
+   */
+  const pickBooking = (row) => {
+    setBooking(row);
+    setForm((f) => ({
+      ...f,
+      customerName: row.customerName ?? f.customerName,
+      poNumber: f.poNumber || (row.poNumber && row.poNumber !== "-" ? row.poNumber : ""),
+      promiseDate: f.promiseDate || (row.promiseDate ? row.promiseDate.slice(0, 10) : ""),
+    }));
+
+    // The booking's lines are the obvious starting point for the order's, but
+    // only when the user has not already keyed some — overwriting typed work
+    // is never the helpful reading of a click.
+    const hasTyped = items.some((r) => r.skuCode.trim() || String(r.orderedQty).trim());
+    if (!hasTyped && row.lines?.length) {
+      setItems(
+        row.lines.map((l) => ({
+          skuCode: l.skuCode ?? "",
+          productName: "",
+          // What was actually confirmed, falling back to what was booked: a
+          // partially confirmed line should not silently order the full
+          // quantity the customer originally asked for.
+          orderedQty: String(l.confirmedQty || l.bookedQty || ""),
+        })),
+      );
+    }
+  };
+
+  const clearBooking = () => setBooking(null);
 
   // ── lines ───────────────────────────────────────────────────────────────
   const setLine = (index, key, value) =>
@@ -105,6 +180,9 @@ export function NewOrderPage() {
         // stamped explicitly rather than left to the browser's locale.
         poDate: new Date(`${form.poDate}T00:00:00+05:30`).toISOString(),
         customerName: form.customerName.trim(),
+        // §3 — the relationship to the Customer Portal booking, kept on the
+        // order. Null when this PO arrived without one, which is ordinary.
+        sourceBookingId: booking?.bookingId ?? null,
         promiseDate: form.promiseDate
           ? new Date(`${form.promiseDate}T00:00:00+05:30`).toISOString()
           : null,
@@ -117,7 +195,7 @@ export function NewOrderPage() {
       });
 
       toast.success(`${order.poNumber} created.`);
-      navigate("/o2d/orders");
+      navigate(o2dRoute("orders"));
     } catch (err) {
       const error = err instanceof O2dApiError ? err : new O2dApiError(err.message);
       if (error.isUserCorrectable) {
@@ -145,13 +223,118 @@ export function NewOrderPage() {
         title="New order"
         subtitle="Key in a customer PO. Stage 1 completes the moment it is saved."
         actions={
-          <Button variant="secondary" size="sm" onClick={() => navigate("/o2d/orders")}>
+          <Button variant="secondary" size="sm" onClick={() => navigate(o2dRoute("orders"))}>
             Cancel
           </Button>
         }
       />
 
       <form onSubmit={submit} className="flex flex-col gap-4">
+        {/*
+          §3 — the customer's booking, reviewed before the order is created.
+
+          FIRST on the page and OPTIONAL, which is the whole design. Most POs
+          that reach FMS started as a portal booking, and linking them is what
+          lets Order 360 answer "where did this come from". But a PO that
+          arrived by email has no booking, and an intake form that demanded one
+          would make those unenterable — so this prefills and links, and never
+          blocks.
+        */}
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-slate-800">Customer booking</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Link this PO to the booking it came from. Leave it blank for a PO that arrived
+            without one.
+          </p>
+
+          {booking ? (
+            <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-primary-900">
+                    {booking.bookingId} — {booking.customerName}
+                  </p>
+                  <p className="mt-0.5 text-xs text-primary-800">
+                    {booking.lineCount} line{booking.lineCount === 1 ? "" : "s"},{" "}
+                    {booking.totalConfirmedQty || booking.totalBookedQty} unit(s)
+                    {booking.bookedAt ? ` · booked ${formatDate(booking.bookedAt)}` : ""}
+                    {booking.status ? ` · ${booking.status}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-medium text-primary-800 underline"
+                  onClick={clearBooking}
+                >
+                  Unlink
+                </button>
+              </div>
+
+              {booking.lines?.length > 0 && (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="text-left text-primary-700">
+                      <tr>
+                        <th className="py-1 pr-3 font-medium">SKU</th>
+                        <th className="py-1 pr-3 font-medium">Booked</th>
+                        <th className="py-1 font-medium">Confirmed</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-primary-900">
+                      {booking.lines.map((l) => (
+                        <tr key={l.skuCode}>
+                          <td className="py-0.5 pr-3">{l.skuCode}</td>
+                          <td className="py-0.5 pr-3">{l.bookedQty}</td>
+                          <td className="py-0.5">{l.confirmedQty}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-3">
+              <label className="sr-only" htmlFor="bookingSearch">
+                Search customer bookings
+              </label>
+              <input
+                id="bookingSearch"
+                className={input}
+                placeholder="Search by booking id, customer, PO number or SKU"
+                value={bookingSearch}
+                onChange={(e) => setBookingSearch(e.target.value)}
+              />
+
+              <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-slate-200">
+                {bookingsLoading && (
+                  <p className="p-3 text-xs text-slate-500">Loading bookings…</p>
+                )}
+                {!bookingsLoading && bookingOptions.length === 0 && (
+                  <p className="p-3 text-xs text-slate-500">
+                    No bookings are waiting for an order. Key the PO in below.
+                  </p>
+                )}
+                {!bookingsLoading &&
+                  bookingOptions.map((row) => (
+                    <button
+                      key={row.bookingId}
+                      type="button"
+                      onClick={() => pickBooking(row)}
+                      className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                    >
+                      <span className="text-sm text-slate-800">{row.bookingId}</span>
+                      <span className="text-xs text-slate-500">
+                        {row.customerName} · {row.lineCount} line
+                        {row.lineCount === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="rounded-lg border border-slate-200 bg-white p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
@@ -257,7 +440,7 @@ export function NewOrderPage() {
               <button
                 type="button"
                 className="mt-1 text-xs font-medium underline"
-                onClick={() => navigate("/o2d/orders")}
+                onClick={() => navigate(o2dRoute("orders"))}
               >
                 Open the order tracker
               </button>
@@ -343,7 +526,7 @@ export function NewOrderPage() {
           <Button type="submit" disabled={submitting}>
             {submitting ? "Saving…" : "Create order"}
           </Button>
-          <Button type="button" variant="secondary" onClick={() => navigate("/o2d/orders")}>
+          <Button type="button" variant="secondary" onClick={() => navigate(o2dRoute("orders"))}>
             Cancel
           </Button>
         </div>
