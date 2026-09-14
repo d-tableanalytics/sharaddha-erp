@@ -255,9 +255,24 @@ router.post('/orders/:orderId/invoice', canWork, controller.createInvoice);
 router.get('/orders/:id/documents', canView, controller.listDocuments);
 router.post(
   '/orders/:id/documents',
-  // CREATE_O2D_ORDER rather than WORK_O2D_STAGE: attaching the customer's PO is
-  // part of keying the order in, and it happens before any stage is worked.
-  canCreate,
+  /*
+   * EITHER key, because uploading is now two different jobs.
+   *
+   * This was CREATE_O2D_ORDER alone, reasoned as "attaching the customer's PO
+   * is part of keying the order in, and it happens before any stage is worked".
+   * That was true until the stage-wise completion fields made a document a
+   * REQUIREMENT of closing a stage — stage 2 will not close without the PO copy
+   * and stage 12 will not close without the AWB/LR copy.
+   *
+   * Both of those stages are closed by Billing, who hold WORK_O2D_STAGE and not
+   * CREATE_O2D_ORDER. So the rule as written made a stage impossible to
+   * complete by the only role permitted to complete it: a 403 on the upload,
+   * then a refusal to close for the missing document.
+   *
+   * `authorize` passes on ANY of the listed keys, so intake keeps working
+   * exactly as before and stage work becomes possible.
+   */
+  authorize(PERMISSIONS.CREATE_O2D_ORDER, PERMISSIONS.WORK_O2D_STAGE),
   uploadDocumentFile,
   handleDocumentUploadErrors,
   controller.uploadDocument,

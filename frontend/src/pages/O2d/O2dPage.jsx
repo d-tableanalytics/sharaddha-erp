@@ -99,7 +99,10 @@ export function O2dPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="FMS — Order to Dispatch"
+        /* FMS is the system, O2D the workflow inside it — the same nesting
+           the rail now shows, rather than one hyphenated name. */
+        eyebrow="FMS"
+        title="Order to Dispatch"
         subtitle="Every customer PO, from receipt to the AWB."
         actions={
           canCreate && (
