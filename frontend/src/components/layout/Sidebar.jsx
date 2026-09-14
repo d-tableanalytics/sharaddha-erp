@@ -1,9 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-<<<<<<< HEAD
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, BarChart3 } from "lucide-react";
-=======
 import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
->>>>>>> origin/main
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
