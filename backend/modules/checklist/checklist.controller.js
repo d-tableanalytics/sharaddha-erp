@@ -37,9 +37,12 @@ const endOfDay = (d) => {
  * Generate all planned dates between start and end for a given frequency.
  */
 function generateDates(startDate, endDate, frequency) {
+  if (frequency === 'once') {
+    return [new Date(startDate)];
+  }
   const dates = [];
   const current = new Date(startDate);
-  const end = new Date(endDate);
+  const end = new Date(endDate || startDate);
 
   while (current <= end) {
     dates.push(new Date(current));
@@ -345,23 +348,25 @@ export async function createRoutine(req, res, next) {
     const doerFirstName = nameParts[0] || '';
     const doerLastName = nameParts.slice(1).join(' ') || '';
 
+    const resolvedEndDate = (frequency === 'once' && !endDate) ? startDate : (endDate || startDate);
+
     const routine = await ChecklistRoutine.create({
       taskName,
       taskCode,
-      frequency,
+      frequency: frequency || 'daily',
       doer,
       doerFirstName,
       doerLastName,
       department: department || '',
       site: site || 'HO',
       startDate,
-      endDate,
+      endDate: resolvedEndDate,
       proofRequired: proofRequired || false,
       createdBy: req.user._id,
     });
 
     // Generate occurrences
-    const dates = generateDates(startDate, endDate, frequency);
+    const dates = generateDates(startDate, resolvedEndDate, frequency);
     const occurrences = dates.map((plannedDate) => ({
       routine: routine._id,
       taskName,

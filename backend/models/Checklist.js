@@ -19,7 +19,7 @@ const remarkSchema = new mongoose.Schema({
 const routineSchema = new mongoose.Schema({
   taskName:      { type: String, required: true, trim: true },
   taskCode:      { type: String, required: true, unique: true, uppercase: true, trim: true },
-  frequency:     { type: String, enum: ['daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'], required: true },
+  frequency:     { type: String, enum: ['once', 'daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'], required: true },
   doer:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   doerFirstName: { type: String, default: '' },
   doerLastName:  { type: String, default: '' },
@@ -55,7 +55,7 @@ const occurrenceSchema = new mongoose.Schema({
   doerLastName:  { type: String, default: '' },
   department:    { type: String, default: '' },
   site:          { type: String, default: 'HO' },
-  frequency:     { type: String, enum: ['daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'] },
+  frequency:     { type: String, enum: ['once', 'daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'] },
   plannedDate:   { type: Date, required: true },
   /**
    * Status stored on disk. 'pending' is the initial state. 'overdue' is

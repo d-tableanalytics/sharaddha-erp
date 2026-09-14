@@ -46,7 +46,7 @@ import {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const ADMIN_ROLES = ['Super Admin', 'Admin', 'Management', 'HR'];
-const FREQUENCIES = ['daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'];
+const FREQUENCIES = ['once', 'daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'];
 const STATUSES = ['pending', 'overdue', 'completed', 'non-functional'];
 
 const isManager = (user) =>
@@ -439,7 +439,7 @@ export function ChecklistPage() {
           >
             <option value="">All Frequencies</option>
             {FREQUENCIES.map((f) => (
-              <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
+              <option key={f} value={f}>{f === 'once' ? 'One-time' : f.charAt(0).toUpperCase() + f.slice(1)}</option>
             ))}
           </select>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
