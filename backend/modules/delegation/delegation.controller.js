@@ -576,7 +576,10 @@ export async function getCategories(req, res, next) {
  */
 export async function getUsers(req, res, next) {
   try {
-    const users = await User.find({ status: 'Active' })
+    const users = await User.find({
+      status: 'Active',
+      role: { $nin: ['Customer', 'MSIL', 'customer', 'msil'] },
+    })
       .select('user email role')
       .sort({ user: 1 })
       .lean();
@@ -905,6 +908,102 @@ export async function deleteDelegation(req, res, next) {
     });
 
     res.json({ success: true, message: 'Task deleted successfully', data: task });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/v1/delegation/bulk-status
+ * Bulk update status for multiple delegated tasks.
+ */
+export async function bulkUpdateStatus(req, res, next) {
+  try {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0 || !status) {
+      return res.status(400).json({ success: false, message: 'Task IDs array and status are required' });
+    }
+
+    const validStatuses = ['Pending', 'In Progress', 'Awaiting Verification', 'Completed', 'Need Revision'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: `Invalid status: ${status}` });
+    }
+
+    const updateFields = { status };
+    if (status === 'Completed') {
+      updateFields.completedAt = new Date();
+      updateFields.verifiedAt = new Date();
+      updateFields.verifiedBy = req.user._id;
+    }
+
+    const result = await Delegation.updateMany(
+      { _id: { $in: ids }, isDeleted: false },
+      { $set: updateFields }
+    );
+
+    // Asynchronously log activities for each task
+    for (const id of ids) {
+      logActivity({
+        type: 'status_changed',
+        title: 'Status Updated',
+        description: `Status changed to ${status} via bulk update`,
+        userId: req.user._id,
+        relatedId: id,
+      }).catch(() => {});
+    }
+
+    res.json({
+      success: true,
+      message: `Updated status for ${result.modifiedCount} task(s)`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/v1/delegation/bulk-delete
+ * Bulk soft-delete multiple delegated tasks.
+ */
+export async function bulkDeleteDelegations(req, res, next) {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'Task IDs array is required' });
+    }
+
+    const userName = req.user.user || req.user.name || 'Admin';
+    const nameParts = userName.trim().split(' ');
+
+    const result = await Delegation.updateMany(
+      { _id: { $in: ids } },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: req.user._id,
+          deletedByFirstName: nameParts[0] || 'Admin',
+          deletedByLastName: nameParts.slice(1).join(' ') || '',
+        },
+      }
+    );
+
+    for (const id of ids) {
+      logActivity({
+        type: 'deleted',
+        title: 'Task Deleted',
+        description: 'Task moved to trash bin via bulk delete',
+        userId: req.user._id,
+        relatedId: id,
+      }).catch(() => {});
+    }
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.modifiedCount} task(s)`,
+      deletedCount: result.modifiedCount,
+    });
   } catch (err) {
     next(err);
   }

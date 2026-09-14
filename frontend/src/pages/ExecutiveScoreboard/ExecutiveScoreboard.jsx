@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Trophy,
   Building2,
-  RefreshCw,
   Download,
   Search,
   Target,
@@ -498,19 +497,6 @@ export function ExecutiveScoreboard() {
             ))}
           </div>
 
-          {/* Refresh Button */}
-          <button
-            type="button"
-            onClick={() => loadData(true)}
-            disabled={loading || refreshing}
-            title="Refresh Scoreboard"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-semibold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`}
-            />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
 
           {/* Excel Export Button */}
           <button

@@ -456,6 +456,18 @@ export function Activities() {
     }
   };
 
+  const handleDeleteTask = async () => {
+    if (!selectedTaskId) return;
+    try {
+      await delegationService.deleteDelegation(selectedTaskId);
+      toast.success('Task moved to Trash Bin');
+      handleCloseDetails();
+      fetchActivities(true);
+    } catch {
+      toast.error('Failed to delete task');
+    }
+  };
+
   // If user is loaded and not admin, show access notice
   if (user && !isAdmin) {
     return (
@@ -855,6 +867,7 @@ export function Activities() {
         onReviseDueDate={handleReviseDueDate}
         onAddReminder={handleAddReminder}
         onAddFollowUp={handleAddFollowUp}
+        onDeleteTask={handleDeleteTask}
       />
     </div>
   );

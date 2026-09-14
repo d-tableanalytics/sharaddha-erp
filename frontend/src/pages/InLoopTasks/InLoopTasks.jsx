@@ -543,6 +543,18 @@ export function InLoopTasks() {
     fetchData();
   };
 
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await delegationService.deleteDelegation(taskId);
+      toast.success('Task moved to Trash Bin');
+      handleCloseDrawer();
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete task');
+      throw err;
+    }
+  };
+
   // ── Excel / CSV Export ───────────────────────────────────────────────────
   const handleExport = () => {
     if (filteredTasks.length === 0) {
@@ -1427,6 +1439,7 @@ export function InLoopTasks() {
         onReviseDueDate={handleReviseDueDate}
         onAddReminder={handleAddReminder}
         onAddFollowUp={handleAddFollowUp}
+        onDeleteTask={handleDeleteTask}
       />
     </div>
   );

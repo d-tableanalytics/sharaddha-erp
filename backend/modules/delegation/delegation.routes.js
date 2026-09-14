@@ -18,6 +18,8 @@ import {
   getDeletedDelegations,
   restoreDelegation,
   deleteDelegation,
+  bulkUpdateStatus,
+  bulkDeleteDelegations,
 } from './delegation.controller.js';
 
 const router = express.Router();
@@ -31,6 +33,10 @@ router.get('/meta/users', getUsers);
 
 // Deleted Tasks (Trash Bin) - MUST be declared before /:id
 router.get('/deleted', getDeletedDelegations);
+
+// Bulk Operations - MUST be declared before /:id
+router.post('/bulk-status', bulkUpdateStatus);
+router.post('/bulk-delete', bulkDeleteDelegations);
 
 // Tasks Read & Write
 router.get('/', getDelegations);

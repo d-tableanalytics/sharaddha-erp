@@ -48,6 +48,10 @@ export const delegationService = {
   deleteDelegation:      (id)       => del(`/${id}`),
   restoreDelegation:     (id)       => patch(`/${id}/restore`),
 
+  // Bulk Operations
+  bulkUpdateStatus:      (ids, status) => post('/bulk-status', { ids, status }),
+  bulkDelete:            (ids)         => post('/bulk-delete', { ids }),
+
   // Lifecycle actions
   verifyAndComplete: (id, data) => post(`/${id}/verify`, data),
 

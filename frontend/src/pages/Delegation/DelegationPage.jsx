@@ -356,6 +356,18 @@ export function DelegationPage() {
     fetchData();
   };
 
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await delegationService.deleteDelegation(taskId);
+      toast.success('Task moved to Trash Bin');
+      setSelectedTask(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete task');
+      throw err;
+    }
+  };
+
   // ── Export to Excel / CSV ────────────────────────────────────────────────
   const handleExport = () => {
     if (filteredTasks.length === 0) {
@@ -924,6 +936,7 @@ const KPI_CARDS = [
         onReviseDueDate={handleReviseDueDate}
         onAddReminder={handleAddReminder}
         onAddFollowUp={handleAddFollowUp}
+        onDeleteTask={handleDeleteTask}
       />
     </div>
   );

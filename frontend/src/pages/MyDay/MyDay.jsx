@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
-  RefreshCw,
   ClipboardList,
   Repeat,
   Radio,
@@ -550,16 +549,6 @@ export function MyDay() {
             </p>
           </div>
         </div>
-
-        <button
-          onClick={() => loadData(true)}
-          disabled={refreshing}
-          title="Refresh work items"
-          className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-[#1E4C92]" : "text-slate-500"}`} />
-          <span>Refresh</span>
-        </button>
       </div>
 
       {/* 2. Task Type Segmented Switcher */}

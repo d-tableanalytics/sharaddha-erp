@@ -520,19 +520,6 @@ export function DeletedTasks() {
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={fetchAllData}
-            disabled={loading}
-            title="Refresh deleted tasks"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
       </div>
 
       {/* ── 2. TOOLBAR & MULTI-FACTOR FILTER CONTROLS ───────────────────── */}

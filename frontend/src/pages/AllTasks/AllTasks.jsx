@@ -1,6 +1,29 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { LayoutGrid, CheckSquare, RotateCcw, Search, FileUp, List, Layout, Calendar as CalendarIcon, X, SlidersHorizontal, ChevronDown, Clock, User, Folder, Flag, Tag, MoreVertical, Mic, Paperclip, } from 'lucide-react';
+import {
+  LayoutGrid,
+  CheckSquare,
+  RotateCcw,
+  Search,
+  FileUp,
+  List,
+  Layout,
+  Calendar as CalendarIcon,
+  X,
+  SlidersHorizontal,
+  ChevronDown,
+  Clock,
+  User,
+  Folder,
+  Flag,
+  Tag,
+  MoreVertical,
+  Mic,
+  Paperclip,
+  Recycle,
+  Trash2,
+  Loader2,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { useUserStore } from '../../store/userStore';
@@ -20,6 +43,15 @@ const STATUS_TABS = [
   { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500' },
   { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-blue-500' },
   { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500' },
+];
+
+// Bulk status change options
+const BULK_STATUS_OPTIONS = [
+  { status: 'Pending', label: 'Pending', dot: 'bg-slate-400', desc: 'Not started yet' },
+  { status: 'In Progress', label: 'In Progress', dot: 'bg-orange-500', desc: 'Currently being worked on' },
+  { status: 'Awaiting Verification', label: 'Awaiting Verification', dot: 'bg-blue-500', desc: 'Waiting for sign-off' },
+  { status: 'Completed', label: 'Completed', dot: 'bg-emerald-500', desc: 'Finished and verified' },
+  { status: 'Need Revision', label: 'Need Revision', dot: 'bg-amber-500', desc: 'Requires rework' },
 ];
 
 // Helper: Extract initials
@@ -221,6 +253,26 @@ export function AllTasks() {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isFilterFlyoutOpen]);
+
+  // ── Bulk actions states ──────────────────────────────────────────────────
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const statusDropdownRef = useRef(null);
+
+  // Dismiss status dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target)) {
+        setIsStatusDropdownOpen(false);
+      }
+    }
+    if (isStatusDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isStatusDropdownOpen]);
 
   // ── Fetch Initial Data ───────────────────────────────────────────────────
   const fetchAllData = useCallback(async () => {
@@ -571,6 +623,46 @@ export function AllTasks() {
     }
   };
 
+  // ── Bulk Actions Handlers ────────────────────────────────────────────────
+  const handleBulkStatusChange = async (newStatus) => {
+    if (selectedIds.length === 0) {
+      toast.error('Please select at least one task');
+      return;
+    }
+    setIsBulkUpdating(true);
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Updating ${count} task(s) to "${newStatus}"...`);
+    try {
+      await delegationService.bulkUpdateStatus(selectedIds, newStatus);
+      toast.success(`Successfully updated ${count} task(s) to "${newStatus}"`, { id: toastId });
+      setSelectedIds([]);
+      setIsStatusDropdownOpen(false);
+      fetchAllData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update selected tasks', { id: toastId });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkDeleting(true);
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Deleting ${count} task(s)...`);
+    try {
+      await delegationService.bulkDelete(selectedIds);
+      toast.success(`Successfully moved ${count} task(s) to Trash Bin`, { id: toastId });
+      setSelectedIds([]);
+      setShowBulkDeleteModal(false);
+      fetchAllData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete selected tasks', { id: toastId });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   // ── Drawer Handlers ──────────────────────────────────────────────────────
   const handleOpenDetails = (task) => {
     setSelectedTaskId(task._id);
@@ -648,6 +740,18 @@ export function AllTasks() {
     fetchAllData();
   };
 
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await delegationService.deleteDelegation(taskId);
+      toast.success('Task moved to Trash Bin');
+      handleCloseDetails();
+      fetchAllData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete task');
+      throw err;
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* ── 1. HEADER & PRIMARY ACTIONS ──────────────────────────────────── */}
@@ -663,17 +767,6 @@ export function AllTasks() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={fetchAllData}
-            disabled={loading}
-            title="Refresh all tasks"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`} />
-            <span>Refresh</span>
-          </button>
-
           <button
             type="button"
             onClick={() => setShowTaskDrawer(true)}
@@ -763,8 +856,8 @@ export function AllTasks() {
             type="button"
             onClick={() => setIsFilterFlyoutOpen((prev) => !prev)}
             className={`h-11 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${isFilterFlyoutOpen || activeFilterCount > 0
-                ? 'bg-[#1E4C92]/10 border border-[#1E4C92]/30 text-[#1E4C92]'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#1E4C92]'
+              ? 'bg-[#1E4C92]/10 border border-[#1E4C92]/30 text-[#1E4C92]'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#1E4C92]'
               }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -944,8 +1037,8 @@ export function AllTasks() {
             onClick={() => setViewMode('list')}
             title="List View"
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'list'
-                ? 'bg-[#1E4C92] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              ? 'bg-[#1E4C92] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
             <List className="w-3.5 h-3.5" />
@@ -956,8 +1049,8 @@ export function AllTasks() {
             onClick={() => setViewMode('kanban')}
             title="Kanban Board View"
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'kanban'
-                ? 'bg-[#1E4C92] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              ? 'bg-[#1E4C92] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
             <Layout className="w-3.5 h-3.5" />
@@ -968,8 +1061,8 @@ export function AllTasks() {
             onClick={() => setViewMode('calendar')}
             title="Calendar Schedule View"
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'calendar'
-                ? 'bg-[#1E4C92] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              ? 'bg-[#1E4C92] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
             <CalendarIcon className="w-3.5 h-3.5" />
@@ -1132,20 +1225,128 @@ export function AllTasks() {
         ) : (
           /* ── 6A. List View (Default) ─────────────────────────────────── */
           <div className="space-y-3">
-            {/* Header selection control */}
-            <div className="flex items-center justify-between px-2 py-1 text-xs font-bold text-slate-500">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={
-                    filteredTasks.length > 0 &&
-                    filteredTasks.every((t) => selectedIds.includes(t._id))
-                  }
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
-                />
-                <span>Select All ({selectedIds.length}/{filteredTasks.length})</span>
-              </label>
+            {/* Header selection control & Bulk Action Bar */}
+            <div
+              className={`flex flex-wrap items-center justify-between gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                selectedIds.length > 0
+                  ? 'bg-[#1E4C92]/5 border border-[#1E4C92]/20 shadow-xs'
+                  : 'bg-white/60 border border-slate-200/80 text-slate-500'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={
+                      filteredTasks.length > 0 &&
+                      filteredTasks.every((t) => selectedIds.includes(t._id))
+                    }
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                  />
+                  <span className={selectedIds.length > 0 ? 'text-[#1E4C92]' : 'text-slate-600'}>
+                    Select All ({selectedIds.length}/{filteredTasks.length})
+                  </span>
+                </label>
+
+                {selectedIds.length > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#1E4C92] text-white shadow-xs">
+                      {selectedIds.length} Selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIds([])}
+                      className="text-[11px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
+                    >
+                      Deselect
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Bulk Action Controls */}
+              <div className="flex items-center gap-2">
+                {/* 1. Status Update Dropdown */}
+                <div className="relative" ref={statusDropdownRef}>
+                  <button
+                    type="button"
+                    disabled={selectedIds.length === 0 || isBulkUpdating}
+                    onClick={() => setIsStatusDropdownOpen((prev) => !prev)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                      selectedIds.length === 0
+                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                        : isStatusDropdownOpen
+                          ? 'bg-[#1E4C92] text-white border border-[#1E4C92] shadow-sm'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-[#1E4C92] border border-slate-200 hover:border-[#1E4C92]/40 shadow-xs cursor-pointer active:scale-95'
+                    }`}
+                    title={selectedIds.length === 0 ? 'Select tasks to update status' : 'Update status for selected tasks'}
+                  >
+                    {isBulkUpdating ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <span>Status update</span>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                        isStatusDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Popover */}
+                  {isStatusDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                          Set Status ({selectedIds.length} Task{selectedIds.length > 1 ? 's' : ''})
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {BULK_STATUS_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.status}
+                            type="button"
+                            onClick={() => handleBulkStatusChange(opt.status)}
+                            className="w-full px-2.5 py-2 rounded-xl text-left hover:bg-slate-50 flex items-center justify-between group cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.dot}`} />
+                              <div>
+                                <p className="text-xs font-bold text-slate-700 group-hover:text-[#1E4C92]">
+                                  {opt.label}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                  {opt.desc}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-slate-300 group-hover:text-[#1E4C92] font-bold">
+                              Apply →
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Delete Button */}
+                <button
+                  type="button"
+                  disabled={selectedIds.length === 0 || isBulkDeleting}
+                  onClick={() => setShowBulkDeleteModal(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                    selectedIds.length === 0
+                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 shadow-xs cursor-pointer active:scale-95'
+                  }`}
+                  title={selectedIds.length === 0 ? 'Select tasks to delete' : 'Delete selected tasks'}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}</span>
+                </button>
+              </div>
             </div>
 
             {filteredTasks.map((task) => {
@@ -1191,12 +1392,12 @@ export function AllTasks() {
                 <div
                   key={task._id}
                   className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-xs hover:shadow-md ${isAssignerVerificationCue
-                      ? 'ring-2 ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-blue-50/10 border-blue-400'
-                      : isHighlighted
-                        ? 'ring-2 ring-[#1E4C92] shadow-[0_0_20px_rgba(30,76,146,0.3)] border-[#1E4C92]'
-                        : isExpanded
-                          ? 'border-[#1E4C92]/40 ring-2 ring-[#1E4C92]/10'
-                          : 'border-slate-200 hover:border-slate-300'
+                    ? 'ring-2 ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-blue-50/10 border-blue-400'
+                    : isHighlighted
+                      ? 'ring-2 ring-[#1E4C92] shadow-[0_0_20px_rgba(30,76,146,0.3)] border-[#1E4C92]'
+                      : isExpanded
+                        ? 'border-[#1E4C92]/40 ring-2 ring-[#1E4C92]/10'
+                        : 'border-slate-200 hover:border-slate-300'
                     }`}
                 >
                   {/* Dashboard highlight banner */}
@@ -1446,6 +1647,7 @@ export function AllTasks() {
         onReviseDueDate={handleReviseDueDate}
         onAddReminder={handleAddReminder}
         onAddFollowUp={handleAddFollowUp}
+        onDeleteTask={handleDeleteTask}
       />
 
       {/* 3. Task Drilldown Drawer */}
@@ -1465,6 +1667,79 @@ export function AllTasks() {
         tasks={scopedTasks}
         users={users}
       />
+
+      {/* 5. Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+            {/* Modal Icon & Header */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-slate-800 leading-snug">
+                  Delete {selectedIds.length} Selected Task{selectedIds.length > 1 ? 's' : ''}?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  These tasks will be soft-deleted and moved to the Trash Bin. You can restore them anytime from the Trash view.
+                </p>
+              </div>
+            </div>
+
+            {/* Selected Tasks Preview */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5 max-h-36 overflow-y-auto">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+                Tasks to be deleted:
+              </span>
+              {filteredTasks
+                .filter((t) => selectedIds.includes(t._id))
+                .slice(0, 4)
+                .map((t) => (
+                  <div key={t._id} className="flex items-center gap-2 text-xs font-semibold text-slate-700 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                    <span className="truncate">{t.taskTitle || 'Untitled Task'}</span>
+                  </div>
+                ))}
+              {selectedIds.length > 4 && (
+                <p className="text-[11px] font-bold text-slate-400 pl-3.5">
+                  + {selectedIds.length - 4} more task(s)
+                </p>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDeleteConfirm}
+                className="flex items-center gap-2 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {isBulkDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete {selectedIds.length} Task{selectedIds.length > 1 ? 's' : ''}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

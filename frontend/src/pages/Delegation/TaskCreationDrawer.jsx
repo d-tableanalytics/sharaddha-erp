@@ -1,34 +1,18 @@
-import { useState, useEffect } from 'react';
-import {
-  X,
-  Plus,
-  Trash2,
-  Calendar,
-  Users,
-  CheckSquare,
-  ShieldCheck,
-  Tag,
-  Loader2,
-  FileText,
-  Clock,
-  Flag,
-  Folder,
-} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { X, Plus, Trash2, CheckSquare, ShieldCheck, Loader2, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export function TaskCreationDrawer({
-  isOpen,
-  onClose,
-  users = [],
-  categories = [],
-  onSubmit,
-}) {
+export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [], onSubmit }) {
+
   const [taskTitle, setTaskTitle] = useState('');
   const [description, setDescription] = useState('');
   const [doerId, setDoerId] = useState('');
   const [inLoopIds, setInLoopIds] = useState([]);
   const [priority, setPriority] = useState('Medium');
   const [category, setCategory] = useState('Operations');
+  const [customCategories, setCustomCategories] = useState([]);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState([]);
   const [startDate, setStartDate] = useState(
@@ -41,12 +25,58 @@ export function TaskCreationDrawer({
   const [subtasks, setSubtasks] = useState(['']);
   const [submitting, setSubmitting] = useState(false);
 
-  // Set default doer when users load
+
+  // Filter only internal members (exclude customer accounts)
+  const internalMembers = useMemo(() => {
+    return (users || []).filter((u) => {
+      if (!u) return false;
+      const role = String(u.role || '').trim().toLowerCase();
+      if (!role || role === 'customer' || role === 'msil') return false;
+      if (u.customerName || u.customerCategory) return false;
+      return true;
+    });
+  }, [users]);
+
+  // Default fallback categories if none passed
+  const defaultCategories = useMemo(
+    () => ['Operations', 'Finance', 'Logistics', 'Compliance', 'HR', 'IT', 'Marketing', 'Sales'],
+    []
+  );
+
+  // Merged available categories (prop categories + custom created categories)
+  const availableCategories = useMemo(() => {
+    const base = categories && categories.length > 0 ? categories : defaultCategories;
+    return Array.from(new Set([...base, ...customCategories]));
+  }, [categories, defaultCategories, customCategories]);
+
+  // Ensure selected category is valid within available categories
   useEffect(() => {
-    if (users.length > 0 && !doerId) {
-      setDoerId(users[0]._id);
+    if (availableCategories.length > 0 && !isCreatingCategory) {
+      if (!category || (!availableCategories.includes(category) && category !== '__new__')) {
+        setCategory(availableCategories[0]);
+      }
     }
-  }, [users, doerId]);
+  }, [availableCategories, category, isCreatingCategory]);
+
+  // Reset category creator when drawer closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+    }
+  }, [isOpen]);
+
+  // Set default doer when internal members load
+  useEffect(() => {
+    if (internalMembers.length > 0) {
+      const isValidDoer = internalMembers.some((u) => u._id === doerId);
+      if (!isValidDoer) {
+        setDoerId(internalMembers[0]._id);
+      }
+    } else if (internalMembers.length === 0 && doerId) {
+      setDoerId('');
+    }
+  }, [internalMembers, doerId]);
 
   if (!isOpen) return null;
 
@@ -81,6 +111,33 @@ export function TaskCreationDrawer({
     setTags(tags.filter((t) => t.name !== tagName));
   };
 
+  const handleAddNewCategory = () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      toast.error('Please enter a category name');
+      return;
+    }
+    const existing = availableCategories.find(
+      (c) => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setCategory(existing);
+    } else {
+      setCustomCategories((prev) => [...prev, trimmed]);
+      setCategory(trimmed);
+    }
+    setIsCreatingCategory(false);
+    setNewCategoryName('');
+  };
+
+  const handleCancelNewCategory = () => {
+    setIsCreatingCategory(false);
+    setNewCategoryName('');
+    if (!category || category === '__new__') {
+      setCategory(availableCategories[0] || 'Operations');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!taskTitle.trim() || !doerId || !dueDate) {
@@ -88,8 +145,21 @@ export function TaskCreationDrawer({
       return;
     }
 
-    const selectedDoer = users.find((u) => u._id === doerId);
-    const selectedInLoop = users
+    let finalCategory = category;
+    if (isCreatingCategory) {
+      const trimmed = newCategoryName.trim();
+      if (!trimmed) {
+        toast.error('Please enter a category name or cancel');
+        return;
+      }
+      finalCategory = trimmed;
+      if (!availableCategories.includes(trimmed)) {
+        setCustomCategories((prev) => [...prev, trimmed]);
+      }
+    }
+
+    const selectedDoer = internalMembers.find((u) => u._id === doerId) || users.find((u) => u._id === doerId);
+    const selectedInLoop = internalMembers
       .filter((u) => inLoopIds.includes(u._id))
       .map((u) => ({ userId: u._id, name: u.user, email: u.email }));
 
@@ -106,7 +176,7 @@ export function TaskCreationDrawer({
         assigneeHierarchy: `${selectedDoer?.user || 'Member'} → ${selectedDoer?.role || 'Team'}`,
         inLoop: selectedInLoop,
         priority,
-        category,
+        category: finalCategory,
         tags,
         startDate,
         dueDate,
@@ -122,6 +192,8 @@ export function TaskCreationDrawer({
       setTags([]);
       setSubtasks(['']);
       setDueDate('');
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
       onClose();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create task');
@@ -204,29 +276,84 @@ export function TaskCreationDrawer({
                 required
                 className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
               >
-                {users.map((u) => (
-                  <option key={u._id} value={u._id}>
-                    {u.user || u.email} ({u.role || 'Member'})
-                  </option>
-                ))}
+                {internalMembers.length === 0 ? (
+                  <option value="" disabled>No internal members available</option>
+                ) : (
+                  internalMembers.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.user || u.email} ({u.role || 'Member'})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
-                Category
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                  Category
+                </label>
+
+              </div>
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                value={isCreatingCategory ? '__new__' : category}
+                onChange={(e) => {
+                  if (e.target.value === '__new__') {
+                    setIsCreatingCategory(true);
+                    setNewCategoryName('');
+                  } else {
+                    setIsCreatingCategory(false);
+                    setCategory(e.target.value);
+                  }
+                }}
                 className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
               >
-                {categories.map((cat) => (
+                {availableCategories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
                 ))}
+                <option value="__new__" className="font-bold text-[#1E4C92]">
+                 + New Category
+                </option>
               </select>
+
+              {isCreatingCategory && (
+                <div className="mt-2 flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddNewCategory();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        handleCancelNewCategory();
+                      }
+                    }}
+                    placeholder="Enter custom category name..."
+                    className="flex-1 h-9 px-3 text-xs font-semibold text-slate-800 bg-white border border-blue-300 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddNewCategory}
+                    className="h-8 px-3 text-xs font-bold text-white bg-[#1E4C92] hover:bg-[#15386b] rounded-md transition-colors shrink-0 flex items-center gap-1 shadow-xs"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelNewCategory}
+                    className="h-9 px-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors shrink-0"
+                    title="Cancel"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -236,7 +363,7 @@ export function TaskCreationDrawer({
               In-Loop Stakeholders (Cc)
             </label>
             <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl min-h-[44px]">
-              {users
+              {internalMembers
                 .filter((u) => u._id !== doerId)
                 .map((u) => {
                   const selected = inLoopIds.includes(u._id);
@@ -251,16 +378,18 @@ export function TaskCreationDrawer({
                           setInLoopIds([...inLoopIds, u._id]);
                         }
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                        selected
-                          ? 'bg-[#1E4C92] text-white shadow-xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${selected
+                        ? 'bg-[#1E4C92] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                        }`}
                     >
                       {u.user || u.email}
                     </button>
                   );
                 })}
+              {internalMembers.filter((u) => u._id !== doerId).length === 0 && (
+                <span className="text-xs text-slate-400 p-1">No other internal members to loop in</span>
+              )}
             </div>
           </div>
 
@@ -277,11 +406,10 @@ export function TaskCreationDrawer({
                     key={p.label}
                     type="button"
                     onClick={() => setPriority(p.label)}
-                    className={`py-2 px-1 text-center rounded-xl border text-xs font-black transition-all ${
-                      active
-                        ? 'bg-[#1E4C92] text-white border-[#1E4C92] shadow-sm'
-                        : `${p.color} bg-white hover:bg-slate-50`
-                    }`}
+                    className={`py-2 px-1 text-center rounded-xl border text-xs font-black transition-all ${active
+                      ? 'bg-[#1E4C92] text-white border-[#1E4C92] shadow-sm'
+                      : `${p.color} bg-white hover:bg-slate-50`
+                      }`}
                   >
                     {p.label}
                   </button>
