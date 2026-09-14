@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -7,6 +7,7 @@ import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
 import {
   canOpenUserManagement, canManageRoles, canUseO2d, hasPermission, PERMISSIONS,
 } from "../../utils/permissions";
+import { o2dRoute } from "@shared/constants/o2d.js";
 import {
   visibleHrmsNavItems,
   groupHrmsNavItems,
@@ -162,17 +163,16 @@ export const Sidebar = () => {
    */
   const o2dSections = canUseO2d(user)
     ? [{
-<<<<<<< HEAD
         key: "o2d",
         label: "O2D",
         items: [
-          { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: "/fms/o2d/tasks", icon: ListChecks },
-          { id: "o2d:orders", key: "orders", label: "Order Tracker", path: "/fms/o2d/orders", icon: Truck },
-          { id: "o2d:stages", key: "stages", label: "Stages", path: "/fms/o2d/stages", icon: LayoutGrid },
-          { id: "o2d:history", key: "history", label: "Order History", path: "/fms/o2d/history", icon: History },
-          { id: "o2d:exits", key: "exits", label: "Exit Register", path: "/fms/o2d/exits", icon: Ban },
+          { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: o2dRoute("tasks"), icon: ListChecks },
+          { id: "o2d:orders", key: "orders", label: "Order Tracker", path: o2dRoute("orders"), icon: Truck },
+          { id: "o2d:stages", key: "stages", label: "Stages", path: o2dRoute("stages"), icon: LayoutGrid },
+          { id: "o2d:history", key: "history", label: "Order History", path: o2dRoute("history"), icon: History },
+          { id: "o2d:exits", key: "exits", label: "Exit Register", path: o2dRoute("exits"), icon: Ban },
           ...(hasPermission(user, PERMISSIONS.VIEW_O2D_ANALYTICS)
-            ? [{ id: "o2d:analytics", key: "analytics", label: "Analytics", path: "/fms/o2d/analytics", icon: BarChart3 }]
+            ? [{ id: "o2d:analytics", key: "analytics", label: "Analytics", path: o2dRoute("analytics"), icon: BarChart3 }]
             : []),
         ],
       }]
@@ -193,17 +193,6 @@ export const Sidebar = () => {
           items: o2dSections.flatMap((sec) => sec.items),
         }]
       : [];
-=======
-      key: "o2d",
-      label: "Order to Dispatch",
-      icon: Truck,
-      items: [
-        { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: "/o2d/tasks", icon: ListChecks },
-        { id: "o2d:orders", key: "orders", label: "Order Tracker", path: "/o2d/orders", icon: Truck },
-        { id: "o2d:exits", key: "exits", label: "Exit Register", path: "/o2d/exits", icon: Ban },
-      ],
-    }]
-    : [];
 
 
   /*
@@ -242,7 +231,6 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
     }]
     : [];
 
->>>>>>> origin/main
 
   // Administration sits at the BOTTOM of the rail, under everything it
   // administers — the same order the Customer Portal settled on.
