@@ -8,6 +8,7 @@ import { useUserStore } from "../../store/userStore";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import {
   o2dApi,
+  STAGE_STATUS_LABELS,
   HOLD_REASON_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
   DOCUMENT_TYPE_LABELS,
@@ -18,6 +19,7 @@ import {
 import { O2dApiError } from "../../services/o2d/client";
 import { StageTimeline, OrderStatusBadge, Field, Section } from "./o2dShared";
 import { STAGES, ORDER_STATUS } from "@shared/constants/o2d.js";
+import { CompleteStageModal } from "./CompleteStageModal";
 
 /**
  * Order 360 (§22) — everything about one order, in one place.
@@ -51,6 +53,10 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const [actionable, setActionable] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [history, setHistory] = useState([]);
+  // Every status change, including the ones nobody performed.
+  const [stageEvents, setStageEvents] = useState([]);
+  /** The stage whose completion form is open, if any. */
+  const [completing, setCompleting] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -87,7 +93,10 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   useEffect(() => {
     if (!orderId) return;
     if (tab === "documents") o2dApi.documents(orderId).then(setDocuments).catch(() => setDocuments([]));
-    if (tab === "history") o2dApi.history(orderId).then(setHistory).catch(() => setHistory([]));
+    if (tab === "history") {
+      o2dApi.history(orderId).then(setHistory).catch(() => setHistory([]));
+      o2dApi.stageHistory(orderId).then(setStageEvents).catch(() => setStageEvents([]));
+    }
   }, [tab, orderId]);
 
   /** Run a mutation, report it, and refresh both this drawer and its caller. */
@@ -112,14 +121,15 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const items = payload?.items ?? [];
   const activeHold = (order?.holds ?? []).find((h) => !h.resumedAt) ?? null;
 
-  const completeStage = (stage) => {
-    const remarks = window.prompt(`Complete "${stage.stageName}"? Add a remark (optional).`, "");
-    if (remarks === null) return;
-    act(
-      () => o2dApi.completeStage(orderId, stage.stageNumber, { remarks: remarks || null }),
-      `${stage.stageName} completed.`,
-    );
-  };
+  /**
+   * Open the stage's own completion form.
+   *
+   * This used to be a `window.prompt` for a remark, which collected none of the
+   * information the specification says each stage must capture - an AWB number,
+   * an invoice value, the PO copy - and could validate none of it. The modal
+   * renders only the fields that stage declares.
+   */
+  const completeStage = (stage) => setCompleting(stage);
 
   const decideAdvance = (advanceRequired) =>
     act(
@@ -475,23 +485,99 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
           )}
 
           {tab === "history" && (
-            <Section title="History">
-              {history.length === 0 ? (
-                <p className="text-sm text-slate-500">No recorded activity.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {history.map((row) => (
-                    <li key={row._id} className="border-l-2 border-slate-200 pl-3">
-                      <p className="text-sm text-slate-900">{row.remarks}</p>
-                      <p className="text-xs text-slate-400">
-                        {formatDateTime(row.createdAt)}
-                        {row.user?.user ? ` · ${row.user.user}` : " · system"}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
+            <>
+              {/*
+                ── STAGE HISTORY ────────────────────────────────────────────
+                What each STAGE did, including the transitions no person
+                performed — a deadline passing, a hold freezing the board, the
+                resume thawing it. Those are most of the timeline of any order
+                that ran late, and they appear in no audit log, because nobody
+                did them.
+
+                Shown as the RAW statuses, not the two-state name: "In Progress
+                → In Progress" would describe nothing, and this view exists
+                precisely for the reader who needs the detail the task list
+                deliberately hides.
+
+                Grouped by stage rather than flattened, because the question
+                being asked is almost always about one stage ("why was stage 7
+                late?"), and a flat list of 40 transitions across 12 stages
+                makes the reader do the grouping by eye.
+              */}
+              <Section title="Stage history">
+                {stageEvents.length === 0 ? (
+                  <p className="text-sm text-slate-500">No status changes recorded.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {Object.entries(
+                      stageEvents.reduce((acc, e) => {
+                        (acc[`${e.stageNumber}. ${e.stageName}`] ??= []).push(e);
+                        return acc;
+                      }, {}),
+                    ).map(([label, events]) => (
+                      <div key={label}>
+                        <p className="text-xs font-semibold text-slate-700">{label}</p>
+                        <ul className="mt-1 space-y-1">
+                          {events.map((e) => (
+                            <li key={e._id} className="border-l-2 border-slate-200 pl-3">
+                              <p className="text-xs text-slate-900">
+                                {e.from ? (
+                                  <>
+                                    <span className="text-slate-500">
+                                      {STAGE_STATUS_LABELS[e.from] ?? e.from}
+                                    </span>
+                                    <span className="mx-1 text-slate-400">→</span>
+                                  </>
+                                ) : null}
+                                <span className="font-semibold">
+                                  {STAGE_STATUS_LABELS[e.to] ?? e.to}
+                                </span>
+                                {e.reason ? (
+                                  <span className="text-slate-500"> · {e.reason}</span>
+                                ) : null}
+                              </p>
+                              <p className="text-[11px] text-slate-400">
+                                {formatDateTime(e.at)}
+                                {/* Naming the source removes the guess a bare
+                                    missing actor would leave: "the sweep did
+                                    it" and "we failed to record who" look
+                                    identical otherwise. */}
+                                {e.actorName
+                                  ? ` · ${e.actorName}${e.actorRole ? ` (${e.actorRole})` : ""}`
+                                  : ` · ${e.source.toLowerCase()}`}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              {/*
+                The audit trail is a DIFFERENT record and is kept separate: it
+                says what a person did, which is what an investigation into
+                conduct reads. Neither can be reconstructed from the other.
+              */}
+              <Section title="Activity">
+                {history.length === 0 ? (
+                  <p className="text-sm text-slate-500">No recorded activity.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {history.map((row) => (
+                      <li key={row._id} className="border-l-2 border-slate-200 pl-3">
+                        <p className="text-sm text-slate-900">{row.remarks}</p>
+                        <p className="text-xs text-slate-400">
+                          {formatDateTime(row.createdAt)}
+                          {row.user?.user ? ` · ${row.user.user}` : " · system"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            </>
           )}
 
           {/* ── Order-level actions ────────────────────────────────────── */}
@@ -528,6 +614,18 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
             </div>
           )}
         </div>
+      )}
+
+      {completing && (
+        <CompleteStageModal
+          order={order}
+          stage={completing}
+          onClose={() => setCompleting(null)}
+          onCompleted={() => {
+            load();
+            onChanged?.();
+          }}
+        />
       )}
     </Drawer>
   );

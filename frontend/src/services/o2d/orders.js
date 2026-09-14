@@ -92,6 +92,10 @@ export const o2dApi = {
   exportDataset: (dataset, params = {}) =>
     o2dClient.download(`/analytics/export/${dataset}`, params),
 
+  /** Every status change for an order, or for one stage. Oldest first. */
+  stageHistory: (orderId, stageNumber = null) =>
+    o2dClient.get(`/orders/${orderId}/history${stageNumber ? `/${stageNumber}` : ""}`),
+
   // ── Notifications ───────────────────────────────────────────────────────
   notifications: (params = {}) => o2dClient.get("/notifications", params),
   /** No ids = mark everything unread as read. Scoped to the caller server-side. */
@@ -108,9 +112,13 @@ export const o2dApi = {
 // Words
 // ---------------------------------------------------------------------------
 
+/**
+ * The RAW status names. Kept, because the history view shows the real
+ * transitions and "In Progress -> In Progress" would describe nothing.
+ */
 export const STAGE_STATUS_LABELS = Object.freeze({
-  [STAGE_STATUS.LOCKED]: "Locked",
-  [STAGE_STATUS.PENDING]: "In progress",
+  [STAGE_STATUS.LOCKED]: "Not started",
+  [STAGE_STATUS.PENDING]: "In Progress",
   [STAGE_STATUS.DUE_SOON]: "Due soon",
   [STAGE_STATUS.OVERDUE]: "Overdue",
   [STAGE_STATUS.DONE_ON_TIME]: "Done on time",
@@ -118,6 +126,56 @@ export const STAGE_STATUS_LABELS = Object.freeze({
   [STAGE_STATUS.SKIPPED]: "Skipped",
   [STAGE_STATUS.ON_HOLD]: "On hold",
 });
+
+/**
+ * What a stage is CALLED on a task list: two working states, not eight.
+ *
+ * Mirrors `displayStatusFor` in the server's shared constants. A person reading
+ * their tasks wants one thing - is this still mine, or is it finished - and
+ * "Done on time" / "Done late" read as a verdict on the person rather than a
+ * state of the work.
+ *
+ * NOT_STARTED exists because calling stage 12 "In Progress" on the day the PO
+ * arrives would be false, and a task list that does that is not worth reading.
+ *
+ * 🔴 The STORED status is untouched. Folding the stored values into two would
+ * destroy the on-time percentage, the skip exclusion from the KPI, and the
+ * escalation trigger. This renames; it does not collapse. The facts the name
+ * drops come back as `stageFlags` below, so a screen can show "In Progress" AND
+ * a red overdue marker - the combination the old vocabulary could not express,
+ * because a stage could only be one thing.
+ */
+export const STAGE_DISPLAY = Object.freeze({
+  NOT_STARTED: "Not started",
+  IN_PROGRESS: "In Progress",
+  DONE: "Done",
+});
+
+const TERMINAL = [STAGE_STATUS.DONE_ON_TIME, STAGE_STATUS.DONE_LATE, STAGE_STATUS.SKIPPED];
+
+export const displayStatus = (status) => {
+  if (TERMINAL.includes(status)) return STAGE_DISPLAY.DONE;
+  if (status === STAGE_STATUS.LOCKED) return STAGE_DISPLAY.NOT_STARTED;
+  return STAGE_DISPLAY.IN_PROGRESS;
+};
+
+/** The timing facts the two-state name deliberately drops. */
+export const stageFlags = (stage = {}) => ({
+  late: stage.status === STAGE_STATUS.DONE_LATE,
+  overdue: stage.status === STAGE_STATUS.OVERDUE,
+  dueSoon: stage.status === STAGE_STATUS.DUE_SOON,
+  held: stage.status === STAGE_STATUS.ON_HOLD,
+  skipped: stage.status === STAGE_STATUS.SKIPPED,
+  delayMinutes: stage.delayMinutes ?? null,
+});
+
+/** Green when finished, amber while owed, grey before it starts. */
+export const displayTone = (status) => {
+  const shown = displayStatus(status);
+  if (shown === STAGE_DISPLAY.DONE) return "success";
+  if (shown === STAGE_DISPLAY.NOT_STARTED) return "neutral";
+  return "primary";
+};
 
 export const ORDER_STATUS_LABELS = Object.freeze({
   [ORDER_STATUS.OPEN]: "Open",
@@ -269,6 +327,10 @@ export function formatRelative(value, now = new Date()) {
 export default {
   o2dApi,
   STAGE_STATUS_LABELS,
+  STAGE_DISPLAY,
+  displayStatus,
+  displayTone,
+  stageFlags,
   ORDER_STATUS_LABELS,
   HOLD_REASON_LABELS,
   HOLD_REASON_OPTIONS,

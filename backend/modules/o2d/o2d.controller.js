@@ -18,6 +18,7 @@ import * as documents from './document.service.js';
 import * as exits from './exit.service.js';
 import { dispatch, listForUser, markRead } from './notification.service.js';
 import AuditLog from '../../models/AuditLog.js';
+import { stageHistory } from './stageHistory.service.js';
 import * as analytics from './analytics.service.js';
 import * as exporter from './export.service.js';
 import * as invoicing from './invoicing.service.js';
@@ -203,6 +204,9 @@ export const complete = async (req, res, next) => {
     const stageNumber = Number(req.params.stageNumber);
     await assertCanWork(req, stageNumber);
 
+    // The stage's required fields are checked INSIDE the engine, after its
+    // ordering and lock checks — see completeStage. Doing it here would put
+    // "fill in this field" ahead of "you cannot complete this stage yet".
     const { stage, order, events } = await completeStage({
       orderId: req.params.id,
       stageNumber,
@@ -551,6 +555,39 @@ export const createInvoice = async (req, res, next) => {
 };
 
 // ---------------------------------------------------------------------------
+// Stage history
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/o2d/orders/:id/history         every stage
+ * GET /api/v1/o2d/orders/:id/history/:stage  one stage
+ *
+ * The transitions, oldest first, INCLUDING the ones no person performed - a
+ * deadline passing, a hold freezing the board, the resume thawing it. Those are
+ * most of a stage's timeline and appear in no audit log, because nobody did them.
+ *
+ * Scoped through the same viewer rules as the order itself: an account that
+ * cannot see the order gets 404 rather than a history proving it exists.
+ */
+export const history = async (req, res, next) => {
+  try {
+    // Reuses getOrder's own visibility check (§20 scopes Imports to stage 6+),
+    // so this endpoint cannot become a way around it.
+    const order = await orders.getOrder(req.params.id, req.user);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
+    const rows = await stageHistory(req.params.id, {
+      stageNumber: req.params.stageNumber ?? null,
+    });
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 
@@ -627,6 +664,7 @@ export default {
   uploadDocument, listDocuments, documentUrl, deleteDocument,
   cancelOrder, voidOrder, reviveOrder, exitRegister, exitsByStage, orderHistory,
   listNotifications, readNotifications,
+  history,
   dashboard, slaCompliance, delays, people, customers, exportDataset,
   createInvoice,
   myTasks, myTaskCounts, listStageMasters, stageBoard,

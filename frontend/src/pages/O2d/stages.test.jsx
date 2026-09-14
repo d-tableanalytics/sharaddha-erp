@@ -61,7 +61,7 @@ const ORDER_AT_7 = {
   currentStage: 7, status: "OPEN", dispatchedAt: null,
 };
 
-/** Every request, so the `currentStage` actually sent can be asserted. */
+/** Every request, so the stage parameter actually sent can be asserted. */
 let sent;
 
 function installTransport(overrides = {}) {
@@ -81,7 +81,10 @@ function installTransport(overrides = {}) {
     // test that clicks a tab sees a genuinely different result rather than the
     // same fixture twice.
     if (key === "GET /o2d/orders") {
-      const stage = config.params?.currentStage;
+      // The board now asks `stageReached` by default — what has PASSED through
+      // a stage rather than what is sitting in it. `currentStage` is still sent
+      // when the user switches to "Here now", so the fixture honours both.
+      const stage = config.params?.stageReached ?? config.params?.currentStage;
       const rows = [ORDER_AT_2, ORDER_AT_7].filter((o) => o.currentStage === stage);
       return page(rows);
     }
@@ -159,7 +162,7 @@ describe("selecting a stage", () => {
 
     // Stage 1 is empty; stage 2 is the first with anything in it.
     await waitFor(() => expect(listCalls().length).toBeGreaterThan(0));
-    expect(listCalls()[0].params.currentStage).toBe(2);
+    expect(listCalls()[0].params.stageReached).toBe(2);
     expect(await screen.findByText("PO-4471")).toBeTruthy();
   });
 
@@ -171,7 +174,7 @@ describe("selecting a stage", () => {
     await user.click(await screen.findByRole("tab", { name: /Warehouse Picking Request/ }));
 
     await waitFor(() =>
-      expect(listCalls().some((c) => c.params.currentStage === 7)).toBe(true),
+      expect(listCalls().some((c) => c.params.stageReached === 7)).toBe(true),
     );
     expect(await screen.findByText("PO-9002")).toBeTruthy();
     expect(screen.queryByText("PO-4471")).toBeNull();
@@ -183,7 +186,7 @@ describe("selecting a stage", () => {
 
     await waitFor(() => expect(listCalls().length).toBeGreaterThan(0));
     // Not stage 2, which is where it would land with no parameter.
-    expect(listCalls()[0].params.currentStage).toBe(7);
+    expect(listCalls()[0].params.stageReached).toBe(7);
   });
 
   test("a stage number that is not on the board is ignored, not obeyed", async () => {
@@ -191,7 +194,7 @@ describe("selecting a stage", () => {
     at(`${o2dRoute("stages")}?stage=99`);
 
     await waitFor(() => expect(listCalls().length).toBeGreaterThan(0));
-    expect(listCalls()[0].params.currentStage).toBe(2);
+    expect(listCalls()[0].params.stageReached).toBe(2);
   });
 
   test("the selected stage names its owner and its late count", async () => {
@@ -243,7 +246,7 @@ describe("the rail's keyboard behaviour", () => {
     await user.keyboard("{ArrowRight}");
 
     await waitFor(() =>
-      expect(listCalls().some((c) => c.params.currentStage === 3)).toBe(true),
+      expect(listCalls().some((c) => c.params.stageReached === 3)).toBe(true),
     );
   });
 
@@ -259,14 +262,14 @@ describe("the rail's keyboard behaviour", () => {
     focusSelected();
     await user.keyboard("{End}");
     await waitFor(() =>
-      expect(listCalls().some((c) => c.params.currentStage === 12)).toBe(true),
+      expect(listCalls().some((c) => c.params.stageReached === 12)).toBe(true),
     );
 
     // Selection moved, so the roving tabindex moved with it.
     focusSelected();
     await user.keyboard("{Home}");
     await waitFor(() =>
-      expect(listCalls().some((c) => c.params.currentStage === 1)).toBe(true),
+      expect(listCalls().some((c) => c.params.stageReached === 1)).toBe(true),
     );
   });
 
@@ -282,7 +285,7 @@ describe("the rail's keyboard behaviour", () => {
     await user.keyboard("{ArrowRight}");
 
     // The stages are a pipeline; hopping from 12 to 1 would misrepresent it.
-    expect(listCalls().every((c) => c.params.currentStage === 12)).toBe(true);
+    expect(listCalls().every((c) => c.params.stageReached === 12)).toBe(true);
     expect(
       (await screen.findByRole("tab", { name: /Upload AWB\/LR \+ Close Order/ }))
         .getAttribute("aria-selected"),

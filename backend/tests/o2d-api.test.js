@@ -36,6 +36,7 @@ import { startTestMongo, stopTestMongo, syncIndexes, clearCollections } from './
 import User from '../models/User.js';
 import { O2dOrder } from '../models/o2d/O2dOrder.js';
 import { O2dOrderStage } from '../models/o2d/O2dOrderStage.js';
+import { O2dDocument } from '../models/o2d/O2dDocument.js';
 import { O2dStageMaster } from '../models/o2d/O2dStageMaster.js';
 import { O2dNotification } from '../models/o2d/O2dNotification.js';
 import { seedO2dStages } from '../config/seedO2dStages.js';
@@ -118,6 +119,28 @@ async function seedOrder(url) {
   const res = await post(url, `${P}/orders`, INTAKE, sales.auth);
   assert.equal(res.status, 201, JSON.stringify(res.body));
   return res.body.data.order._id;
+}
+
+/**
+ * Put a PO copy on file, so stage 2 will close.
+ *
+ * Stage 2 will not complete without one — "PO Copy / PO Scan -> REQUIRED
+ * upload" in the stage-wise field spec. The row is written directly rather than
+ * uploaded through the endpoint because these tests are about the WORKFLOW, and
+ * driving multipart and object storage to prove a permission check would be a
+ * slower test of something else.
+ */
+async function attachPoCopy(orderId) {
+  const order = await O2dOrder.findById(orderId).select('poNumber').lean();
+  await O2dDocument.create({
+    order: orderId,
+    poNumber: order.poNumber,
+    docType: 'PO',
+    stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
+    storageKey: `o2d/${orderId}/po-copy.pdf`,
+    contentType: 'application/pdf',
+    uploadedAt: new Date(),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +266,7 @@ describe('the per-stage check (§37)', () => {
   test('and the role that owns it can', async () => {
     await withServer(app(), async (url) => {
       const orderId = await seedOrder(url);
+      await attachPoCopy(orderId);
       const billing = await accountFor('Billing');
 
       const res = await post(url, `${P}/orders/${orderId}/stages/2/complete`, {}, billing.auth);
@@ -277,6 +301,7 @@ describe('the controller announces what the engine returned', () => {
   test("completing a stage notifies the next stage's owner", async () => {
     await withServer(app(), async (url) => {
       const orderId = await seedOrder(url);
+      await attachPoCopy(orderId);
       const billing = await accountFor('Billing');
 
       const res = await post(url, `${P}/orders/${orderId}/stages/2/complete`, {}, billing.auth);

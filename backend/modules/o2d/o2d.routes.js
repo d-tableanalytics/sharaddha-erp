@@ -166,6 +166,16 @@ router.post(
   controller.advanceDecision,
 );
 
+/**
+ * The stage timeline. Behind `canView`, like the order it describes.
+ *
+ * Declared BEFORE the `/complete` route below only for readability - they do
+ * not collide, since these are GETs on a different path - but the two-segment
+ * form is registered first so `/history/7` can never be read as a stage id.
+ */
+router.get('/orders/:id/history', canView, controller.history);
+router.get('/orders/:id/history/:stageNumber', canView, controller.history);
+
 router.post(
   '/orders/:id/stages/:stageNumber/complete',
   canWork,

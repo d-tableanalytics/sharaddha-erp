@@ -396,3 +396,178 @@ describe("the analytics tab", () => {
     expect(await screen.findByText("Nothing in this range could be scored.")).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------
+
+describe("a task stays visible in the stages it has passed", () => {
+  /** The same order, in a stage it finished AND the stage it is now in. */
+  const PASSED = {
+    ...TASK,
+    _id: "s-done",
+    stageNumber: 2,
+    stageName: "Submit PO to Billing",
+    status: "DONE_ON_TIME",
+    completed: true,
+    actionable: false,
+    displayStatus: "DONE",
+    actualCompletion: "2026-09-14T05:00:00.000Z",
+  };
+  const ACTIVE = {
+    ...TASK,
+    _id: "s-open",
+    stageNumber: 3,
+    stageName: "Send SOR + PI",
+    status: "PENDING",
+    completed: false,
+    actionable: true,
+    displayStatus: "IN_PROGRESS",
+  };
+
+  const bothRows = (over = {}) => ({
+    "GET /o2d/tasks": page([ACTIVE, PASSED], { actionable: [3], watching: [] }),
+    "GET /o2d/tasks/counts": envelope({
+      total: 1, overdue: 0, dueSoon: 0, onTrack: 1, actionable: 1, completed: 1,
+    }),
+    ...over,
+  });
+
+  test("a finished stage reads Completed, not 'waiting on another team'", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
+    at(o2dRoute("tasks"));
+
+    // The retained row is history. Labelling it as work waiting on somebody
+    // else would be actively wrong about a stage this person finished.
+    expect(await screen.findByText("Completed")).toBeTruthy();
+  });
+
+  test("the same order shows both where it has been and where it is", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
+    at(o2dRoute("tasks"));
+
+    expect(await screen.findByText("2. Submit PO to Billing")).toBeTruthy();
+    expect(screen.getByText("3. Send SOR + PI")).toBeTruthy();
+    // One is finished, the other is the work.
+    expect(screen.getByText("Completed")).toBeTruthy();
+    expect(screen.getByText("Yours to complete")).toBeTruthy();
+  });
+
+  test("the badge counts work to do, not the retained history", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    // "All 1", not "All 2" — a badge that counted history would show a
+    // warehouse user hundreds of tasks when three are theirs.
+    expect(await screen.findByRole("button", { name: "All 1" })).toBeTruthy();
+  });
+
+  test("offers a way back to the plain to-do list", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    expect(await screen.findByRole("button", { name: "To do only" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Including done 1" })).toBeTruthy();
+  });
+
+  test("a finished row carries no overdue badge", async () => {
+    // Its deadline is no longer something anybody can act on; a red marker
+    // there would be a permanent complaint about work already done.
+    installTransport({
+      "GET /o2d/tasks": page([{ ...PASSED, bucket: "overdue" }], { actionable: [], watching: [2] }),
+      "GET /o2d/tasks/counts": envelope({
+        total: 0, overdue: 0, dueSoon: 0, onTrack: 0, actionable: 0, completed: 1,
+      }),
+    });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    await screen.findByText("Completed");
+    expect(screen.queryByText("Overdue")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("the Order History tab", () => {
+  const DELIVERED = {
+    ...ORDER_ROW,
+    _id: "o-done",
+    poNumber: "PO-DONE",
+    status: "CLOSED",
+    currentStage: 12,
+    dispatchedAt: "2026-09-13T09:00:00.000Z",
+    invoiceNumber: "INV-2026-0412",
+  };
+  const CANCELLED = {
+    ...ORDER_ROW,
+    _id: "o-cancelled",
+    poNumber: "PO-CANCELLED",
+    status: "CANCELLED",
+    currentStage: 4,
+    dispatchedAt: null,
+    invoiceNumber: null,
+  };
+
+  test("is offered as its own tab", async () => {
+    installTransport();
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    expect(await screen.findByRole("tab", { name: "Order History" })).toBeTruthy();
+  });
+
+  test("lists finished and cancelled orders, which the tracker hides", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED, CANCELLED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    expect(await screen.findByText("PO-DONE")).toBeTruthy();
+    expect(screen.getByText("PO-CANCELLED")).toBeTruthy();
+  });
+
+  test("asks the server for every status, not the live default", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    await screen.findByText("PO-DONE");
+    // The tracker's OPEN + ON_HOLD default is exactly what makes a delivered
+    // order unreachable, so the history must override it explicitly.
+    const call = api.request.mock.calls
+      .map(([c]) => c)
+      .find((c) => c.url === "/o2d/orders" && c.params?.status);
+    expect(call.params.status).toContain("CLOSED");
+    expect(call.params.status).toContain("CANCELLED");
+  });
+
+  test("shows how far each order got", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED, CANCELLED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    // "where did it stop" is the question asked of a cancelled order more than
+    // any other.
+    expect(await screen.findByText("Stage 12")).toBeTruthy();
+    expect(screen.getByText("Stage 4")).toBeTruthy();
+  });
+
+  test("a row opens the order, so its journey is reachable from here", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    fireEvent.click(await screen.findByText("PO-DONE"));
+
+    // The tab's own responsibility is to request the order. What the drawer
+    // then renders — all twelve stages with their status, actor and timestamps
+    // — is the drawer's, and is covered where that fixture lives.
+    await waitFor(() =>
+      expect(
+        api.request.mock.calls.some(([c]) => c.url === "/o2d/orders/o-done"),
+      ).toBe(true),
+    );
+  });
+});

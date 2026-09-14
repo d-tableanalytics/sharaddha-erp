@@ -20,6 +20,7 @@ import { O2dStageMaster } from '../models/o2d/O2dStageMaster.js';
 import { seedO2dStages } from '../config/seedO2dStages.js';
 import * as orders from '../modules/o2d/order.service.js';
 import { completeStage } from '../modules/o2d/stage.engine.js';
+import { closeStage } from './helpers/o2dStage.js';
 import { STAGES, ORDER_STATUS } from '../shared/constants/o2d.js';
 
 const ist = (day, hhmm) => new Date(`${day}T${hhmm}:00+05:30`);
@@ -94,7 +95,7 @@ describe('the stage board', () => {
   test('an order moves off its old stage when the stage is completed', async () => {
     const { order } = await create('PO-1');
 
-    await completeStage({
+    await closeStage({
       orderId: order._id,
       stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
       actor: actor('Sales'),
@@ -192,7 +193,7 @@ describe('overdue counting', () => {
     await create('PO-1');
     await create('PO-2');
     const { order: third } = await create('PO-3', 'XYZ Traders');
-    await completeStage({
+    await closeStage({
       orderId: third._id,
       stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
       actor: actor('Sales'),
@@ -269,7 +270,7 @@ describe('role scope', () => {
       STAGES.SUBMIT_PO_TO_BILLING,
       STAGES.SEND_SOR_PI,
     ]) {
-      await completeStage({ orderId: order._id, stageNumber, actor: actor('Sales'), now: NOW });
+      await closeStage({ orderId: order._id, stageNumber, actor: actor('Sales'), now: NOW });
     }
     await orders.decideAdvance(
       order._id,

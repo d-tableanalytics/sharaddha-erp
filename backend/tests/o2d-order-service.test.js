@@ -20,19 +20,36 @@ import { seedO2dStages } from '../config/seedO2dStages.js';
 import * as orders from '../modules/o2d/order.service.js';
 import * as tasks from '../modules/o2d/task.service.js';
 import { completeStage, O2dWorkflowError } from '../modules/o2d/stage.engine.js';
+import { closeStage } from './helpers/o2dStage.js';
 import { STAGES, STAGE_STATUS, ORDER_STATUS } from '../shared/constants/o2d.js';
 
-const ist = (day, hhmm) => new Date(`${day}T${hhmm}:00+05:30`);
 const actor = (role) => ({ _id: undefined, user: `A ${role}`, role });
+
+/**
+ * RELATIVE to the real clock, not a fixed calendar date.
+ *
+ * These were hardcoded to 2026-09-14, which worked until that date arrived and
+ * then failed in a way that pointed at the wrong thing: `overdueOnly` compares
+ * against `new Date()` while the fixture injects its own `now`, so once the two
+ * drifted apart every order in the file was already past its stage-2 deadline
+ * (5 working minutes from a PO date of 09:00 that morning) and the overdue
+ * filter returned everything.
+ *
+ * Anchoring to the real clock keeps the injected and real clocks in agreement,
+ * which is the property the overdue test actually depends on.
+ */
+const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
+const NOW = new Date();
 
 const INTAKE = {
   poNumber: 'PO-4471',
-  poDate: ist('2026-09-14', '09:00').toISOString(),
+  // Just behind the clock: a PO date in the future is rejected outright, and
+  // stage 2's five-working-minute deadline must still be ahead of us.
+  poDate: new Date(NOW.getTime() - 2 * MINUTE).toISOString(),
   customerName: 'ABC Industries',
-  promiseDate: ist('2026-09-25', '10:00').toISOString(),
+  promiseDate: new Date(NOW.getTime() + 11 * DAY).toISOString(),
 };
-
-const NOW = ist('2026-09-14', '10:30');
 
 before(async () => {
   await startTestMongo();
@@ -156,14 +173,14 @@ describe('order intake', () => {
 
   test('refuses a promise date that falls before the PO date', async () => {
     await assert.rejects(
-      () => create({ promiseDate: ist('2026-09-10', '10:00').toISOString() }),
+      () => create({ promiseDate: new Date(NOW.getTime() - 4 * DAY).toISOString() }),
       (e) => e.code === 'O2D_PROMISE_BEFORE_PO',
     );
   });
 
   test('refuses a PO dated in the future', async () => {
     await assert.rejects(
-      () => create({ poDate: ist('2026-12-01', '09:00').toISOString() }),
+      () => create({ poDate: new Date(NOW.getTime() + 30 * DAY).toISOString() }),
       (e) => e.code === 'O2D_FUTURE_PO_DATE',
     );
   });
@@ -207,11 +224,11 @@ describe('order lines', () => {
 
     // Walk to stage 7 and close it.
     for (const n of [2, 3]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: NOW });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: NOW });
     }
     await orders.decideAdvance(order._id, { advanceRequired: false }, actor('Billing'), { now: NOW });
-    await completeStage({ orderId: order._id, stageNumber: 6, actor: actor('Billing'), now: NOW });
-    await completeStage({
+    await closeStage({ orderId: order._id, stageNumber: 6, actor: actor('Billing'), now: NOW });
+    await closeStage({
       orderId: order._id, stageNumber: STAGES.WAREHOUSE_PICKING,
       actor: actor('Warehouse User'), now: NOW,
     });
@@ -228,8 +245,8 @@ describe('order lines', () => {
 describe('the advance decision (§8-9)', () => {
   const walkToStage4 = async () => {
     const { order } = await create();
-    await completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: NOW });
-    await completeStage({ orderId: order._id, stageNumber: 3, actor: actor('Billing'), now: NOW });
+    await closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: NOW });
+    await closeStage({ orderId: order._id, stageNumber: 3, actor: actor('Billing'), now: NOW });
     return order;
   };
 

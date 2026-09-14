@@ -50,6 +50,7 @@ import {
   STAGE_STATUS,
   DUE_SOON_THRESHOLD,
 } from '../../shared/constants/o2d.js';
+import { recordStageEvent, STAGE_EVENT_SOURCES } from './stageHistory.service.js';
 
 /**
  * How long after a deadline before the escalation role is told.
@@ -117,6 +118,25 @@ export async function runEscalationSweep({ now = new Date() } = {}) {
           { _id: stage._id },
           { $set: { overdueNotifiedAt: now, status: STAGE_STATUS.OVERDUE } },
         );
+        /*
+         * The transition NOBODY performed.
+         *
+         * Most of a stage's timeline is made of these - a deadline passing is
+         * not an action, so it appears in no audit log, and without this row a
+         * history would jump straight from "reached" to "completed late" with
+         * no record of when it actually slipped. That gap is precisely what an
+         * investigation into a late order is looking for.
+         */
+        await recordStageEvent({
+          order: stage.order,
+          stage,
+          from: stage.status,
+          to: STAGE_STATUS.OVERDUE,
+          source: STAGE_EVENT_SOURCES.SWEEP,
+          at: now,
+          reason: 'Deadline passed',
+          meta: { plannedCompletion: stage.plannedCompletion },
+        });
         result.overdue += 1;
         // Not escalated in the same pass: the grace period below is measured
         // from the deadline, and a stage that just went overdue has had none.
@@ -155,6 +175,16 @@ export async function runEscalationSweep({ now = new Date() } = {}) {
           { _id: stage._id },
           { $set: { dueSoonNotifiedAt: now, status: STAGE_STATUS.DUE_SOON } },
         );
+        await recordStageEvent({
+          order: stage.order,
+          stage,
+          from: stage.status,
+          to: STAGE_STATUS.DUE_SOON,
+          source: STAGE_EVENT_SOURCES.SWEEP,
+          at: now,
+          reason: 'Approaching deadline',
+          meta: { plannedCompletion: stage.plannedCompletion },
+        });
         result.dueSoon += 1;
       }
     }

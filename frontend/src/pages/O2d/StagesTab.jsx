@@ -12,7 +12,11 @@ import {
 } from "../../services/o2d/orders";
 import { O2dApiError } from "../../services/o2d/client";
 import { OrderDrawer } from "./OrderDrawer";
-import { OrderStatusBadge } from "./o2dShared";
+import { OrderStatusBadge, StageBadge } from "./o2dShared";
+import { ORDER_STATUS } from "@shared/constants/o2d.js";
+
+/** Every status, so a stage keeps its record once its orders are delivered. */
+const ALL_STATUSES = Object.values(ORDER_STATUS);
 
 /**
  * The stage board — one tab per stage, and the orders sitting in it.
@@ -61,6 +65,18 @@ export function StagesTab() {
   const [board, setBoard] = useState(null);
   const [boardError, setBoardError] = useState(null);
 
+  /**
+   * Which question this stage's list answers.
+   *
+   *   passed  everything that has been through here, finished or not
+   *   now     only what is sitting here at this moment
+   *
+   * `passed` is the default. An order is ONE record with twelve stage rows
+   * that are never deleted, and grouping the board by `currentStage` made
+   * the screen contradict that — an order completed at stage 2 vanished
+   * from stage 2 as though it had been moved out of it.
+   */
+  const [scope, setScope] = useState("passed");
   const [rows, setRows] = useState({ data: [], total: 0 });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -115,7 +131,17 @@ export function StagesTab() {
         await o2dApi.list({
           page,
           pageSize: PAGE_SIZE,
-          currentStage: selected,
+          // `stageReached` asks what has passed through; `currentStage` asks
+          // what is here now. The default is the first.
+          ...(scope === "now" ? { currentStage: selected } : { stageReached: selected }),
+          /*
+            Every status, not just the live ones.
+
+            `listOrders` defaults to OPEN + ON_HOLD, which is right for a work
+            tracker and wrong here: a stage's record of what it handled must
+            not empty out as those orders are delivered.
+          */
+          status: ALL_STATUSES,
           search: search || undefined,
         }),
       );
@@ -124,7 +150,7 @@ export function StagesTab() {
     } finally {
       setLoading(false);
     }
-  }, [selected, page, search]);
+  }, [selected, page, scope, search]);
 
   useEffect(() => {
     const t = setTimeout(load, search ? 300 : 0);
@@ -145,7 +171,29 @@ export function StagesTab() {
         ),
       },
       { header: "PO date", cell: (row) => formatDate(row.poDate) },
-      { header: "Status", cell: (row) => <OrderStatusBadge status={row.status} /> },
+      {
+        /*
+          The status AT THIS STAGE, which is the column the screen is for — an
+          order can be Completed here and still In Progress overall, and the
+          order-level badge below cannot say that.
+        */
+        header: "This stage",
+        cell: (row) =>
+          row.stageStatus ? (
+            <div>
+              <StageBadge status={row.stageStatus.status} />
+              {row.stageStatus.actualCompletion && (
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {formatDateTime(row.stageStatus.actualCompletion)}
+                  {row.stageStatus.completedByName ? ` · ${row.stageStatus.completedByName}` : ""}
+                </p>
+              )}
+            </div>
+          ) : (
+            <span className="text-xs text-slate-400">—</span>
+          ),
+      },
+      { header: "Order", cell: (row) => <OrderStatusBadge status={row.status} /> },
       {
         header: "Promise",
         cell: (row) =>
@@ -198,6 +246,33 @@ export function StagesTab() {
           {active.onHold > 0 && <span className="text-slate-500">{active.onHold} on hold</span>}
         </div>
       )}
+
+      {/*
+        Which question the list answers. Two chips rather than a dropdown: there
+        are exactly two readings and both deserve to be one click away.
+      */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { key: "passed", label: "Passed through" },
+          { key: "now", label: "Here now" },
+        ].map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={() => {
+              setScope(chip.key);
+              setPage(1);
+            }}
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+              scope === chip.key
+                ? "border-primary-600 bg-primary-50 text-primary-700"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
 
       <FilterBar
         search={search}

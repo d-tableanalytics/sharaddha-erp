@@ -553,10 +553,40 @@ export function viewScopeFor(user) {
  * which is indexed (`ownerRole, status, plannedCompletion`) and bounded, where
  * the alternative (a $lookup per order) is neither.
  */
+/**
+ * Add an id restriction that INTERSECTS any already present.
+ *
+ * `stageReached` and `overdueOnly` both narrow by id, and assigning
+ * `filter._id` twice would silently drop the first — so asking for "overdue
+ * orders that have passed stage 7" would quietly return every overdue order.
+ */
+const narrowById = (filter, ids) => {
+  const next = ids.map(String);
+  if (!filter._id) {
+    filter._id = { $in: ids };
+    return;
+  }
+  const already = new Set(filter._id.$in.map(String));
+  filter._id = { $in: ids.filter((id) => already.has(String(id))) };
+};
+
 export async function listOrders(query = {}, viewer = null) {
   const {
     page = 1, pageSize = 50, search, status, currentStage, customerKey, salesPerson,
     from, to, overdueOnly = false, sortBy = 'poDate', sortDir = 'desc',
+    /**
+     * Orders that have REACHED this stage, whether or not they are still in it.
+     *
+     * `currentStage` answers "what is sitting here now"; this answers "what has
+     * passed through here". They are different questions and the second one was
+     * previously unanswerable: an order completed at stage 2 left the stage-2
+     * board entirely, so the stage screen could never show its own history.
+     *
+     * Each returned order carries `stageStatus` — its status AT THIS STAGE —
+     * so a row can read Completed, In Progress or Not started without the
+     * caller fetching twelve stage rows per order to work it out.
+     */
+    stageReached,
   } = query;
 
   const filter = {};
@@ -564,6 +594,33 @@ export async function listOrders(query = {}, viewer = null) {
   else filter.status = { $in: [ORDER_STATUS.OPEN, ORDER_STATUS.ON_HOLD] };
 
   if (currentStage) filter.currentStage = currentStage;
+
+  /**
+   * Reached, not merely LOCKED.
+   *
+   * A stage row exists for all twelve from the moment the order is created, so
+   * "has a stage-7 row" is true of every order ever. What marks arrival is the
+   * row no longer being LOCKED — it has been unlocked, worked, held, skipped or
+   * finished.
+   */
+  let stageStatusByOrder = null;
+  if (stageReached) {
+    const reached = await O2dOrderStage.find({
+      stageNumber: Number(stageReached),
+      status: { $ne: STAGE_STATUS.LOCKED },
+    }).select('order status actualCompletion completedByName').lean();
+
+    if (reached.length === 0) return { data: [], total: 0, page, pageSize };
+
+    stageStatusByOrder = new Map(
+      reached.map((r) => [String(r.order), {
+        status: r.status,
+        actualCompletion: r.actualCompletion ?? null,
+        completedByName: r.completedByName ?? null,
+      }]),
+    );
+    narrowById(filter, reached.map((r) => r.order));
+  }
   if (customerKey) filter.customerKey = o2dKey(customerKey);
   if (salesPerson) filter.salesPerson = salesPerson;
 
@@ -594,7 +651,7 @@ export async function listOrders(query = {}, viewer = null) {
       status: { $nin: TERMINAL_STAGE_STATUSES },
       plannedCompletion: { $lt: new Date() },
     });
-    filter._id = { $in: lateStageOrderIds };
+    narrowById(filter, lateStageOrderIds);
   }
 
   const sort = { [sortBy]: sortDir === 'asc' ? 1 : -1 };
@@ -605,7 +662,17 @@ export async function listOrders(query = {}, viewer = null) {
     O2dOrder.countDocuments(filter),
   ]);
 
-  return { data: rows, total, page, pageSize };
+  return {
+    // `stageStatus` rides along ONLY when the caller asked about a stage, so a
+    // plain tracker row is unchanged and nothing has to guess which stage a
+    // bare status would refer to.
+    data: stageStatusByOrder
+      ? rows.map((r) => ({ ...r, stageStatus: stageStatusByOrder.get(String(r._id)) ?? null }))
+      : rows,
+    total,
+    page,
+    pageSize,
+  };
 }
 
 /**
