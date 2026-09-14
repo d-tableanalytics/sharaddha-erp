@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Navigate } from "react-router-dom";
+import { Check } from "lucide-react";
 
 import { HrmsDataTable } from "../../components/hrms/HrmsDataTable";
 import { FilterBar } from "../../components/hrms/FilterBar";
@@ -18,8 +19,9 @@ import {
 import { O2dApiError } from "../../services/o2d/client";
 import { OrderDrawer } from "./OrderDrawer";
 import { AnalyticsTab } from "./AnalyticsTab";
+import { StagesTab } from "./StagesTab";
 import { OrderStatusBadge, BucketBadge } from "./o2dShared";
-import { ORDER_STATUS } from "@shared/constants/o2d.js";
+import { ORDER_STATUS, o2dRoute } from "@shared/constants/o2d.js";
 
 /**
  * Order-to-Dispatch, as three tabs over one dataset.
@@ -38,7 +40,7 @@ import { ORDER_STATUS } from "@shared/constants/o2d.js";
  * THE TAB IS IN THE URL
  * ---------------------------------------------------------------------------
  *
- * `/o2d/:tab` — so a link to the Exit Register survives being pasted into chat,
+ * `/fms/o2d/:tab` — so a link to the Exit Register survives being pasted into chat,
  * and the back button moves between tabs the way a user expects. Same shape the
  * HRMS tabbed modules use.
  */
@@ -64,6 +66,18 @@ export function O2dPage() {
     () => [
       { key: "tasks", label: "My Tasks" },
       { key: "orders", label: "Order Tracker" },
+      // Every stage, as its own tab, one level down — see StagesTab for why the
+      // twelve are a second row rather than twelve more tabs up here.
+      { key: "stages", label: "Stages" },
+      /*
+        Every order ever, whatever its status.
+
+        The Order Tracker deliberately shows live work — it defaults to OPEN and
+        ON_HOLD, which is what a tracker is for. That leaves delivered and
+        cancelled orders with nowhere to be read, even though all twelve of
+        their stage rows are still on file. This is that place.
+      */
+      { key: "history", label: "Order History" },
       { key: "exits", label: "Exit Register" },
       // Its own permission, not VIEW_O2D. Seeing the orders you work is a
       // different thing from seeing how fast each team closes them, and the
@@ -80,16 +94,16 @@ export function O2dPage() {
 
   // An unknown or absent tab redirects rather than rendering nothing, so a
   // bare /o2d and a typo both land somewhere real.
-  if (!activeTab) return <Navigate to="/o2d/tasks" replace />;
+  if (!activeTab) return <Navigate to={o2dRoute("tasks")} replace />;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Order to Dispatch"
+        title="FMS — Order to Dispatch"
         subtitle="Every customer PO, from receipt to the AWB."
         actions={
           canCreate && (
-            <Button size="sm" onClick={() => navigate("/o2d/orders/new")}>
+            <Button size="sm" onClick={() => navigate(o2dRoute("orders", "new"))}>
               New order
             </Button>
           )
@@ -102,7 +116,7 @@ export function O2dPage() {
             key={t.key}
             role="tab"
             aria-selected={activeTab === t.key}
-            onClick={() => navigate(`/o2d/${t.key}`)}
+            onClick={() => navigate(o2dRoute(t.key))}
             className={`px-4 py-2 text-sm font-medium ${
               activeTab === t.key
                 ? "border-b-2 border-primary-600 text-primary-700"
@@ -116,6 +130,8 @@ export function O2dPage() {
 
       {activeTab === "tasks" && <MyTasksTab />}
       {activeTab === "orders" && <OrderTrackerTab />}
+      {activeTab === "stages" && <StagesTab />}
+      {activeTab === "history" && <OrderHistoryTab />}
       {activeTab === "exits" && <ExitRegisterTab />}
       {activeTab === "analytics" && <AnalyticsTab />}
     </div>
@@ -135,13 +151,22 @@ function MyTasksTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openId, setOpenId] = useState(null);
+  /**
+   * Whether finished stages are shown alongside open work.
+   *
+   * Defaults to `all`, matching the server: an order stays visible in every
+   * stage it has passed through, marked Done, so the queue shows progress
+   * rather than only what is outstanding. `open` is there for the days when
+   * somebody just wants the to-do list.
+   */
+  const [view, setView] = useState("all");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [list, c] = await Promise.all([
-        o2dApi.myTasks({ page, pageSize: PAGE_SIZE, bucket, search: search || undefined }),
+        o2dApi.myTasks({ page, pageSize: PAGE_SIZE, bucket, view, search: search || undefined }),
         o2dApi.taskCounts(),
       ]);
       setRows(list);
@@ -151,7 +176,7 @@ function MyTasksTab() {
     } finally {
       setLoading(false);
     }
-  }, [page, bucket, search]);
+  }, [page, bucket, view, search]);
 
   useEffect(() => {
     const t = setTimeout(load, search ? 300 : 0);
@@ -180,19 +205,40 @@ function MyTasksTab() {
           </div>
         ),
       },
-      { header: "Due", cell: (row) => formatDateTime(row.plannedCompletion) },
+      {
+        header: "Due",
+        cell: (row) =>
+          // A finished stage reports WHEN it was done. Its deadline is no longer
+          // a thing anybody can act on, and showing it keeps the row looking
+          // like outstanding work.
+          row.completed
+            ? <span className="text-slate-500">{formatDateTime(row.actualCompletion)}</span>
+            : formatDateTime(row.plannedCompletion),
+      },
       {
         header: "",
-        cell: (row) => <BucketBadge bucket={row.bucket} />,
+        // The overdue/due-soon badge is about a deadline still running. On a
+        // finished row it would be a permanent red mark against work that is
+        // already done.
+        cell: (row) => (row.completed ? null : <BucketBadge bucket={row.bucket} />),
       },
       {
         header: "",
         cell: (row) =>
           /*
-            The distinction the backend draws and the screen must not blur: a
-            stage you OWN but somebody else records is visible, not closeable.
+            Three states, not two.
+
+            A retained row is history, and saying "Waiting on another team" over
+            a stage this person finished last Tuesday would be actively wrong —
+            so `completed` is checked FIRST. Below that, the distinction the
+            backend draws and the screen must not blur: a stage you OWN but
+            somebody else records is visible, not closeable.
           */
-          row.actionable ? (
+          row.completed ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+              <Check size={13} /> Completed
+            </span>
+          ) : row.actionable ? (
             <span className="text-xs font-medium text-primary-700">Yours to complete</span>
           ) : (
             <span className="text-xs text-slate-400">Waiting on another team</span>
@@ -221,6 +267,34 @@ function MyTasksTab() {
               }}
               className={`rounded-full border px-3 py-1 text-xs font-medium ${
                 bucket === chip.key
+                  ? "border-primary-600 bg-primary-50 text-primary-700"
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {chip.label}
+            </button>
+          ))}
+
+          {/*
+            The bucket chips above count OPEN work — a deadline bucket is about
+            a clock that is still running, so a finished stage belongs to none
+            of them. This pair switches what the LIST shows instead, and is
+            separated by a divider so it does not read as a fifth bucket.
+          */}
+          <span aria-hidden="true" className="mx-1 w-px self-stretch bg-slate-200" />
+          {[
+            { key: "all", label: `Including done ${counts.completed ?? 0}` },
+            { key: "open", label: "To do only" },
+          ].map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => {
+                setView(chip.key);
+                setPage(1);
+              }}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                view === chip.key
                   ? "border-primary-600 bg-primary-50 text-primary-700"
                   : "border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
@@ -259,6 +333,155 @@ function MyTasksTab() {
         onRowClick={(row) => setOpenId(row.order?._id)}
         emptyTitle="Nothing waiting on you"
         emptyDescription="No open stage is assigned to your role right now."
+      />
+
+      {openId && (
+        <OrderDrawer orderId={openId} onClose={() => setOpenId(null)} onChanged={load} />
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Order History
+// ---------------------------------------------------------------------------
+
+/** Every status, so nothing drops out of the record as it is delivered. */
+const ALL_ORDER_STATUSES = Object.values(ORDER_STATUS);
+
+/**
+ * Every order the system has ever held, live or finished.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS NOT THE ORDER TRACKER WITH A FILTER CLEARED
+ * ---------------------------------------------------------------------------
+ *
+ * `listOrders` defaults to OPEN + ON_HOLD. That is correct for the tracker: a
+ * screen people work from should not be four-fifths delivered orders. But it
+ * means a completed order has nowhere to be read at all, and its twelve stage
+ * rows — every one of them still on file, with timestamps, actors and evidence
+ * — are unreachable through the UI.
+ *
+ * So this asks the same endpoint a different question, and says so in its own
+ * tab rather than hiding behind a filter somebody has to know to clear.
+ *
+ * Opening a row gives the same drawer, which renders all twelve stages with
+ * their status, who closed each one and when — the complete journey the
+ * requirement asks for, from a record that was already being kept.
+ */
+function OrderHistoryTab() {
+  const [rows, setRows] = useState({ data: [], total: 0 });
+  const [filters, setFilters] = useState({ status: undefined });
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [openId, setOpenId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setRows(
+        await o2dApi.list({
+          page,
+          pageSize: PAGE_SIZE,
+          // An explicit status narrows WITHIN the history; absent means all of
+          // it, rather than falling back to the tracker's live-only default.
+          status: filters.status ? [filters.status] : ALL_ORDER_STATUSES,
+          search: search || undefined,
+          sortBy: "poDate",
+          sortDir: "desc",
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof O2dApiError ? err : new O2dApiError(err.message));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, filters, search]);
+
+  useEffect(() => {
+    const t = setTimeout(load, search ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [load, search]);
+
+  const columns = useMemo(
+    () => [
+      {
+        header: "PO",
+        cell: (row) => (
+          <div>
+            <p className="font-medium text-slate-900">{row.poNumber}</p>
+            <p className="text-xs text-slate-500">{row.customerName}</p>
+          </div>
+        ),
+      },
+      { header: "PO date", cell: (row) => formatDate(row.poDate) },
+      { header: "Status", cell: (row) => <OrderStatusBadge status={row.status} /> },
+      {
+        // How far it got. On a delivered order this reads 12 of 12; on a
+        // cancelled one it says where it stopped, which is the question asked
+        // of a cancelled order far more often than any other.
+        header: "Reached",
+        cell: (row) => (
+          <span className="text-sm tabular-nums text-slate-700">
+            Stage {row.currentStage} <span className="text-slate-400">of 12</span>
+          </span>
+        ),
+      },
+      {
+        header: "Dispatched",
+        cell: (row) =>
+          row.dispatchedAt
+            ? formatDate(row.dispatchedAt)
+            : <span className="text-slate-400">—</span>,
+      },
+      { header: "Invoice", cell: (row) => row.invoiceNumber ?? "—" },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      <FilterBar
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v);
+          setPage(1);
+        }}
+        searchPlaceholder="Search by PO, customer or invoice…"
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            value: filters.status ?? "",
+            options: Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label })),
+            onChange: (v) => {
+              setFilters((f) => ({ ...f, status: v || undefined }));
+              setPage(1);
+            },
+          },
+        ]}
+        onReset={() => {
+          setFilters({ status: undefined });
+          setSearch("");
+          setPage(1);
+        }}
+      />
+
+      <HrmsDataTable
+        columns={columns}
+        rows={rows.data}
+        loading={loading}
+        error={error}
+        onRetry={load}
+        emptyMessage="No orders on record yet."
+        onRowClick={(row) => setOpenId(row._id)}
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={rows.total}
+        onPageChange={setPage}
       />
 
       {openId && (

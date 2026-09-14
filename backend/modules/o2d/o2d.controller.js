@@ -18,9 +18,11 @@ import * as documents from './document.service.js';
 import * as exits from './exit.service.js';
 import { dispatch, listForUser, markRead } from './notification.service.js';
 import AuditLog from '../../models/AuditLog.js';
+import { stageHistory } from './stageHistory.service.js';
 import * as analytics from './analytics.service.js';
 import * as exporter from './export.service.js';
 import * as invoicing from './invoicing.service.js';
+import * as bookings from './booking.service.js';
 
 const ctx = (req) => ({ req });
 
@@ -131,6 +133,45 @@ export const checkDuplicate = async (req, res, next) => {
 };
 
 // ---------------------------------------------------------------------------
+// Customer Portal bookings (§3)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/o2d/bookings
+ *
+ * The Sales picker: which customer bookings still need an O2D order raised.
+ *
+ * Gated on CREATE_O2D_ORDER at the route, not VIEW_O2D, and the distinction is
+ * the point — this is a list of customer commercial activity, and the only
+ * reason the Employee Portal shows it here is to raise an order from one. Every
+ * role that can merely read the tracker has no business browsing it.
+ */
+export const listBookings = async (req, res, next) => {
+  try {
+    res.status(200).json({ success: true, data: await bookings.listBookings(req.query) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/o2d/bookings/:bookingId
+ *
+ * One booking with its lines — what Sales reviews before submitting (§3).
+ *
+ * `:bookingId` is the customer-portal `orderId` (`BO-`/`SO-YYYY-######`), not a
+ * Mongo id: a booking is several documents sharing that string, so no single
+ * ObjectId names one.
+ */
+export const getBooking = async (req, res, next) => {
+  try {
+    res.status(200).json({ success: true, data: await bookings.getBooking(req.params.bookingId) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Items
 // ---------------------------------------------------------------------------
 
@@ -163,6 +204,9 @@ export const complete = async (req, res, next) => {
     const stageNumber = Number(req.params.stageNumber);
     await assertCanWork(req, stageNumber);
 
+    // The stage's required fields are checked INSIDE the engine, after its
+    // ordering and lock checks — see completeStage. Doing it here would put
+    // "fill in this field" ahead of "you cannot complete this stage yet".
     const { stage, order, events } = await completeStage({
       orderId: req.params.id,
       stageNumber,
@@ -511,6 +555,39 @@ export const createInvoice = async (req, res, next) => {
 };
 
 // ---------------------------------------------------------------------------
+// Stage history
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/o2d/orders/:id/history         every stage
+ * GET /api/v1/o2d/orders/:id/history/:stage  one stage
+ *
+ * The transitions, oldest first, INCLUDING the ones no person performed - a
+ * deadline passing, a hold freezing the board, the resume thawing it. Those are
+ * most of a stage's timeline and appear in no audit log, because nobody did them.
+ *
+ * Scoped through the same viewer rules as the order itself: an account that
+ * cannot see the order gets 404 rather than a history proving it exists.
+ */
+export const history = async (req, res, next) => {
+  try {
+    // Reuses getOrder's own visibility check (§20 scopes Imports to stage 6+),
+    // so this endpoint cannot become a way around it.
+    const order = await orders.getOrder(req.params.id, req.user);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
+    const rows = await stageHistory(req.params.id, {
+      stageNumber: req.params.stageNumber ?? null,
+    });
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 
@@ -548,6 +625,28 @@ export const readNotifications = async (req, res, next) => {
 // ---------------------------------------------------------------------------
 
 /** GET /api/v1/o2d/stages — the twelve, for form dropdowns and the tracker. */
+/**
+ * GET /api/v1/o2d/stages/board
+ *
+ * How many live orders sit at each of the twelve stages, and how many are late.
+ *
+ * VIEW_O2D, not VIEW_O2D_ANALYTICS. This is an operational question — "where is
+ * the work piled up right now" — which everyone who works the queue needs, and
+ * it is the same population the tracker already shows them. Analytics answers a
+ * different question (how fast each team closes stages, historically) and stays
+ * behind its own permission.
+ *
+ * The service applies the caller's role scope, so an Import Team account sees
+ * counts only from its floor stage upward.
+ */
+export const stageBoard = async (req, res, next) => {
+  try {
+    res.status(200).json({ success: true, data: await orders.stageBoard(req.user) });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const listStageMasters = async (req, res, next) => {
   try {
     const data = await O2dStageMaster.find({ enabled: true }).sort({ stageNumber: 1 }).lean();
@@ -559,12 +658,14 @@ export const listStageMasters = async (req, res, next) => {
 
 export default {
   createOrder, listOrders, getOrder, updateOrder, checkDuplicate,
+  listBookings, getBooking,
   listItems, replaceItems,
   complete, advanceDecision, skip, hold, resume,
   uploadDocument, listDocuments, documentUrl, deleteDocument,
   cancelOrder, voidOrder, reviveOrder, exitRegister, exitsByStage, orderHistory,
   listNotifications, readNotifications,
+  history,
   dashboard, slaCompliance, delays, people, customers, exportDataset,
   createInvoice,
-  myTasks, myTaskCounts, listStageMasters,
+  myTasks, myTaskCounts, listStageMasters, stageBoard,
 };

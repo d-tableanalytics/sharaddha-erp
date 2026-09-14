@@ -33,11 +33,26 @@ import {
   EXIT_TYPES,
 } from '../constants/o2d.js';
 
-/** Comma-separated list in a query string -> array. `?status=OPEN,ON_HOLD` */
-const csvList = (values) =>
-  z.string().trim()
-    .transform((v) => v.split(',').map((x) => x.trim()).filter(Boolean))
-    .refine((arr) => arr.every((x) => values.includes(x)), {
+/**
+ * A list in a query string, however the caller chose to send it.
+ *
+ * BOTH serialisations are accepted, because both arrive in practice:
+ *
+ *   ?status=OPEN,ON_HOLD          a comma-separated string
+ *   ?status[]=OPEN&status[]=...   what axios sends for an array, which Express
+ *                                 hands us as a real array
+ *
+ * Accepting only the first is a trap that fires the moment any caller passes an
+ * array rather than a hand-built string — the request 400s with a message about
+ * expected values, which points at the VALUES rather than at the shape, and
+ * sends the reader looking in the wrong place entirely.
+ */
+const csvEnum = (values) =>
+  z.union([z.string(), z.array(z.string())])
+    .transform((v) => (Array.isArray(v) ? v : String(v).split(','))
+      .map((x) => String(x).trim())
+      .filter(Boolean))
+    .refine((arr) => arr.every((v) => values.includes(v)), {
       message: `expected values from: ${values.join(', ')}`,
     })
     .optional();
@@ -105,6 +120,19 @@ export const createO2dOrderSchema = z.object({
 
   customer: objectId.nullish(),
   customerName: text(200),
+
+  /**
+   * The Customer Portal booking this PO came from (§3), if any.
+   *
+   * NOT an `objectId` — a booking is identified by its human-readable
+   * `orderId` (`BO-`/`SO-YYYY-######`) shared across its several line
+   * documents, so there is no single ObjectId that names one.
+   *
+   * Whether the booking exists, belongs to this customer, and is still
+   * unconverted is the service's to decide (see `resolveBookingForIntake`);
+   * all three need the database, which is the boundary this file describes.
+   */
+  sourceBookingId: optionalText(80),
 
   salesPerson: objectId.nullish(),
 
@@ -216,7 +244,7 @@ export const analyticsQuery = z.object({
 
 export const exportQuery = analyticsQuery.extend({
   format: z.enum(['xlsx', 'csv']).default('xlsx'),
-  status: csvList(ORDER_STATUS_LIST),
+  status: csvEnum(ORDER_STATUS_LIST),
 });
 
 // ---------------------------------------------------------------------------
@@ -233,14 +261,6 @@ export const uploadO2dDocumentSchema = z.object({
 // Reads
 // ---------------------------------------------------------------------------
 
-/** Comma-separated list in a query string -> array. `?status=OPEN,ON_HOLD` */
-const csvEnum = (values) =>
-  z.string().trim().transform((s) => s.split(',').map((v) => v.trim()).filter(Boolean))
-    .refine((arr) => arr.every((v) => values.includes(v)), {
-      message: `expected values from: ${values.join(', ')}`,
-    })
-    .optional();
-
 export const listO2dOrdersQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
@@ -248,6 +268,12 @@ export const listO2dOrdersQuery = z.object({
   search: z.string().trim().max(200).optional(),
   status: csvEnum(ORDER_STATUS_LIST),
   currentStage: stageNumber.optional(),
+  /**
+   * Orders that have REACHED this stage, whether or not they are still in it.
+   * `currentStage` asks what is sitting here now; this asks what has passed
+   * through. Each row comes back with its status AT that stage.
+   */
+  stageReached: stageNumber.optional(),
   customerKey: z.string().trim().max(200).optional(),
   salesPerson: objectId.optional(),
   /** `poDate` window, inclusive. */
@@ -257,6 +283,25 @@ export const listO2dOrdersQuery = z.object({
   overdueOnly: z.coerce.boolean().default(false),
   sortBy: z.enum(['poDate', 'promiseDate', 'createdAt', 'currentStage']).default('poDate'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
+});
+
+/**
+ * The Sales booking picker (§3).
+ *
+ * `status` is a free string rather than an enum of the customer-side lifecycle:
+ * that vocabulary belongs to the Customer Portal's `Order` model and is versioned
+ * there. Mirroring it into the Employee Portal's shared constants would create a
+ * second copy that goes stale the next time the customer side adds a state, and
+ * the only cost of accepting an unknown value here is an empty result.
+ */
+export const listBookingsQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  /** Booking id, customer name, PO number, or SKU. */
+  search: z.string().trim().max(200).optional(),
+  status: z.string().trim().max(60).optional(),
+  /** Show bookings that already have an O2D order, flagged as such. */
+  includeConverted: z.coerce.boolean().default(false),
 });
 
 export const myTasksQuery = z.object({
@@ -269,6 +314,14 @@ export const myTasksQuery = z.object({
   search: z.string().trim().max(200).optional(),
   sortBy: z.enum(['plannedCompletion', 'poDate', 'stageNumber']).default('plannedCompletion'),
   sortDir: z.enum(['asc', 'desc']).default('asc'),
+  /**
+   * Whether to include the stages this role has already finished.
+   *
+   * Defaults to `all`: an order stays visible in every stage it has passed
+   * through, marked Done, so the queue shows progress rather than only what is
+   * outstanding. `open` is the classic to-do list.
+   */
+  view: z.enum(['open', 'completed', 'all']).default('all'),
 });
 
 export default {
@@ -282,6 +335,7 @@ export default {
   resumeOrderSchema,
   uploadO2dDocumentSchema,
   listO2dOrdersQuery,
+  listBookingsQuery,
   myTasksQuery,
   exitOrderSchema,
   reviveOrderSchema,

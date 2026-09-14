@@ -23,6 +23,7 @@ import mongoose from 'mongoose';
 import { O2dOrder, o2dKey } from '../../models/o2d/O2dOrder.js';
 import { O2dOrderStage } from '../../models/o2d/O2dOrderStage.js';
 import { O2dOrderItem } from '../../models/o2d/O2dOrderItem.js';
+import { O2dStageMaster } from '../../models/o2d/O2dStageMaster.js';
 // Imported for its SIDE EFFECT as well as nothing else: `getOrder` populates
 // `customer` and `salesPerson`, which are refs to 'User'. Mongoose resolves a
 // ref by name at query time, so the model must have been registered by SOMEBODY
@@ -46,6 +47,7 @@ import {
   skipStage,
   O2dWorkflowError,
 } from './stage.engine.js';
+import { resolveBookingForIntake } from './booking.service.js';
 
 /** Statuses that make an order "live" for the purposes of §26's uniqueness. */
 const LIVE_STATUSES = [ORDER_STATUS.OPEN, ORDER_STATUS.ON_HOLD, ORDER_STATUS.CLOSED];
@@ -119,6 +121,7 @@ export async function createOrder(input, actor, { req = null, now = new Date() }
     poDate,
     customer = null,
     customerName,
+    sourceBookingId = null,
     salesPerson = null,
     promiseDate = null,
     promiseDateOverrideReason = null,
@@ -180,13 +183,35 @@ export async function createOrder(input, actor, { req = null, now = new Date() }
     throw error;
   }
 
+  /**
+   * The Customer Portal booking, resolved BEFORE the write (§3, §28).
+   *
+   * Deliberately after the duplicate-PO check and before `O2dOrder.create`, so
+   * a request that fails either rule writes nothing at all. `resolveBookingForIntake`
+   * refuses a booking that is missing, already converted, or filed under a
+   * different customer — see that function for why each is a refusal rather
+   * than a warning.
+   *
+   * `sourceBookingId` absent is the ordinary case, not an error: a PO that
+   * arrives by email has no portal booking behind it.
+   */
+  const bookingLink = sourceBookingId
+    ? (await resolveBookingForIntake(sourceBookingId, { customerName })).link
+    : null;
+
   const order = await O2dOrder.create({
     poNumber: String(poNumber).trim(),
     poNumberKey: o2dKey(poNumber),
     poDate: poAt,
-    customer,
+    // The booking's customer wins when Sales did not name one: it came from the
+    // customer's own portal account, and is therefore better evidence than a
+    // field left blank on the intake form.
+    customer: customer ?? bookingLink?.customer ?? null,
     customerName: String(customerName).trim(),
     customerKey: o2dKey(customerName),
+    sourceBooking: bookingLink
+      ? { ...bookingLink, linkedAt: now, linkedBy: actor?._id ?? null }
+      : null,
     salesPerson: salesPerson ?? actor?._id ?? null,
     salesPersonName: salesPerson ? null : (actor?.user ?? actor?.email ?? null),
     promiseDate: promiseDate ? new Date(promiseDate) : null,
@@ -235,6 +260,10 @@ export async function createOrder(input, actor, { req = null, now = new Date() }
         // The override, recorded where an auditor will look for it.
         promiseDateOverridden: !order.promiseDate,
         promiseDateOverrideReason: order.promiseDateOverrideReason,
+        // §25: the booking this order was raised from, recorded at creation so
+        // the audit answers "where did this come from" without reading the
+        // order document as it stands today.
+        sourceBookingId: bookingLink?.bookingId ?? null,
         itemCount: items.length,
       },
     },
@@ -524,10 +553,40 @@ export function viewScopeFor(user) {
  * which is indexed (`ownerRole, status, plannedCompletion`) and bounded, where
  * the alternative (a $lookup per order) is neither.
  */
+/**
+ * Add an id restriction that INTERSECTS any already present.
+ *
+ * `stageReached` and `overdueOnly` both narrow by id, and assigning
+ * `filter._id` twice would silently drop the first — so asking for "overdue
+ * orders that have passed stage 7" would quietly return every overdue order.
+ */
+const narrowById = (filter, ids) => {
+  const next = ids.map(String);
+  if (!filter._id) {
+    filter._id = { $in: ids };
+    return;
+  }
+  const already = new Set(filter._id.$in.map(String));
+  filter._id = { $in: ids.filter((id) => already.has(String(id))) };
+};
+
 export async function listOrders(query = {}, viewer = null) {
   const {
     page = 1, pageSize = 50, search, status, currentStage, customerKey, salesPerson,
     from, to, overdueOnly = false, sortBy = 'poDate', sortDir = 'desc',
+    /**
+     * Orders that have REACHED this stage, whether or not they are still in it.
+     *
+     * `currentStage` answers "what is sitting here now"; this answers "what has
+     * passed through here". They are different questions and the second one was
+     * previously unanswerable: an order completed at stage 2 left the stage-2
+     * board entirely, so the stage screen could never show its own history.
+     *
+     * Each returned order carries `stageStatus` — its status AT THIS STAGE —
+     * so a row can read Completed, In Progress or Not started without the
+     * caller fetching twelve stage rows per order to work it out.
+     */
+    stageReached,
   } = query;
 
   const filter = {};
@@ -535,6 +594,33 @@ export async function listOrders(query = {}, viewer = null) {
   else filter.status = { $in: [ORDER_STATUS.OPEN, ORDER_STATUS.ON_HOLD] };
 
   if (currentStage) filter.currentStage = currentStage;
+
+  /**
+   * Reached, not merely LOCKED.
+   *
+   * A stage row exists for all twelve from the moment the order is created, so
+   * "has a stage-7 row" is true of every order ever. What marks arrival is the
+   * row no longer being LOCKED — it has been unlocked, worked, held, skipped or
+   * finished.
+   */
+  let stageStatusByOrder = null;
+  if (stageReached) {
+    const reached = await O2dOrderStage.find({
+      stageNumber: Number(stageReached),
+      status: { $ne: STAGE_STATUS.LOCKED },
+    }).select('order status actualCompletion completedByName').lean();
+
+    if (reached.length === 0) return { data: [], total: 0, page, pageSize };
+
+    stageStatusByOrder = new Map(
+      reached.map((r) => [String(r.order), {
+        status: r.status,
+        actualCompletion: r.actualCompletion ?? null,
+        completedByName: r.completedByName ?? null,
+      }]),
+    );
+    narrowById(filter, reached.map((r) => r.order));
+  }
   if (customerKey) filter.customerKey = o2dKey(customerKey);
   if (salesPerson) filter.salesPerson = salesPerson;
 
@@ -565,7 +651,7 @@ export async function listOrders(query = {}, viewer = null) {
       status: { $nin: TERMINAL_STAGE_STATUSES },
       plannedCompletion: { $lt: new Date() },
     });
-    filter._id = { $in: lateStageOrderIds };
+    narrowById(filter, lateStageOrderIds);
   }
 
   const sort = { [sortBy]: sortDir === 'asc' ? 1 : -1 };
@@ -576,7 +662,17 @@ export async function listOrders(query = {}, viewer = null) {
     O2dOrder.countDocuments(filter),
   ]);
 
-  return { data: rows, total, page, pageSize };
+  return {
+    // `stageStatus` rides along ONLY when the caller asked about a stage, so a
+    // plain tracker row is unchanged and nothing has to guess which stage a
+    // bare status would refer to.
+    data: stageStatusByOrder
+      ? rows.map((r) => ({ ...r, stageStatus: stageStatusByOrder.get(String(r._id)) ?? null }))
+      : rows,
+    total,
+    page,
+    pageSize,
+  };
 }
 
 /**
@@ -630,6 +726,111 @@ export function bucketFor(stage, at = new Date()) {
   return (now - start) / (due - start) >= DUE_SOON_THRESHOLD ? 'due_soon' : 'on_track';
 }
 
+/**
+ * Stage statuses that mean the stage is OPEN — being worked right now.
+ *
+ * Not simply "not terminal": LOCKED is not terminal either, and a locked stage
+ * is a stage nobody is working. The board counts work in progress, so both ends
+ * of the lifecycle are excluded.
+ */
+const OPEN_STAGE_STATUSES = [
+  STAGE_STATUS.PENDING,
+  STAGE_STATUS.DUE_SOON,
+  STAGE_STATUS.OVERDUE,
+  STAGE_STATUS.ON_HOLD,
+];
+
+/**
+ * The stage board — how many live orders sit at each of the twelve stages,
+ * and how many of those are late (§27: "stage-wise pending orders").
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE BUCKETS ARE COMPUTED IN NODE AND NOT IN THE AGGREGATION
+ * ---------------------------------------------------------------------------
+ *
+ * "Overdue" and "due soon" are defined by `bucketFor`, which reads
+ * `plannedStart` and `plannedCompletion` and applies `DUE_SOON_THRESHOLD`.
+ * Re-expressing that formula as a `$expr` would be a SECOND definition of the
+ * same rule, and the failure it invites is silent: the board would report a
+ * different number of overdue orders than My Tasks and the tracker show for the
+ * same data, and nobody could say which was right.
+ *
+ * So the open stage rows are read and bucketed by the very function the other
+ * two screens use. The cost is bounded — one open stage per live order — and it
+ * buys the property that actually matters, which is that all three screens
+ * cannot disagree.
+ *
+ * The TOTALS still come from an aggregate on `currentStage`, which is indexed
+ * and does not need the stage rows at all.
+ *
+ * Role scope is applied, so this is not a back door: an Import Team account
+ * sees counts only from `IMPORTS_VISIBLE_FROM_STAGE` upward, exactly as the
+ * tracker shows them.
+ */
+export async function stageBoard(viewer = null, { now = new Date() } = {}) {
+  const liveFilter = { status: { $in: [ORDER_STATUS.OPEN, ORDER_STATUS.ON_HOLD] } };
+
+  const scope = viewScopeFor(viewer);
+  if (scope?.minStage) liveFilter.currentStage = { $gte: scope.minStage };
+
+  const [masters, byStage, liveOrders] = await Promise.all([
+    O2dStageMaster.find({ enabled: true })
+      .select('stageNumber key name ownerRole')
+      .sort({ stageNumber: 1 })
+      .lean(),
+    O2dOrder.aggregate([
+      { $match: liveFilter },
+      {
+        $group: {
+          _id: '$currentStage',
+          total: { $sum: 1 },
+          onHold: {
+            $sum: { $cond: [{ $eq: ['$status', ORDER_STATUS.ON_HOLD] }, 1, 0] },
+          },
+        },
+      },
+    ]),
+    O2dOrder.find(liveFilter).select('_id').lean(),
+  ]);
+
+  const openStages = await O2dOrderStage.find({
+    order: { $in: liveOrders.map((o) => o._id) },
+    status: { $in: OPEN_STAGE_STATUSES },
+  })
+    .select('stageNumber plannedStart plannedCompletion')
+    .lean();
+
+  const buckets = new Map();
+  for (const stage of openStages) {
+    const row = buckets.get(stage.stageNumber) ?? { overdue: 0, dueSoon: 0 };
+    const bucket = bucketFor(stage, now);
+    if (bucket === 'overdue') row.overdue += 1;
+    else if (bucket === 'due_soon') row.dueSoon += 1;
+    buckets.set(stage.stageNumber, row);
+  }
+
+  const totals = new Map(byStage.map((r) => [r._id, r]));
+
+  // Driven by the stage MASTER, not by the orders: a stage with nothing in it
+  // must still appear, as an empty column. Omitting it would make "no orders at
+  // stage 7" indistinguishable from "stage 7 does not exist", and the board's
+  // main job is showing where work has piled up — including where it has not.
+  return masters.map((master) => {
+    const total = totals.get(master.stageNumber);
+    const bucket = buckets.get(master.stageNumber) ?? { overdue: 0, dueSoon: 0 };
+    return {
+      stageNumber: master.stageNumber,
+      key: master.key,
+      name: master.name,
+      ownerRole: master.ownerRole,
+      total: total?.total ?? 0,
+      onHold: total?.onHold ?? 0,
+      overdue: bucket.overdue,
+      dueSoon: bucket.dueSoon,
+    };
+  });
+}
+
 export default {
   createOrder,
   updateOrder,
@@ -641,4 +842,5 @@ export default {
   findDuplicateOrder,
   bucketFor,
   viewScopeFor,
+  stageBoard,
 };

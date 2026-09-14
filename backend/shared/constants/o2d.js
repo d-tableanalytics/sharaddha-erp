@@ -105,6 +105,89 @@ export const KPI_COUNTED_STATUSES = Object.freeze([
   STAGE_STATUS.DONE_LATE,
 ]);
 
+/**
+ * What a stage's status is CALLED on screen.
+ *
+ * ---------------------------------------------------------------------------
+ * TWO WORKING STATES, NOT EIGHT
+ * ---------------------------------------------------------------------------
+ *
+ * A person reading a task list wants to know one thing: is this still mine to
+ * do, or is it finished. Eight stored statuses answered that question eight
+ * ways, and DONE_ON_TIME / DONE_LATE in particular read as a verdict on the
+ * person rather than a state of the work.
+ *
+ * So the STATUS shown is one of two - In Progress or Done - with NOT_STARTED for
+ * a stage the order has not reached yet, because calling stage 12 "In Progress"
+ * on the day the PO arrives would be false.
+ *
+ * ---------------------------------------------------------------------------
+ * 🔴 THE STORED STATUS IS NOT COLLAPSED, AND MUST NOT BE
+ * ---------------------------------------------------------------------------
+ *
+ * This is a naming layer over `STAGE_STATUS`, not a replacement for it. Folding
+ * the stored values into two would destroy, in this order:
+ *
+ *   DONE_ON_TIME vs DONE_LATE   the entire on-time percentage, the delay
+ *                               analysis and every per-team figure (§39-41).
+ *                               There is no way to recompute it afterwards -
+ *                               the deadline comparison happens once, at
+ *                               completion, against a frozen SLA.
+ *   SKIPPED                     the KPI EXCLUSION. A skipped stage is neither a
+ *                               success nor a failure; counting it as "Done"
+ *                               would let a team improve its score by having
+ *                               fewer advance orders.
+ *   DUE_SOON / OVERDUE          the escalation sweep's entire trigger.
+ *   ON_HOLD                     the SLA freeze.
+ *
+ * The timing facts therefore stay available beside the status - as `late`,
+ * `overdue` and `held` flags - so the desk can still see that something needs
+ * attention. What changed is that lateness is no longer the NAME of the state.
+ */
+export const STAGE_DISPLAY_STATUS = Object.freeze({
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  DONE: 'DONE',
+});
+
+export const STAGE_DISPLAY_LABELS = Object.freeze({
+  NOT_STARTED: 'Not started',
+  IN_PROGRESS: 'In Progress',
+  DONE: 'Done',
+});
+
+/**
+ * Stored status -> the two-state name.
+ *
+ * SKIPPED maps to DONE deliberately: the stage is finished and will not be
+ * worked again, which is exactly what "Done" tells the reader. That it was
+ * skipped rather than performed is carried alongside as `skipped`, and the KPI
+ * still excludes it - the label does not change the arithmetic.
+ */
+export const displayStatusFor = (status) => {
+  if (TERMINAL_STAGE_STATUSES.includes(status)) return STAGE_DISPLAY_STATUS.DONE;
+  if (status === STAGE_STATUS.LOCKED) return STAGE_DISPLAY_STATUS.NOT_STARTED;
+  // PENDING, DUE_SOON, OVERDUE, ON_HOLD - all of them mean somebody still owes
+  // this work, however the clock is running.
+  return STAGE_DISPLAY_STATUS.IN_PROGRESS;
+};
+
+/**
+ * The facts the two-state label deliberately drops, kept beside it.
+ *
+ * Returned as flags rather than folded into the status so a screen can show
+ * "In Progress" AND a red overdue marker - which is the combination the old
+ * vocabulary could not express, because a stage could only be one thing.
+ */
+export const stageFlagsFor = (stage = {}) => ({
+  late: stage.status === STAGE_STATUS.DONE_LATE,
+  overdue: stage.status === STAGE_STATUS.OVERDUE,
+  dueSoon: stage.status === STAGE_STATUS.DUE_SOON,
+  held: stage.status === STAGE_STATUS.ON_HOLD,
+  skipped: stage.status === STAGE_STATUS.SKIPPED,
+  delayMinutes: stage.delayMinutes ?? null,
+});
+
 /** How close to the deadline a stage must be before it is DUE_SOON. */
 export const DUE_SOON_THRESHOLD = 0.8;
 
@@ -216,6 +299,25 @@ export const DEFAULT_WORKING_MINUTES_PER_DAY =
 
 export const O2D_API_PREFIX = "/api/v1/o2d";
 
+/**
+ * Where O2D's screens live in the Employee Portal — `FMS → O2D` (§1).
+ *
+ * ⚠ NOT the same string as `O2D_API_PREFIX`, and they must not be derived from
+ * one another. §1 renames a NAVIGATION section; it says nothing about the API,
+ * whose paths are quoted in the route file, the frontend client, and any
+ * integration already pointed at this deployment. Moving the API to match the
+ * menu would be a breaking change made for cosmetic reasons.
+ *
+ * One constant rather than the literal in each page, for exactly the reason
+ * `HRMS_ROUTE_PREFIX` exists: the next rename should be one edit, not a sweep
+ * across every file that happens to call `navigate()`.
+ */
+export const O2D_ROUTE_PREFIX = "/fms/o2d";
+
+/** `o2dRoute('orders')` → `/fms/o2d/orders`. */
+export const o2dRoute = (...segments) =>
+  [O2D_ROUTE_PREFIX, ...segments.filter(Boolean)].join('/');
+
 export const O2D_DOCUMENT_TYPES = Object.freeze([
   'PO',
   'SOR',
@@ -301,6 +403,10 @@ export default {
   STAGE_STATUS,
   STAGE_STATUS_LIST,
   TERMINAL_STAGE_STATUSES,
+  STAGE_DISPLAY_STATUS,
+  STAGE_DISPLAY_LABELS,
+  displayStatusFor,
+  stageFlagsFor,
   KPI_COUNTED_STATUSES,
   DUE_SOON_THRESHOLD,
   ORDER_STATUS,

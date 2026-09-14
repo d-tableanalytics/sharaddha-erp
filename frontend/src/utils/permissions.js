@@ -456,22 +456,33 @@ export const canManageAccount = (user, account) =>
 /**
  * Roles this actor may assign when creating an account.
  *
- * The built-in list is the User schema enum. `extraRoles` carries the custom
- * roles the Super Admin has created since - passed in by the caller, which has
- * them from the roles API, rather than fetched here, so this stays a pure
- * function the way its 20-odd callers expect.
+ * ⚠ DERIVED FROM `SYSTEM_ROLE_NAMES`, NEVER WRITTEN OUT.
+ *
+ * This function used to hold its own hand-typed list of eight role names, and
+ * it fell four behind: HR, Billing, Accounts and Billing Head were defined in
+ * `FALLBACK_ROLE_PERMISSIONS` directly above, accepted by the server, granted
+ * real permissions across FMS — and simply absent from every dropdown built
+ * from here, so nobody could be made a Billing or Accounts user through the UI.
+ *
+ * That is the SECOND time this exact shape of bug has bitten this screen. The
+ * comment above `accessLevelsFor` in UserManagement.jsx documents the first, and
+ * its conclusion applies unchanged: "the list is DERIVED from the roles the
+ * actor may assign rather than written out. A role added to permissions.js
+ * appears here automatically, and cannot fall behind again."
+ *
+ * A second copy of a list is not a list, it is a promise to keep two things in
+ * step by hand. So there is one copy now — the keys of
+ * `FALLBACK_ROLE_PERMISSIONS` — and `permissions.test.js` asserts the offer
+ * covers it.
+ *
+ * `extraRoles` carries the custom roles the Super Admin has created since -
+ * passed in by the caller, which has them from the roles API, rather than
+ * fetched here, so this stays a pure function the way its 20-odd callers expect.
  */
 export const assignableRolesFor = (user, extraRoles = []) => {
   if (!canManageAllUsers(user)) return ["Customer"];
   return [
-    "Super Admin",
-    "Admin",
-    "Sales",
-    "Inventory Manager",
-    "Warehouse User",
-    "Management",
-    "Import Team",
-    "Customer",
+    ...SYSTEM_ROLE_NAMES,
     ...extraRoles.filter((r) => !SYSTEM_ROLE_NAMES.includes(r)),
   ];
 };

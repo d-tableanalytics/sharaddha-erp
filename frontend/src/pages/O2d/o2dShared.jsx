@@ -1,6 +1,9 @@
 import { Badge } from "../../components/ui/Badge";
 import {
   STAGE_STATUS_LABELS,
+  displayStatus,
+  displayTone,
+  stageFlags,
   ORDER_STATUS_LABELS,
   BUCKET_LABELS,
   stageTone,
@@ -20,11 +23,61 @@ import { STAGE_STATUS, TERMINAL_STAGE_STATUSES } from "@shared/constants/o2d.js"
  */
 
 /** Unknown statuses render their raw value rather than vanishing. */
+/**
+ * A stage's status, as two working states.
+ *
+ * The timing is NOT in the badge any more - it is a separate marker beside it
+ * (see StageFlags). A stage used to be able to say only one thing, so an
+ * overdue stage read "Overdue" and a finished-late one read "Done late", which
+ * made the status a verdict rather than a state. Now it says what the work is,
+ * and the clock speaks for itself next to it.
+ */
 export const StageBadge = ({ status, className }) => (
-  <Badge variant={stageTone(status)} className={className}>
-    {STAGE_STATUS_LABELS[status] ?? status ?? "Unknown"}
+  <Badge variant={displayTone(status)} className={className}>
+    {displayStatus(status)}
   </Badge>
 );
+
+/**
+ * The facts the two-state badge drops, as their own markers.
+ *
+ * Rendered beside the badge rather than inside it, so "In Progress" and a red
+ * OVERDUE marker can be true at once - which is the thing the desk actually
+ * needs to see and the old single-status vocabulary could not express.
+ *
+ * Renders nothing on a stage that is simply proceeding, which is most of them:
+ * a row of markers that is always present is a row nobody reads.
+ */
+export const StageFlags = ({ stage, className = "" }) => {
+  const f = stageFlags(stage ?? {});
+  const chips = [
+    f.overdue && ["Overdue", "bg-error-50 text-error-700 border-error-200"],
+    f.dueSoon && ["Due soon", "bg-amber-50 text-amber-700 border-amber-200"],
+    f.held && ["On hold", "bg-slate-100 text-slate-600 border-slate-200"],
+    f.skipped && ["Skipped", "bg-slate-100 text-slate-500 border-slate-200"],
+    // `formatDelay` already renders "3h 5m late"; it is only reached when the
+    // stage IS late, so its "On time" branch cannot fire here.
+    f.late && [
+      f.delayMinutes ? formatDelay(f.delayMinutes) : "Late",
+      "bg-amber-50 text-amber-700 border-amber-200",
+    ],
+  ].filter(Boolean);
+
+  if (chips.length === 0) return null;
+
+  return (
+    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+      {chips.map(([label, tone]) => (
+        <span
+          key={label}
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${tone}`}
+        >
+          {label}
+        </span>
+      ))}
+    </span>
+  );
+};
 
 export const OrderStatusBadge = ({ status, className }) => (
   <Badge
@@ -111,6 +164,10 @@ export function StageTimeline({ stages = [], currentStage, onAct, actionableStag
                   {stage.stageName}
                 </span>
                 <StageBadge status={stage.status} />
+                {/* Beside the badge, not inside it: a stage can be In Progress
+                    AND overdue, and the old single-status vocabulary had to
+                    choose one of those to say. */}
+                <StageFlags stage={stage} />
                 {stage.overridden && (
                   <Badge variant="warning" title={stage.overrideReason ?? undefined}>
                     Out of order
@@ -199,4 +256,4 @@ export const Section = ({ title, actions, children }) => (
   </section>
 );
 
-export default { StageBadge, OrderStatusBadge, BucketBadge, StageTimeline, Field, Section };
+export default { StageBadge, StageFlags, OrderStatusBadge, BucketBadge, StageTimeline, Field, Section };

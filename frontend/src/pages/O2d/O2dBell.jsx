@@ -5,6 +5,7 @@ import { Bell } from "lucide-react";
 import { useUserStore } from "../../store/userStore";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import { o2dApi, formatDateTime } from "../../services/o2d/orders";
+import { o2dRoute } from "@shared/constants/o2d.js";
 
 /**
  * The O2D notification bell.
@@ -98,7 +99,7 @@ export function O2dBell() {
       }
       load();
     }
-    if (item.order) navigate(`/o2d/orders?open=${item.order}`);
+    if (item.order) navigate(`${o2dRoute("orders")}?open=${item.order}`);
   };
 
   return (

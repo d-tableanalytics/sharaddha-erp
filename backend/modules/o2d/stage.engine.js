@@ -34,6 +34,10 @@ import { loadCalendar, workingMinutesBetween } from './calendar.service.js';
 import { plannedCompletion, heldWorkingMinutes, applyHold } from './sla.service.js';
 import { recordAudit } from '../../utils/auditLog.js';
 import {
+  setStageStatus, recordStageEvent, recordBulkTransition, STAGE_EVENT_SOURCES,
+} from './stageHistory.service.js';
+import { validateStageEvidence } from './stageFields.service.js';
+import {
   STAGES,
   STAGE_STATUS,
   ORDER_STATUS,
@@ -110,7 +114,27 @@ export async function createStagesForOrder(order, { actor = null, now = new Date
     sla: { type: m.slaType, value: m.slaValue ?? null, byMinute: m.slaByMinute ?? null },
   }));
 
-  await O2dOrderStage.insertMany(rows);
+  const created = await O2dOrderStage.insertMany(rows);
+
+  /*
+   * The opening row of every stage's history.
+   *
+   * `from: null` because a stage coming into existence has no prior state. It
+   * looks like noise until the first time somebody asks when a stage was
+   * created versus when it was reached - which is the difference between an
+   * order that sat unstarted and one that was never raised.
+   */
+  for (const stage of created) {
+    await recordStageEvent({
+      order,
+      stage,
+      from: null,
+      to: STAGE_STATUS.LOCKED,
+      source: STAGE_EVENT_SOURCES.WORKFLOW,
+      actor,
+      reason: 'Order created',
+    });
+  }
 
   // Stage 1 is done by definition, and completing it unlocks stage 2 through the
   // same path every other stage uses — rather than a second, special code path
@@ -148,7 +172,19 @@ async function unlockStage(stage, { from, calendar, order }) {
   stage.plannedStart = start;
   stage.plannedCompletion = due;
   stage.actualStart = start;
-  stage.status = order.status === ORDER_STATUS.ON_HOLD ? STAGE_STATUS.ON_HOLD : STAGE_STATUS.PENDING;
+  await setStageStatus(
+    stage,
+    order.status === ORDER_STATUS.ON_HOLD ? STAGE_STATUS.ON_HOLD : STAGE_STATUS.PENDING,
+    {
+      order,
+      source: STAGE_EVENT_SOURCES.WORKFLOW,
+      reason: 'Stage reached',
+      // The deadline in force at the moment it opened. A later hold moves
+      // `plannedCompletion`, so without this the history cannot show what the
+      // team was originally working to.
+      meta: { plannedCompletion: due },
+    },
+  );
   await stage.save();
   return stage;
 }
@@ -245,6 +281,21 @@ export async function completeStage({
     }
   }
 
+  /**
+   * The stage's own required fields — AFTER the ordering and lock checks.
+   *
+   * Order matters. Asking somebody to fill in stage 6's order-list reference
+   * before telling them stage 6 cannot be completed yet is the wrong refusal
+   * first: they would supply the fields and be refused again for a reason that
+   * was true all along.
+   *
+   * Still before ANY write, so a rejected completion leaves the stage exactly
+   * as it was.
+   */
+  const checkedEvidence = await validateStageEvidence(orderId, stageNumber, evidence ?? {});
+  {
+  }
+
   const cal = calendar ?? (await loadCalendar({ years: yearsSpanning(now, order.poDate) }));
   const done = actualCompletion ? new Date(actualCompletion) : now;
 
@@ -276,8 +327,25 @@ export async function completeStage({
   stage.completedByName = actor?.user ?? actor?.email ?? null;
   stage.completedByRole = actor?.role ?? null;
   stage.delayMinutes = late;
-  stage.status = late > 0 ? STAGE_STATUS.DONE_LATE : STAGE_STATUS.DONE_ON_TIME;
-  if (evidence) stage.evidence = { ...(stage.evidence ?? {}), ...evidence };
+  await setStageStatus(
+    stage,
+    late > 0 ? STAGE_STATUS.DONE_LATE : STAGE_STATUS.DONE_ON_TIME,
+    {
+      order,
+      source: STAGE_EVENT_SOURCES.USER,
+      actor,
+      reason: remarks || null,
+      // The lateness is recorded HERE as well as on the stage, because a later
+      // re-completion overwrites `delayMinutes` and the history must keep what
+      // the first close actually reported.
+      meta: {
+        delayMinutes: late,
+        plannedCompletion: stage.plannedCompletion,
+        overridden: Boolean(blocker && override),
+      },
+    },
+  );
+  if (checkedEvidence) stage.evidence = { ...(stage.evidence ?? {}), ...checkedEvidence };
   if (remarks) stage.remarks = remarks;
   if (blocker && override) {
     stage.overridden = true;
@@ -296,9 +364,9 @@ export async function completeStage({
     order.dispatchedAt = done;
     events.push({ type: O2D_EVENTS.DISPATCH_COMPLETED, payload: { orderId: order._id, at: done } });
   }
-  if (stageNumber === STAGES.SCAN_AND_INVOICE && evidence?.invoiceNumber) {
-    order.invoiceNumber = evidence.invoiceNumber;
-    events.push({ type: O2D_EVENTS.INVOICE_CREATED, payload: { orderId: order._id, invoiceNumber: evidence.invoiceNumber } });
+  if (stageNumber === STAGES.SCAN_AND_INVOICE && checkedEvidence?.invoiceNumber) {
+    order.invoiceNumber = checkedEvidence.invoiceNumber;
+    events.push({ type: O2D_EVENTS.INVOICE_CREATED, payload: { orderId: order._id, invoiceNumber: checkedEvidence.invoiceNumber } });
   }
 
   const next = await nextOpenStage(order._id, stageNumber);
@@ -390,7 +458,12 @@ export async function skipStage({ orderId, stageNumber, reason, actor = null, no
 
   const cal = calendar ?? (await loadCalendar({ years: yearsSpanning(now, order.poDate) }));
 
-  stage.status = STAGE_STATUS.SKIPPED;
+  await setStageStatus(stage, STAGE_STATUS.SKIPPED, {
+    order,
+    source: STAGE_EVENT_SOURCES.USER,
+    actor,
+    reason: reason.trim(),
+  });
   stage.skipReason = reason.trim();
   stage.skippedAt = now;
   // Deliberately NOT an actual completion: a skipped stage was never done, and
@@ -464,10 +537,30 @@ export async function holdOrder({ orderId, reason, note = null, actor = null, no
   order.status = ORDER_STATUS.ON_HOLD;
   await order.save();
 
+  /*
+   * Read the open stages BEFORE freezing them.
+   *
+   * `updateMany` cannot say what it overwrote, and what it overwrites is
+   * exactly the fact worth keeping: a stage that was already OVERDUE when the
+   * order went on hold is a different story from one that was comfortably
+   * PENDING, and after the write both simply read ON_HOLD.
+   */
+  const toFreeze = await O2dOrderStage.find({
+    order: order._id,
+    status: { $in: [STAGE_STATUS.PENDING, STAGE_STATUS.DUE_SOON, STAGE_STATUS.OVERDUE] },
+  });
+
   await O2dOrderStage.updateMany(
     { order: order._id, status: { $in: [STAGE_STATUS.PENDING, STAGE_STATUS.DUE_SOON, STAGE_STATUS.OVERDUE] } },
     { $set: { status: STAGE_STATUS.ON_HOLD } },
   );
+
+  await recordBulkTransition(toFreeze, STAGE_STATUS.ON_HOLD, {
+    order,
+    source: STAGE_EVENT_SOURCES.ORDER,
+    actor,
+    reason: `${reason}${note ? `: ${note.trim()}` : ''}`,
+  });
 
   await audit(actor, O2D_AUDIT_ACTIONS.ORDER_HELD,
     `${order.poNumber} placed on hold — ${reason}${note ? `: ${note.trim()}` : ''}`,
@@ -526,7 +619,16 @@ export async function resumeOrder({ orderId, actor = null, now = new Date(), cal
     if (stage.plannedCompletion) {
       stage.plannedCompletion = applyHold(new Date(stage.plannedCompletion), rule, frozen, cal);
     }
-    stage.status = STAGE_STATUS.PENDING;
+    await setStageStatus(stage, STAGE_STATUS.PENDING, {
+      order,
+      source: STAGE_EVENT_SOURCES.ORDER,
+      actor,
+      reason: `Resumed after ${frozen} working minute(s) on hold`,
+      // The deadline MOVED by the hold. Recording both ends makes the push
+      // auditable rather than something the reader has to infer from a
+      // deadline that silently differs from the one recorded at unlock.
+      meta: { heldWorkingMinutes: frozen, plannedCompletion: stage.plannedCompletion },
+    });
     await stage.save();
   }
 

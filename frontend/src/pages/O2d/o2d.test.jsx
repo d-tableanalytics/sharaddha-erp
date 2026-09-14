@@ -7,6 +7,7 @@ import { O2dBell } from "./O2dBell";
 import { useUserStore } from "../../store/userStore";
 import { api } from "../../services/api";
 import { PERMISSIONS } from "../../utils/permissions";
+import { o2dRoute } from "@shared/constants/o2d.js";
 
 /**
  * O2D screens.
@@ -74,11 +75,19 @@ function installTransport(overrides = {}) {
 const signIn = (role, permissions) =>
   useUserStore.setState({ user: { _id: "u1", user: "Tester", role, permissions }, loading: false });
 
+/**
+ * Mounted at the REAL prefix, `/fms/o2d/:tab` (§1).
+ *
+ * Not `/o2d/:tab` with the paths hardcoded: `O2dPage` builds its tab links from
+ * `o2dRoute`, so a test router mounted somewhere else would make every tab
+ * click land on an unmatched route and render nothing — a failure that looks
+ * like a broken component rather than a stale test.
+ */
 const at = (path) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/o2d/:tab" element={<O2dPage />} />
+        <Route path="/fms/o2d/:tab" element={<O2dPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -93,7 +102,7 @@ beforeEach(() => {
 describe("My Tasks", () => {
   test("lists the caller's open stages with the order they belong to", async () => {
     signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
-    at("/o2d/tasks");
+    at(o2dRoute("tasks"));
 
     expect(await screen.findByText("PO-4471")).toBeTruthy();
     expect(screen.getByText("ABC Industries")).toBeTruthy();
@@ -102,7 +111,7 @@ describe("My Tasks", () => {
 
   test("says whether the row is the caller's to complete", async () => {
     signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
-    at("/o2d/tasks");
+    at(o2dRoute("tasks"));
 
     expect(await screen.findByText("Yours to complete")).toBeTruthy();
   });
@@ -113,7 +122,7 @@ describe("My Tasks", () => {
       "GET /o2d/tasks": page([{ ...TASK, actionable: false }], { actionable: [], watching: [2] }),
     });
     signIn("Sales", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
-    at("/o2d/tasks");
+    at(o2dRoute("tasks"));
 
     expect(await screen.findByText("Waiting on another team")).toBeTruthy();
     expect(screen.queryByText("Yours to complete")).toBeNull();
@@ -121,7 +130,7 @@ describe("My Tasks", () => {
 
   test("shows the overdue count as a filter chip", async () => {
     signIn("Billing", [PERMISSIONS.VIEW_O2D]);
-    at("/o2d/tasks");
+    at(o2dRoute("tasks"));
 
     expect(await screen.findByRole("button", { name: "Overdue 1" })).toBeTruthy();
   });
@@ -132,7 +141,7 @@ describe("My Tasks", () => {
 describe("Order Tracker", () => {
   test("lists orders with their stage and status", async () => {
     signIn("Management", [PERMISSIONS.VIEW_O2D]);
-    at("/o2d/orders");
+    at(o2dRoute("orders"));
 
     expect(await screen.findByText("PO-4471")).toBeTruthy();
     expect(screen.getByText("2 / 12")).toBeTruthy();
@@ -144,7 +153,7 @@ describe("Order Tracker", () => {
       "GET /o2d/orders": page([{ ...ORDER_ROW, promiseDate: null }]),
     });
     signIn("Management", [PERMISSIONS.VIEW_O2D]);
-    at("/o2d/orders");
+    at(o2dRoute("orders"));
 
     // §27's exception must be visible on the tracker rather than inferred.
     expect(await screen.findByText("None — overridden")).toBeTruthy();
@@ -156,7 +165,7 @@ describe("Order Tracker", () => {
 describe("permission gating", () => {
   test("a role that cannot create orders is not offered the button", async () => {
     signIn("Import Team", [PERMISSIONS.VIEW_O2D]);
-    at("/o2d/orders");
+    at(o2dRoute("orders"));
 
     await screen.findByText("PO-4471");
     expect(screen.queryByRole("button", { name: "New order" })).toBeNull();
@@ -164,7 +173,7 @@ describe("permission gating", () => {
 
   test("a role that can create orders is", async () => {
     signIn("Sales", [PERMISSIONS.VIEW_O2D, PERMISSIONS.CREATE_O2D_ORDER]);
-    at("/o2d/orders");
+    at(o2dRoute("orders"));
 
     expect(await screen.findByRole("button", { name: "New order" })).toBeTruthy();
   });
@@ -176,7 +185,7 @@ describe("the tab lives in the URL", () => {
   test("each tab renders its own screen", async () => {
     signIn("Management", [PERMISSIONS.VIEW_O2D]);
 
-    at("/o2d/exits");
+    at(o2dRoute("exits"));
     await waitFor(() =>
       expect(
         screen.getByRole("tab", { name: "Exit Register" }).getAttribute("aria-selected"),
@@ -186,7 +195,7 @@ describe("the tab lives in the URL", () => {
 
   test("the exit register reports an empty state rather than looking broken", async () => {
     signIn("Management", [PERMISSIONS.VIEW_O2D]);
-    at("/o2d/exits");
+    at(o2dRoute("exits"));
 
     expect(await screen.findByText("Nothing has left the workflow")).toBeTruthy();
   });
@@ -308,7 +317,7 @@ describe("the analytics tab", () => {
   test("is offered only to a role holding VIEW_O2D_ANALYTICS", async () => {
     installTransport();
     signIn("Billing", [PERMISSIONS.VIEW_O2D]);
-    at("/o2d/orders");
+    at(o2dRoute("orders"));
 
     await screen.findByText("PO-4471");
     expect(screen.queryByRole("tab", { name: "Analytics" })).toBeNull();
@@ -317,7 +326,7 @@ describe("the analytics tab", () => {
   test("and is offered to one that does", async () => {
     installTransport();
     signIn("Management", MANAGER);
-    at("/o2d/orders");
+    at(o2dRoute("orders"));
 
     expect(await screen.findByRole("tab", { name: "Analytics" })).toBeTruthy();
   });
@@ -325,7 +334,7 @@ describe("the analytics tab", () => {
   test("renders the coverage caveat BESIDE the on-time figure, not as a footnote", async () => {
     installTransport(analyticsRoutes());
     signIn("Management", MANAGER);
-    at("/o2d/analytics");
+    at(o2dRoute("analytics"));
 
     // The number...
     expect(await screen.findByText("94")).toBeTruthy();
@@ -339,7 +348,7 @@ describe("the analytics tab", () => {
   test("says out loud that cycle time uses a different denominator", async () => {
     installTransport(analyticsRoutes());
     signIn("Management", MANAGER);
-    at("/o2d/analytics");
+    at(o2dRoute("analytics"));
 
     expect(
       await screen.findByText(/Includes 2315 migrated order\(s\)/),
@@ -360,7 +369,7 @@ describe("the analytics tab", () => {
       }),
     );
     signIn("Management", MANAGER);
-    at("/o2d/analytics");
+    at(o2dRoute("analytics"));
 
     await screen.findByText("100");
     // A permanent "everything is included" banner is one people stop reading.
@@ -381,9 +390,184 @@ describe("the analytics tab", () => {
       }),
     );
     signIn("Management", MANAGER);
-    at("/o2d/analytics");
+    at(o2dRoute("analytics"));
 
     // 0% would read as "everything was late" — a crisis that did not happen.
     expect(await screen.findByText("Nothing in this range could be scored.")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("a task stays visible in the stages it has passed", () => {
+  /** The same order, in a stage it finished AND the stage it is now in. */
+  const PASSED = {
+    ...TASK,
+    _id: "s-done",
+    stageNumber: 2,
+    stageName: "Submit PO to Billing",
+    status: "DONE_ON_TIME",
+    completed: true,
+    actionable: false,
+    displayStatus: "DONE",
+    actualCompletion: "2026-09-14T05:00:00.000Z",
+  };
+  const ACTIVE = {
+    ...TASK,
+    _id: "s-open",
+    stageNumber: 3,
+    stageName: "Send SOR + PI",
+    status: "PENDING",
+    completed: false,
+    actionable: true,
+    displayStatus: "IN_PROGRESS",
+  };
+
+  const bothRows = (over = {}) => ({
+    "GET /o2d/tasks": page([ACTIVE, PASSED], { actionable: [3], watching: [] }),
+    "GET /o2d/tasks/counts": envelope({
+      total: 1, overdue: 0, dueSoon: 0, onTrack: 1, actionable: 1, completed: 1,
+    }),
+    ...over,
+  });
+
+  test("a finished stage reads Completed, not 'waiting on another team'", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
+    at(o2dRoute("tasks"));
+
+    // The retained row is history. Labelling it as work waiting on somebody
+    // else would be actively wrong about a stage this person finished.
+    expect(await screen.findByText("Completed")).toBeTruthy();
+  });
+
+  test("the same order shows both where it has been and where it is", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
+    at(o2dRoute("tasks"));
+
+    expect(await screen.findByText("2. Submit PO to Billing")).toBeTruthy();
+    expect(screen.getByText("3. Send SOR + PI")).toBeTruthy();
+    // One is finished, the other is the work.
+    expect(screen.getByText("Completed")).toBeTruthy();
+    expect(screen.getByText("Yours to complete")).toBeTruthy();
+  });
+
+  test("the badge counts work to do, not the retained history", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    // "All 1", not "All 2" — a badge that counted history would show a
+    // warehouse user hundreds of tasks when three are theirs.
+    expect(await screen.findByRole("button", { name: "All 1" })).toBeTruthy();
+  });
+
+  test("offers a way back to the plain to-do list", async () => {
+    installTransport(bothRows());
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    expect(await screen.findByRole("button", { name: "To do only" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Including done 1" })).toBeTruthy();
+  });
+
+  test("a finished row carries no overdue badge", async () => {
+    // Its deadline is no longer something anybody can act on; a red marker
+    // there would be a permanent complaint about work already done.
+    installTransport({
+      "GET /o2d/tasks": page([{ ...PASSED, bucket: "overdue" }], { actionable: [], watching: [2] }),
+      "GET /o2d/tasks/counts": envelope({
+        total: 0, overdue: 0, dueSoon: 0, onTrack: 0, actionable: 0, completed: 1,
+      }),
+    });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    await screen.findByText("Completed");
+    expect(screen.queryByText("Overdue")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("the Order History tab", () => {
+  const DELIVERED = {
+    ...ORDER_ROW,
+    _id: "o-done",
+    poNumber: "PO-DONE",
+    status: "CLOSED",
+    currentStage: 12,
+    dispatchedAt: "2026-09-13T09:00:00.000Z",
+    invoiceNumber: "INV-2026-0412",
+  };
+  const CANCELLED = {
+    ...ORDER_ROW,
+    _id: "o-cancelled",
+    poNumber: "PO-CANCELLED",
+    status: "CANCELLED",
+    currentStage: 4,
+    dispatchedAt: null,
+    invoiceNumber: null,
+  };
+
+  test("is offered as its own tab", async () => {
+    installTransport();
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("tasks"));
+
+    expect(await screen.findByRole("tab", { name: "Order History" })).toBeTruthy();
+  });
+
+  test("lists finished and cancelled orders, which the tracker hides", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED, CANCELLED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    expect(await screen.findByText("PO-DONE")).toBeTruthy();
+    expect(screen.getByText("PO-CANCELLED")).toBeTruthy();
+  });
+
+  test("asks the server for every status, not the live default", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    await screen.findByText("PO-DONE");
+    // The tracker's OPEN + ON_HOLD default is exactly what makes a delivered
+    // order unreachable, so the history must override it explicitly.
+    const call = api.request.mock.calls
+      .map(([c]) => c)
+      .find((c) => c.url === "/o2d/orders" && c.params?.status);
+    expect(call.params.status).toContain("CLOSED");
+    expect(call.params.status).toContain("CANCELLED");
+  });
+
+  test("shows how far each order got", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED, CANCELLED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    // "where did it stop" is the question asked of a cancelled order more than
+    // any other.
+    expect(await screen.findByText("Stage 12")).toBeTruthy();
+    expect(screen.getByText("Stage 4")).toBeTruthy();
+  });
+
+  test("a row opens the order, so its journey is reachable from here", async () => {
+    installTransport({ "GET /o2d/orders": page([DELIVERED]) });
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    at(o2dRoute("history"));
+
+    fireEvent.click(await screen.findByText("PO-DONE"));
+
+    // The tab's own responsibility is to request the order. What the drawer
+    // then renders — all twelve stages with their status, actor and timestamps
+    // — is the drawer's, and is covered where that fixture lives.
+    await waitFor(() =>
+      expect(
+        api.request.mock.calls.some(([c]) => c.url === "/o2d/orders/o-done"),
+      ).toBe(true),
+    );
   });
 });

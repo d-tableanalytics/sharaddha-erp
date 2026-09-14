@@ -27,6 +27,7 @@ import {
   resumeOrder,
   O2dWorkflowError,
 } from '../modules/o2d/stage.engine.js';
+import { closeStage } from './helpers/o2dStage.js';
 import { onTimePercentage } from '../modules/o2d/sla.service.js';
 import { STAGES, STAGE_STATUS, ORDER_STATUS, O2D_EVENTS, O2D_AUDIT_ACTIONS } from '../shared/constants/o2d.js';
 import AuditLog from '../models/AuditLog.js';
@@ -141,11 +142,11 @@ describe('walking the happy path', () => {
   test('02 → 03 → 04, each unlocking the next', async () => {
     const order = await makeOrder();
 
-    await completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
+    await closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
     assert.equal((await stageOf(order._id, 2)).status, STAGE_STATUS.DONE_ON_TIME);
     assert.equal((await stageOf(order._id, 3)).status, STAGE_STATUS.PENDING);
 
-    await completeStage({ orderId: order._id, stageNumber: 3, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
+    await closeStage({ orderId: order._id, stageNumber: 3, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
     assert.equal((await stageOf(order._id, 4)).status, STAGE_STATUS.PENDING);
     assert.equal((await O2dOrder.findById(order._id)).currentStage, 4);
   });
@@ -153,7 +154,7 @@ describe('walking the happy path', () => {
   test('a late completion is DONE_LATE with the delay in working minutes', async () => {
     const order = await makeOrder();
     // Stage 2 due 10:35; completed 10:38.
-    await completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:38') });
+    await closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:38') });
     const s2 = await stageOf(order._id, 2);
     assert.equal(s2.status, STAGE_STATUS.DONE_LATE);
     assert.equal(s2.delayMinutes, 3, 'the §16 worked example');
@@ -163,7 +164,7 @@ describe('walking the happy path', () => {
     const order = await makeOrder();
     // Due 10:35 Monday; completed 10:40 Tuesday. Wall clock ~24h; working
     // minutes are 7h55 Monday + 10 Tuesday.
-    await completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-15', '10:40') });
+    await closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-15', '10:40') });
     const s2 = await stageOf(order._id, 2);
     assert.equal(s2.delayMinutes, 475 + 10);
   });
@@ -171,13 +172,13 @@ describe('walking the happy path', () => {
   test('completing stage 9 stamps the dispatch moment on the order', async () => {
     const order = await makeOrder();
     for (const n of [2, 3, 4]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
     }
     await skipStage({ orderId: order._id, stageNumber: 5, reason: 'Not an advance order', actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
     for (const n of [6, 7, 8]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
     }
-    const { events } = await completeStage({
+    const { events } = await closeStage({
       orderId: order._id, stageNumber: 9, actor: actor('Warehouse User'), now: ist('2026-09-14', '16:00'),
     });
 
@@ -189,11 +190,11 @@ describe('walking the happy path', () => {
   test('completing stage 12 closes the order', async () => {
     const order = await makeOrder();
     for (const n of [2, 3, 4]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
     }
     await skipStage({ orderId: order._id, stageNumber: 5, reason: 'No advance', actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
     for (const n of [6, 7, 8, 9, 10, 11, 12]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-15', '12:00') });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-15', '12:00') });
     }
     const fresh = await O2dOrder.findById(order._id);
     assert.equal(fresh.status, ORDER_STATUS.CLOSED);
@@ -203,13 +204,13 @@ describe('walking the happy path', () => {
   test('the invoice number from stage 8 reaches the order header', async () => {
     const order = await makeOrder();
     for (const n of [2, 3, 4]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
     }
     await skipStage({ orderId: order._id, stageNumber: 5, reason: 'No advance', actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
     for (const n of [6, 7]) {
-      await completeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
+      await closeStage({ orderId: order._id, stageNumber: n, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
     }
-    const { events } = await completeStage({
+    const { events } = await closeStage({
       orderId: order._id, stageNumber: 8, actor: actor('Billing'), now: ist('2026-09-14', '13:00'),
       evidence: { invoiceNumber: 'INV-9001' },
     });
@@ -228,9 +229,9 @@ describe('the advance decision', () => {
    * a late stage does.
    */
   const toStage5 = async (order) => {
-    await completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
-    await completeStage({ orderId: order._id, stageNumber: 3, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
-    await completeStage({ orderId: order._id, stageNumber: 4, actor: actor('Billing'), now: ist('2026-09-14', '12:30') });
+    await closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
+    await closeStage({ orderId: order._id, stageNumber: 3, actor: actor('Billing'), now: ist('2026-09-14', '12:00') });
+    await closeStage({ orderId: order._id, stageNumber: 4, actor: actor('Billing'), now: ist('2026-09-14', '12:30') });
   };
 
   test('ADVANCE NO — stage 5 is SKIPPED and stage 6 opens immediately', async () => {
@@ -294,7 +295,7 @@ describe('stage order is enforced', () => {
   test('stage 8 cannot be completed while stage 7 is open, and says so in English', async () => {
     const order = await makeOrder();
     await assert.rejects(
-      () => completeStage({ orderId: order._id, stageNumber: 8, actor: actor('Billing') }),
+      () => closeStage({ orderId: order._id, stageNumber: 8, actor: actor('Billing') }),
       (e) => {
         assert.ok(e instanceof O2dWorkflowError);
         // §44: "Stage 08 cannot be completed because Warehouse has not
@@ -309,11 +310,11 @@ describe('stage order is enforced', () => {
   test('an override completes it, but demands a reason and is recorded', async () => {
     const order = await makeOrder();
     await assert.rejects(
-      () => completeStage({ orderId: order._id, stageNumber: 8, actor: actor('Billing Head'), override: true }),
+      () => closeStage({ orderId: order._id, stageNumber: 8, actor: actor('Billing Head'), override: true }),
       (e) => /needs a reason/.test(e.message),
     );
 
-    await completeStage({
+    await closeStage({
       orderId: order._id, stageNumber: 8, actor: actor('Billing Head'),
       override: true, overrideReason: 'Customer collecting in person; MD approved',
       now: ist('2026-09-14', '12:00'),
@@ -325,9 +326,9 @@ describe('stage order is enforced', () => {
 
   test('a completed stage cannot be completed twice', async () => {
     const order = await makeOrder();
-    await completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
+    await closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
     await assert.rejects(
-      () => completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing') }),
+      () => closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing') }),
       (e) => /already complete/.test(e.message),
     );
   });
@@ -335,7 +336,7 @@ describe('stage order is enforced', () => {
   test('a future completion timestamp is refused', async () => {
     const order = await makeOrder();
     await assert.rejects(
-      () => completeStage({
+      () => closeStage({
         orderId: order._id, stageNumber: 2, actor: actor('Billing'),
         actualCompletion: ist('2027-01-01', '10:00'), now: ist('2026-09-14', '11:00'),
       }),
@@ -346,7 +347,7 @@ describe('stage order is enforced', () => {
   test('a back-fill records BOTH when it happened and when it was entered', async () => {
     // §33: those are different facts and one timestamp cannot carry both.
     const order = await makeOrder();
-    await completeStage({
+    await closeStage({
       orderId: order._id, stageNumber: 2, actor: actor('Billing'),
       actualCompletion: ist('2026-09-14', '10:34'),   // the work
       now: ist('2026-09-14', '15:00'),                // the entry
@@ -368,7 +369,7 @@ describe('hold and resume', () => {
     assert.equal((await stageOf(order._id, 2)).status, STAGE_STATUS.ON_HOLD);
 
     await assert.rejects(
-      () => completeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing') }),
+      () => closeStage({ orderId: order._id, stageNumber: 2, actor: actor('Billing') }),
       (e) => /on hold/.test(e.message),
     );
   });
@@ -454,7 +455,7 @@ describe('the audit trail', () => {
 
   test('a completion is recorded with who, when and the status it moved from', async () => {
     const order = await makeOrder();
-    await completeStage({
+    await closeStage({
       orderId: order._id,
       stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
       actor: actor('Billing'),
@@ -478,7 +479,7 @@ describe('the audit trail', () => {
   test('a late completion carries the delay, so the trail explains the KPI', async () => {
     const order = await makeOrder();
     // 5 working-minute SLA from 10:30; completing at 11:30 is an hour late.
-    await completeStage({
+    await closeStage({
       orderId: order._id,
       stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
       actor: actor('Billing'),
@@ -492,7 +493,7 @@ describe('the audit trail', () => {
 
   test('a back-filled completion is distinguishable from one recorded live', async () => {
     const order = await makeOrder();
-    await completeStage({
+    await closeStage({
       orderId: order._id,
       stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
       actor: actor('Billing'),
@@ -510,7 +511,7 @@ describe('the audit trail', () => {
 
   test('an override is its own action, and the reason is in the trail', async () => {
     const order = await makeOrder();
-    await completeStage({
+    await closeStage({
       orderId: order._id,
       stageNumber: STAGES.SEND_SOR_PI,
       actor: actor('Billing Head'),
@@ -532,9 +533,9 @@ describe('the audit trail', () => {
 
   test('a skip records why, and that it leaves the KPI', async () => {
     const order = await makeOrder();
-    await completeStage({ orderId: order._id, stageNumber: STAGES.SUBMIT_PO_TO_BILLING, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
-    await completeStage({ orderId: order._id, stageNumber: STAGES.SEND_SOR_PI, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
-    await completeStage({ orderId: order._id, stageNumber: STAGES.ADVANCE_DECISION, actor: actor('Billing'), now: ist('2026-09-14', '11:30') });
+    await closeStage({ orderId: order._id, stageNumber: STAGES.SUBMIT_PO_TO_BILLING, actor: actor('Billing'), now: ist('2026-09-14', '10:33') });
+    await closeStage({ orderId: order._id, stageNumber: STAGES.SEND_SOR_PI, actor: actor('Billing'), now: ist('2026-09-14', '11:00') });
+    await closeStage({ orderId: order._id, stageNumber: STAGES.ADVANCE_DECISION, actor: actor('Billing'), now: ist('2026-09-14', '11:30') });
     await skipStage({
       orderId: order._id,
       stageNumber: STAGES.RECEIVE_ADVANCE,
@@ -579,7 +580,7 @@ describe('the audit trail', () => {
   test('a refused transition writes nothing', async () => {
     const order = await makeOrder();
     await assert.rejects(
-      () => completeStage({
+      () => closeStage({
         orderId: order._id,
         stageNumber: STAGES.SEND_SOR_PI,
         actor: actor('Billing'),
