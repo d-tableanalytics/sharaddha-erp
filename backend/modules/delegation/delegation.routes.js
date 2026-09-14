@@ -15,6 +15,9 @@ import {
   addFollowUp,
   getCategories,
   getUsers,
+  getDeletedDelegations,
+  restoreDelegation,
+  deleteDelegation,
 } from './delegation.controller.js';
 
 const router = express.Router();
@@ -26,13 +29,19 @@ router.use(protect, authorize(PERMISSIONS.VIEW_O2D));
 router.get('/meta/categories', getCategories);
 router.get('/meta/users', getUsers);
 
+// Deleted Tasks (Trash Bin) - MUST be declared before /:id
+router.get('/deleted', getDeletedDelegations);
+
 // Tasks Read & Write
 router.get('/', getDelegations);
 router.get('/:id', getDelegationById);
 router.post('/', createDelegation);
 router.put('/:id', updateDelegation);
+router.delete('/:id', deleteDelegation);
 
 // Specific Task Lifecycle Operations
+router.patch('/:id/restore', restoreDelegation);
+router.post('/:id/restore', restoreDelegation);
 router.post('/:id/verify', verifyAndComplete);
 router.post('/:id/subtasks', addSubtask);
 router.patch('/:id/subtasks/:subtaskId/toggle', toggleSubtask);

@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -165,7 +165,12 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
       items: [
         { id: "wq:mywork", key: "mywork", label: "My Work", path: "/work-queue", icon: Table },
         { id: "wq:delegation", key: "delegation", label: "Delegation", path: "/wq/delegation", icon: Forward },
+        { id: "wq:looptasks", key: "looptasks", label: "Loop Tasks", path: "/wq/looptasks", icon: RefreshCwIcon },
+        { id: "wq:alltasks", key: "alltasks", label: "All Tasks", path: "/wq/alltasks", icon: Table2 },
+        { id: "wq:deletedtasks", key: "deletedtasks", label: "Deleted Tasks", path: "/wq/deletedtasks", icon: Trash2 },
         { id: "wq:checklist", key: "checklist", label: "Checklist", path: "/wq/checklist", icon: CheckSquare },
+        { id: "wq:executivescoreboard", key: "executivescoreboard", label: "Executive Scoreboard", path: "/wq/executivescoreboard", icon: Trophy },
+        { id: "wq:activities", key: "activities", label: "Activities", path: "/wq/activities", icon: BarChart3 },
       ],
     }]
     : [];

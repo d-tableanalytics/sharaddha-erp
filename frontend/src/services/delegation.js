@@ -29,16 +29,24 @@ async function patch(path = '', data) {
   return res.data?.data;
 }
 
+async function del(path = '', params) {
+  const res = await api.delete(`${PREFIX}${path}`, { params });
+  return res.data?.data;
+}
+
 export const delegationService = {
   // Read
-  getDelegations:    (params) => get('', params),
-  getDelegationById: (id)     => get(`/${id}`),
-  getCategories:     ()       => get('/meta/categories'),
-  getUsers:          ()       => get('/meta/users'),
+  getDelegations:        (params) => get('', params),
+  getDeletedDelegations: (params) => get('/deleted', params),
+  getDelegationById:     (id)     => get(`/${id}`),
+  getCategories:         ()       => get('/meta/categories'),
+  getUsers:              ()       => get('/meta/users'),
 
   // Task CRUD
-  createDelegation:  (data)     => post('', data),
-  updateDelegation:  (id, data) => put(`/${id}`, data),
+  createDelegation:      (data)     => post('', data),
+  updateDelegation:      (id, data) => put(`/${id}`, data),
+  deleteDelegation:      (id)       => del(`/${id}`),
+  restoreDelegation:     (id)       => patch(`/${id}/restore`),
 
   // Lifecycle actions
   verifyAndComplete: (id, data) => post(`/${id}/verify`, data),

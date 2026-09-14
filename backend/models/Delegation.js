@@ -106,6 +106,13 @@ const delegationSchema = new mongoose.Schema({
   evidenceUrl: { type: String, default: '' },
   evidenceNotes: { type: String, default: '' },
 
+  // Soft Delete Audit
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  deletedByFirstName: { type: String, default: '' },
+  deletedByLastName: { type: String, default: '' },
+
   // Sub-items & Audit
   subtasks: [subtaskSchema],
   remarks: [remarkSchema],
@@ -117,6 +124,7 @@ const delegationSchema = new mongoose.Schema({
 delegationSchema.index({ assignerId: 1, status: 1 });
 delegationSchema.index({ doerId: 1, status: 1 });
 delegationSchema.index({ dueDate: 1 });
+delegationSchema.index({ isDeleted: 1, deletedAt: -1 });
 
 export const Delegation = mongoose.model('Delegation', delegationSchema);
 export default Delegation;

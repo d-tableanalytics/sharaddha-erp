@@ -96,7 +96,7 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
                     <div
                       key={task._id}
                       onClick={() => onTaskClick(task)}
-                      className="group bg-white rounded-xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer border-l-4 border-l-transparent hover:border-l-[#5182c8] flex flex-col gap-2.5"
+                      className="group bg-white rounded-xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer border-l-4 border-l-transparent hover:border-l-[#1E4C92] flex flex-col gap-2.5"
                     >
                       {/* Card Top: Category & Priority */}
                       <div className="flex items-center justify-between gap-2">
@@ -157,7 +157,7 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500 font-semibold">
                         <div className="flex items-center gap-2">
                           <div
-                            className="w-7 h-7 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-[10px] flex items-center justify-center border border-sky-400"
+                            className="w-7 h-7 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-[10px] flex items-center justify-center border border-[#1E4C92]/20"
                             title={`${task.doerFirstName} ${task.doerLastName}`}
                           >
                             {getInitials(task.doerFirstName, task.doerLastName)}

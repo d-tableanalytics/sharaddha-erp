@@ -65,10 +65,14 @@ const HrmsInboxPage = lazy(() => import("../pages/Hrms/inbox/InboxPage").then(m 
 const O2dPage = lazy(() => import("../pages/O2d/O2dPage").then(m => ({ default: m.O2dPage })));
 const O2dNewOrderPage = lazy(() => import("../pages/O2d/NewOrderPage").then(m => ({ default: m.NewOrderPage })));
 
-// Checklist & Delegation — part of the Work Queue group.
 const ChecklistPage = lazy(() => import("../pages/Checklist/ChecklistPage").then(m => ({ default: m.ChecklistPage })));
 const DelegationPage = lazy(() => import("../pages/Delegation/DelegationPage").then(m => ({ default: m.DelegationPage })));
 const MyDay = lazy(() => import("../pages/MyDay/MyDay").then(m => ({ default: m.MyDay })));
+const InLoopTasks = lazy(() => import("../pages/InLoopTasks").then(m => ({ default: m.InLoopTasks })));
+const AllTasks = lazy(() => import("../pages/AllTasks").then(m => ({ default: m.AllTasks })));
+const DeletedTasks = lazy(() => import("../pages/DeletedTasks").then(m => ({ default: m.DeletedTasks })));
+const ExecutiveScoreboard = lazy(() => import("../pages/ExecutiveScoreboard/ExecutiveScoreboard").then(m => ({ default: m.ExecutiveScoreboard })));
+const Activities = lazy(() => import("../pages/Activities").then(m => ({ default: m.Activities })));
 
 // ── Public careers (no session: an applicant has no account) ──────────────
 const CareersLayout = lazy(() => import("../pages/Careers/CareersLayout").then(m => ({ default: m.CareersLayout })));
@@ -392,14 +396,29 @@ export const router = createBrowserRouter([
               { path: "my-tasks", element: <Navigate to="/work-queue" replace /> },
               { path: "my-tasks/:taskId", element: <MyDay /> },
               { path: "dashboard", element: <Navigate to="/work-queue" replace /> },
+              { path: "in-loop-tasks", element: <InLoopTasks /> },
+              { path: "in-loop-tasks/:taskId", element: <InLoopTasks /> },
+              { path: "all-tasks", element: <AllTasks /> },
+              { path: "all-tasks/:taskId", element: <AllTasks /> },
+              { path: "deleted-tasks", element: <DeletedTasks /> },
               {
                 path: "wq",
                 children: [
                   { path: "delegation", element: <DelegationPage /> },
                   { path: "delegation/:taskId", element: <DelegationPage /> },
+                  { path: "looptasks", element: <InLoopTasks /> },
+                  { path: "looptasks/:taskId", element: <InLoopTasks /> },
+                  { path: "alltasks", element: <AllTasks /> },
+                  { path: "alltasks/:taskId", element: <AllTasks /> },
+                  { path: "deletedtasks", element: <DeletedTasks /> },
                   { path: "checklist", element: <ChecklistPage /> },
+                  { path: "executivescoreboard", element: <ExecutiveScoreboard /> },
+                  { path: "activities", element: <Activities /> },
                 ],
               },
+              { path: "activities", element: <Navigate to="/wq/activities" replace /> },
+              { path: "scoreboard", element: <Navigate to="/wq/executivescoreboard" replace /> },
+              { path: "executive-scoreboard", element: <Navigate to="/wq/executivescoreboard" replace /> },
             ],
           },
         ],

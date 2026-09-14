@@ -130,17 +130,17 @@ export function TaskListView({
 
         // Badge styling
         let statusBadge = {
-          bg: 'bg-slate-50 text-slate-600 border-slate-200',
+          bg: 'bg-slate-50 text-slate-700 border-slate-200',
           label: task.status,
         };
         if (task.status === 'Completed') {
-          statusBadge = { bg: 'bg-emerald-50 text-emerald-600 border-emerald-200', label: 'Completed' };
+          statusBadge = { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Completed' };
         } else if (isAwaitingVerification) {
-          statusBadge = { bg: 'bg-blue-50 text-blue-600 border-blue-200', label: 'Awaiting Verification' };
+          statusBadge = { bg: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Awaiting Verification' };
         } else if (task.status === 'In Progress') {
-          statusBadge = { bg: 'bg-orange-50 text-orange-600 border-orange-200', label: 'In Progress' };
+          statusBadge = { bg: 'bg-orange-50 text-orange-700 border-orange-200', label: 'In Progress' };
         } else if (overdue) {
-          statusBadge = { bg: 'bg-red-50 text-red-600 border-red-200', label: 'Overdue' };
+          statusBadge = { bg: 'bg-red-50 text-red-700 border-red-200', label: 'Overdue' };
         }
 
         // Priority colors
@@ -163,10 +163,10 @@ export function TaskListView({
         return (
           <div
             key={task._id}
-            className={`group bg-white rounded-xl border transition-all duration-200 shadow-enterprise/40 hover:shadow-enterprise ${
+            className={`group bg-white rounded-xl border transition-all duration-200 ${
               isAwaitingVerification
-                ? 'ring-2 ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-blue-50/10 border-blue-200'
-                : 'border-slate-200/80 hover:border-slate-300'
+                ? 'ring-2 ring-blue-500/20 border-blue-300 bg-blue-50/10 shadow-xs hover:shadow-md'
+                : 'border-slate-200 hover:border-slate-300 shadow-xs hover:shadow-md'
             }`}
           >
             {/* Main Row Header */}
@@ -185,7 +185,7 @@ export function TaskListView({
 
               {/* Assignee Avatar */}
               <div
-                className="w-10 h-10 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-xs flex items-center justify-center border-2 border-sky-400 shrink-0 shadow-xs"
+                className="w-10 h-10 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-xs flex items-center justify-center border border-[#1E4C92]/20 shrink-0 shadow-xs"
                 title={`${task.doerFirstName} ${task.doerLastName}`}
               >
                 {getInitials(task.doerFirstName, task.doerLastName)}
@@ -213,14 +213,14 @@ export function TaskListView({
 
               {/* Status Badge */}
               <span
-                className={`text-[11px] font-black px-2.5 py-1 rounded-md border uppercase tracking-wider ${statusBadge.bg} shrink-0`}
+                className={`text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider ${statusBadge.bg} shrink-0`}
               >
                 {statusBadge.label}
               </span>
 
               {/* Recurrence Badge */}
               <span
-                className={`hidden md:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                className={`hidden md:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
                   isRecurring
                     ? 'bg-purple-50 text-purple-600 border-purple-200'
                     : 'bg-slate-50 text-slate-400 border-slate-200'
@@ -249,7 +249,7 @@ export function TaskListView({
                   type="button"
                   onClick={(e) => handleQuickVerify(e, task)}
                   disabled={verifyingId === task._id}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-3 py-1.5 font-black uppercase text-[10px] tracking-wider flex items-center gap-1 shadow-sm active:scale-95 transition-all shrink-0"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-1.5 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer"
                 >
                   {verifyingId === task._id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />

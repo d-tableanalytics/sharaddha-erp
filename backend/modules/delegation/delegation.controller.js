@@ -1,6 +1,7 @@
 import { Delegation } from '../../models/Delegation.js';
 import User from '../../models/User.js';
 import { isSuperAdmin } from '../../middlewares/rbac.js';
+import { logActivity } from '../activities/activity.controller.js';
 
 const ADMIN_ROLES = ['Super Admin', 'Admin', 'Management', 'HR'];
 const isManager = (user) => isSuperAdmin(user) || ADMIN_ROLES.includes(user?.role);
@@ -185,6 +186,16 @@ async function seedInitialDelegations(currentUserId, currentUserName) {
   ];
 
   await Delegation.insertMany(sampleTasks);
+
+  // If sample delegations exist but none have inLoop, ensure inLoop is populated on a couple of tasks for testing
+  const inLoopCount = await Delegation.countDocuments({ 'inLoop.0': { $exists: true } });
+  if (inLoopCount === 0) {
+    const existing = await Delegation.find().limit(3);
+    for (const t of existing) {
+      t.inLoop = [{ userId: currentUserId, name: currentUserName || 'System User' }];
+      await t.save();
+    }
+  }
 }
 
 /**
@@ -213,18 +224,40 @@ export async function getDelegations(req, res, next) {
       detailed,
     } = req.query;
 
-    const filter = {};
+    const filter = { isDeleted: { $ne: true } };
 
     const conditions = [];
 
-    // My Work perspective (doer or in loop) vs Delegator perspective (assigner)
-    if (req.query.myWork === 'true' || req.query.scope === 'myWork') {
+    // In-Loop perspective vs My Work perspective (doer or in loop) vs Delegator perspective (assigner)
+    if (req.query.scope === 'inLoop' || req.query.inLoop === 'true') {
+      const targetUserId = (isManager(req.user) && (req.query.inLoopUserId || req.query.viewingId))
+        ? (req.query.inLoopUserId || req.query.viewingId)
+        : currentUserId;
+      conditions.push({
+        'inLoop.userId': targetUserId,
+      });
+    } else if (req.query.myWork === 'true' || req.query.scope === 'myWork') {
       conditions.push({
         $or: [
           { doerId: currentUserId },
           { 'inLoop.userId': currentUserId },
         ],
       });
+    } else if (req.query.scope === 'allTasks' || req.query.scope === 'all') {
+      if (!isManager(req.user)) {
+        conditions.push({
+          $or: [
+            { assignerId: currentUserId },
+            { doerId: currentUserId },
+            { 'inLoop.userId': currentUserId },
+            { inLoopIds: currentUserId },
+          ],
+        });
+      }
+    } else if (req.query.viewAll === 'true') {
+      if (!isManager(req.user)) {
+        filter.assignerId = currentUserId;
+      }
     } else if (!req.query.viewAll || !isManager(req.user)) {
       filter.assignerId = currentUserId;
     }
@@ -412,6 +445,16 @@ export async function createDelegation(req, res, next) {
     });
 
     await doc.save();
+
+    logActivity({
+      type: 'task_created',
+      title: doc.taskTitle,
+      description: doc.description || `Task delegated to ${doc.doerFirstName || 'assignee'}`,
+      userId: req.user._id,
+      relatedId: doc._id,
+      metadata: { taskUid: `DEL-${String(doc._id).slice(-4).toUpperCase()}` },
+    });
+
     res.status(201).json({ success: true, data: doc });
   } catch (err) {
     next(err);
@@ -486,6 +529,16 @@ export async function verifyAndComplete(req, res, next) {
     }
 
     await task.save();
+
+    logActivity({
+      type: 'status_change',
+      title: 'Task Status Updated: Completed',
+      description: req.body.notes || 'Task marked as verified and completed',
+      userId: req.user._id,
+      relatedId: task._id,
+      metadata: { newStatus: 'Completed' },
+    });
+
     res.json({ success: true, data: task });
   } catch (err) {
     next(err);
@@ -510,6 +563,14 @@ export async function addSubtask(req, res, next) {
 
     task.subtasks.push({ title, completed: false });
     await task.save();
+
+    logActivity({
+      type: 'subtask_created',
+      title: 'Subtask Created',
+      description: title,
+      userId: req.user._id,
+      relatedId: task._id,
+    });
 
     res.json({ success: true, data: task });
   } catch (err) {
@@ -567,6 +628,15 @@ export async function addRemark(req, res, next) {
     });
 
     await task.save();
+
+    logActivity({
+      type: 'remark',
+      title: 'Remark Added',
+      description: text,
+      userId: req.user._id,
+      relatedId: task._id,
+    });
+
     res.json({ success: true, data: task });
   } catch (err) {
     next(err);
@@ -603,6 +673,14 @@ export async function reviseDueDate(req, res, next) {
 
     task.dueDate = new Date(newDate);
     await task.save();
+
+    logActivity({
+      type: 'date_revision',
+      title: 'Due Date Revised',
+      description: reason,
+      userId: req.user._id,
+      relatedId: task._id,
+    });
 
     res.json({ success: true, data: task });
   } catch (err) {
@@ -691,3 +769,328 @@ export async function getUsers(req, res, next) {
     next(err);
   }
 }
+
+// Seed sample deleted tasks for demo/audit testing if none exist
+async function seedInitialDeletedDelegations(currentUserId, currentUserName) {
+  const deletedCount = await Delegation.countDocuments({ isDeleted: true });
+  if (deletedCount > 0) return;
+
+  const users = await User.find({ status: 'Active' }).limit(5).lean();
+  const doer1 = users[0] || { _id: currentUserId, user: 'Rahul Sharma' };
+  const doer2 = users[1] || { _id: currentUserId, user: 'Priya Sharma' };
+  const doer3 = users[2] || { _id: currentUserId, user: 'Amit Kumar' };
+
+  const now = new Date();
+  const sampleDeleted = [
+    {
+      taskTitle: 'HVAC Duct Pressure Test - Tower B',
+      description: 'Perform static pressure boundary leak testing along risers 4 through 7 on Tower B mechanical floor.',
+      assignerId: currentUserId,
+      assignerName: 'Amit Kumar',
+      doerId: doer1._id,
+      doerFirstName: 'Rahul',
+      doerLastName: 'Sharma',
+      assigneeHierarchy: 'Rahul Sharma → MEP Lead',
+      status: 'In Progress',
+      priority: 'High',
+      category: 'MEP',
+      categoryColor: '#ef4444',
+      tags: [{ name: 'Safety', color: '#dc2626' }, { name: 'MEP', color: '#3b82f6' }],
+      startDate: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
+      isDeleted: true,
+      deletedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      deletedBy: currentUserId,
+      deletedByFirstName: 'Admin',
+      deletedByLastName: 'User',
+    },
+    {
+      taskTitle: 'Procurement PO Approval for Substation Switchgear',
+      description: 'Review quote variances with vendor engineering team and clear high-priority payment approval milestone.',
+      assignerId: currentUserId,
+      assignerName: 'Priya Sharma',
+      doerId: doer2._id,
+      doerFirstName: 'Priya',
+      doerLastName: 'Sharma',
+      assigneeHierarchy: 'Priya Sharma → Electrical Head',
+      status: 'Pending',
+      priority: 'Urgent',
+      category: 'Procurement',
+      categoryColor: '#f97316',
+      tags: [{ name: 'PO', color: '#f59e0b' }, { name: 'Urgent', color: '#ef4444' }],
+      startDate: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000), // Overdue
+      isDeleted: true,
+      deletedAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+      deletedBy: currentUserId,
+      deletedByFirstName: 'Admin',
+      deletedByLastName: 'User',
+    },
+    {
+      taskTitle: 'Basement Water Retention Wall Waterproofing Audit',
+      description: 'Physical inspection of membrane barrier curing and sign-off on third-party QA certificate.',
+      assignerId: currentUserId,
+      assignerName: 'Amit Kumar',
+      doerId: doer3._id,
+      doerFirstName: 'Amit',
+      doerLastName: 'Kumar',
+      assigneeHierarchy: 'Amit Kumar → Site Supervisor',
+      status: 'Completed',
+      priority: 'Medium',
+      category: 'Civil',
+      categoryColor: '#10b981',
+      tags: [{ name: 'Civil', color: '#10b981' }, { name: 'QA', color: '#6366f1' }],
+      startDate: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      completedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+      isDeleted: true,
+      deletedAt: new Date(now.getTime() - 36 * 60 * 60 * 1000),
+      deletedBy: currentUserId,
+      deletedByFirstName: 'Admin',
+      deletedByLastName: 'User',
+    }
+  ];
+  await Delegation.insertMany(sampleDeleted);
+}
+
+/**
+ * GET /api/v1/delegation/deleted
+ * Get soft-deleted tasks for admin trash bin.
+ */
+export async function getDeletedDelegations(req, res, next) {
+  try {
+    const currentUserId = req.user._id;
+    const currentUserName = req.user.user || req.user.email;
+
+    await seedInitialDeletedDelegations(currentUserId, currentUserName);
+
+    const {
+      search,
+      status,
+      priority,
+      category,
+      assignedBy,
+      tagFilter,
+      dateRange,
+      customStartDate,
+      customEndDate,
+      sortBy = 'deletedAt',
+      sortOrder = 'desc',
+    } = req.query;
+
+    const filter = { isDeleted: true };
+    const conditions = [];
+
+    // Search
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      conditions.push({
+        $or: [
+          { taskTitle: regex },
+          { description: regex },
+          { doerFirstName: regex },
+          { doerLastName: regex },
+          { assignerName: regex },
+        ],
+      });
+    }
+
+    // Status filter
+    if (status && status !== 'All') {
+      if (status === 'OverDue' || status === 'Overdue') {
+        conditions.push({
+          dueDate: { $lt: new Date() },
+          status: { $nin: ['Completed', 'Awaiting Verification'] },
+        });
+      } else {
+        conditions.push({ status });
+      }
+    }
+
+    // Priority filter
+    if (priority && priority !== 'All') {
+      conditions.push({ priority });
+    }
+
+    // Category filter
+    if (category && category !== 'All') {
+      conditions.push({ category });
+    }
+
+    // Assigned By filter
+    if (assignedBy && assignedBy !== 'All') {
+      conditions.push({
+        $or: [
+          { assignerId: assignedBy },
+          { assignerName: new RegExp(assignedBy, 'i') },
+        ],
+      });
+    }
+
+    // Tag filter
+    if (tagFilter && tagFilter !== 'All') {
+      conditions.push({ 'tags.name': tagFilter });
+    }
+
+    // Date range filter against deletedAt || createdAt
+    const now = new Date();
+    if (dateRange === 'Today') {
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(now), $lte: endOfDay(now) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(now), $lte: endOfDay(now) } },
+        ]
+      });
+    } else if (dateRange === 'Yesterday') {
+      const y = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(y), $lte: endOfDay(y) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(y), $lte: endOfDay(y) } },
+        ]
+      });
+    } else if (dateRange === 'This Week') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(new Date().setDate(diff));
+      const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(monday), $lte: endOfDay(sunday) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(monday), $lte: endOfDay(sunday) } },
+        ]
+      });
+    } else if (dateRange === 'Next Week') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1) + 7;
+      const monday = new Date(new Date().setDate(diff));
+      const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(monday), $lte: endOfDay(sunday) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(monday), $lte: endOfDay(sunday) } },
+        ]
+      });
+    } else if (dateRange === 'This Month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) } },
+        ]
+      });
+    } else if (dateRange === 'Next Month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) } },
+        ]
+      });
+    } else if (dateRange === 'Custom' && customStartDate && customEndDate) {
+      conditions.push({
+        $or: [
+          { deletedAt: { $gte: startOfDay(customStartDate), $lte: endOfDay(customEndDate) } },
+          { deletedAt: null, createdAt: { $gte: startOfDay(customStartDate), $lte: endOfDay(customEndDate) } },
+        ]
+      });
+    }
+
+    if (conditions.length > 0) {
+      filter.$and = conditions;
+    }
+
+    const sortFieldMap = {
+      'Deleted At': 'deletedAt',
+      'deletedAt': 'deletedAt',
+      'Due Date': 'dueDate',
+      'dueDate': 'dueDate',
+      'Created At': 'createdAt',
+      'createdAt': 'createdAt',
+      'Title': 'taskTitle',
+      'title': 'taskTitle',
+    };
+    const sortKey = sortFieldMap[sortBy] || 'deletedAt';
+    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+
+    const tasks = await Delegation.find(filter)
+      .sort({ [sortKey]: sortDirection })
+      .lean();
+
+    res.json({ success: true, data: tasks });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH or POST /api/v1/delegation/:id/restore
+ * Restore soft-deleted task to active workflow.
+ */
+export async function restoreDelegation(req, res, next) {
+  try {
+    const task = await Delegation.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    task.isDeleted = false;
+    task.deletedAt = null;
+    task.deletedBy = null;
+    task.deletedByFirstName = '';
+    task.deletedByLastName = '';
+
+    await task.save();
+
+    logActivity({
+      type: 'restored',
+      title: 'Task Restored',
+      description: 'Task restored from trash bin',
+      userId: req.user._id,
+      relatedId: task._id,
+    });
+
+    res.json({ success: true, message: 'Task restored successfully', data: task });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/v1/delegation/:id
+ * Soft-delete a task and move to trash bin.
+ */
+export async function deleteDelegation(req, res, next) {
+  try {
+    const task = await Delegation.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    const userName = req.user.user || req.user.name || 'Admin';
+    const nameParts = userName.trim().split(' ');
+
+    task.isDeleted = true;
+    task.deletedAt = new Date();
+    task.deletedBy = req.user._id;
+    task.deletedByFirstName = nameParts[0] || 'Admin';
+    task.deletedByLastName = nameParts.slice(1).join(' ') || '';
+
+    await task.save();
+
+    logActivity({
+      type: 'deleted',
+      title: 'Task Deleted',
+      description: 'Task moved to trash bin',
+      userId: req.user._id,
+      relatedId: task._id,
+    });
+
+    res.json({ success: true, message: 'Task deleted successfully', data: task });
+  } catch (err) {
+    next(err);
+  }
+}
+

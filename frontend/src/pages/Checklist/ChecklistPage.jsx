@@ -40,8 +40,9 @@ import {
   Building2,
   MessageSquare,
   X,
+  ChevronDown,
+  RotateCcw,
 } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -55,11 +56,11 @@ const isManager = (user) =>
 // ── KPI Tile Config ──────────────────────────────────────────────────────────
 
 const KPI_TILES = [
-  { key: 'total',        label: 'Total',         icon: ClipboardList, accent: 'bg-slate-500' },
-  { key: 'pendingToday', label: 'Pending today',  icon: Clock,         accent: 'bg-blue-500' },
-  { key: 'overdue',      label: 'Overdue',        icon: AlertTriangle, accent: 'bg-red-500' },
-  { key: 'completed',    label: 'Completed',      icon: CheckCircle2,  accent: 'bg-emerald-500' },
-  { key: 'complianceRate', label: 'Compliance',   icon: TrendingUp,    accent: 'bg-indigo-500' },
+  { key: 'total',          label: 'Total',          icon: ClipboardList, accent: 'bg-slate-400', textColor: 'text-slate-800' },
+  { key: 'pendingToday',   label: 'Pending Today',  icon: Clock,         accent: 'bg-blue-500',  textColor: 'text-blue-600' },
+  { key: 'overdue',        label: 'Overdue',        icon: AlertTriangle, accent: 'bg-red-500',   textColor: 'text-red-600' },
+  { key: 'completed',      label: 'Completed',      icon: CheckCircle2,  accent: 'bg-emerald-500', textColor: 'text-emerald-600' },
+  { key: 'complianceRate', label: 'Compliance',     icon: TrendingUp,    accent: 'bg-indigo-500', textColor: 'text-indigo-600' },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -295,34 +296,35 @@ export function ChecklistPage() {
   // ═══════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-500">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
 
       {/* ── 1. Header Bar ────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center">
-            <ClipboardList size={22} className="text-emerald-600" />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
+            <ClipboardList className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900">Checklist</h1>
-            <p className="text-sm text-slate-500">
-              Recurring compliance tasks — generated ahead, tracked to completion.
+            <h1 className="text-2xl font-black text-slate-800 leading-none">Checklist</h1>
+            <p className="text-xs font-bold text-slate-400 mt-1">
+              Recurring compliance tasks — generated ahead, tracked to completion
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Site switcher */}
           {locations.length > 1 && (
-            <div className="flex items-center bg-slate-100 rounded-xl p-0.5 border border-slate-200">
+            <div className="h-10 bg-slate-100 rounded-xl p-1 border border-slate-200 flex items-center gap-1 shadow-xs">
               {locations.map((site) => (
                 <button
                   key={site}
+                  type="button"
                   onClick={() => setSelectedSite(site === selectedSite ? '' : site)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     selectedSite === site
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-200'
+                      ? 'bg-[#1E4C92] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
                   {site}
@@ -333,95 +335,95 @@ export function ChecklistPage() {
 
           {/* Refresh */}
           <button
+            type="button"
             onClick={handleRefresh}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all duration-200"
-            title="Refresh"
+            disabled={refreshing}
+            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Refresh checklist"
           >
-            <RefreshCw size={16} className={`text-slate-500 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`} />
+            <span>Refresh</span>
           </button>
 
           {/* New checklist CTA */}
-          <Button
+          <button
+            type="button"
             onClick={() => setCreateDrawer(true)}
-            className="!bg-emerald-600 hover:!bg-emerald-700 !text-white !rounded-xl"
+            className="flex items-center justify-center gap-2 px-5 h-10 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0"
           >
-            <Plus size={16} className="mr-1" />
-            {admin ? 'New checklist' : 'Add checklist task'}
-          </Button>
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
+            <span>{admin ? 'New Checklist' : 'Add Task'}</span>
+          </button>
         </div>
       </div>
 
       {/* ── 2. KPI Stat Tiles ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {KPI_TILES.map((tile) => {
-          const Icon = tile.icon;
           const value = tile.key === 'complianceRate'
             ? `${summary[tile.key] || 0}%`
             : (summary[tile.key] ?? 0);
           const isActive = activeKpi === tile.key;
 
           return (
-            <button
+            <div
               key={tile.key}
               onClick={() => tile.key !== 'complianceRate' && handleKpiClick(tile.key)}
-              className={`group relative p-4 rounded-2xl border text-left transition-all duration-200 hover:shadow-md overflow-hidden ${
-                isActive
-                  ? 'border-emerald-400 bg-emerald-50/60 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+              className={`p-3.5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${
+                isActive ? 'border-[#1E4C92] ring-2 ring-[#1E4C92]/10' : 'border-slate-200 hover:border-[#1E4C92]'
               }`}
             >
-              {/* Decorative blob */}
-              <div
-                className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-[0.07] ${tile.accent}`}
-              />
-
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-7 h-7 rounded-lg ${tile.accent} flex items-center justify-center`}>
-                  <Icon size={14} className="text-white" />
-                </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
                   {tile.label}
                 </span>
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${tile.accent}`} />
               </div>
 
-              <p className="text-3xl font-extrabold tabular-nums text-slate-900">{value}</p>
+              <div className="flex items-baseline justify-between mt-1">
+                <span className={`text-2xl font-black ${tile.textColor}`}>{value}</span>
+                {tile.key !== 'complianceRate' && (
+                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+                    {isActive ? 'Showing' : 'View →'}
+                  </span>
+                )}
+              </div>
 
               {tile.key === 'pendingToday' && summary.carriedOver > 0 && (
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  {summary.carriedOver} carried over from earlier
+                <p className="text-[10px] font-bold text-slate-400 mt-1">
+                  {summary.carriedOver} carried over
                 </p>
               )}
-
-              <p className={`text-[11px] font-semibold mt-1.5 ${isActive ? 'text-emerald-600' : 'text-slate-400 group-hover:text-slate-600'} transition-colors`}>
-                {isActive ? 'Showing' : 'View →'}
-              </p>
-            </button>
+            </div>
           );
         })}
       </div>
 
       {/* ── 3. Filter Bar ────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+      <div className="flex flex-wrap items-center gap-2.5">
         {/* View switcher (admin only) */}
         {admin && (
-          <div className="flex items-center bg-white rounded-xl p-0.5 border border-slate-200 mr-2">
+          <div className="h-11 bg-slate-100 rounded-xl p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
             {[
               { key: 'tasks',       label: 'Tasks',       icon: ClipboardList },
               { key: 'routines',    label: 'Routines',    icon: ListTree },
               { key: 'departments', label: 'Departments', icon: Building2 },
             ].map((tab) => {
               const TabIcon = tab.icon;
+              const isCurrent = view === tab.key;
               return (
                 <button
                   key={tab.key}
+                  type="button"
                   onClick={() => setView(tab.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    view === tab.key
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-100'
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    isCurrent
+                      ? 'bg-[#1E4C92] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
-                  <TabIcon size={13} /> {tab.label}
+                  <TabIcon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
@@ -429,81 +431,96 @@ export function ChecklistPage() {
         )}
 
         {/* Search */}
-        <div className="relative flex-1 min-w-[160px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tasks…"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all"
+            placeholder="Search checklist tasks..."
+            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs transition-all"
           />
         </div>
 
         {/* Frequency */}
-        <select
-          value={frequencyFilter}
-          onChange={(e) => setFrequencyFilter(e.target.value)}
-          className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all"
-        >
-          <option value="">All frequencies</option>
-          {FREQUENCIES.map((f) => (
-            <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
-          ))}
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={frequencyFilter}
+            onChange={(e) => setFrequencyFilter(e.target.value)}
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+          >
+            <option value="">All Frequencies</option>
+            {FREQUENCIES.map((f) => (
+              <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
 
         {/* Status */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all"
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>{s === 'non-functional' ? 'Non-Functional' : s.charAt(0).toUpperCase() + s.slice(1)}</option>
-          ))}
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+          >
+            <option value="">All Statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>{s === 'non-functional' ? 'Non-Functional' : s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
 
         {/* Department filter (admin only) */}
         {admin && departments.length > 0 && (
-          <select
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all"
-          >
-            <option value="">All departments</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+          <div className="relative shrink-0">
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
         )}
 
         {/* Site filter */}
         {locations.length > 0 && (
-          <select
-            value={siteFilter}
-            onChange={(e) => setSiteFilter(e.target.value)}
-            className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all"
-          >
-            <option value="">All sites</option>
-            {locations.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <div className="relative shrink-0">
+            <select
+              value={siteFilter}
+              onChange={(e) => setSiteFilter(e.target.value)}
+              className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            >
+              <option value="">All Sites</option>
+              {locations.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
         )}
 
         {/* Doer filter (admin only) */}
         {admin && users.length > 0 && (
-          <select
-            value={doerFilter}
-            onChange={(e) => setDoerFilter(e.target.value)}
-            className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all"
-          >
-            <option value="">Everyone</option>
-            {users.map((u) => (
-              <option key={u._id} value={u._id}>{u.user || u.email}</option>
-            ))}
-          </select>
+          <div className="relative shrink-0">
+            <select
+              value={doerFilter}
+              onChange={(e) => setDoerFilter(e.target.value)}
+              className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            >
+              <option value="">All Doers</option>
+              {users.map((u) => (
+                <option key={u._id} value={u._id}>{u.user || u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email}</option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
         )}
 
         {/* Date filters */}
@@ -512,57 +529,65 @@ export function ChecklistPage() {
           value={specificDate}
           onChange={(e) => setSpecificDate(e.target.value)}
           title="Specific date"
-          className={`px-3 py-2.5 rounded-xl border bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all ${
-            specificDate ? 'border-emerald-400 ring-2 ring-emerald-500/40' : 'border-slate-200'
+          className={`h-11 px-3 bg-white border rounded-xl text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all cursor-pointer ${
+            specificDate ? 'border-[#1E4C92] ring-2 ring-[#1E4C92]/20' : 'border-slate-200 hover:border-slate-300'
           }`}
         />
-        <input
-          type="date"
-          value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          disabled={!!specificDate}
-          title="From"
-          className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all disabled:opacity-50"
-        />
-        <input
-          type="date"
-          value={toDate}
-          onChange={(e) => setToDate(e.target.value)}
-          disabled={!!specificDate}
-          title="To"
-          className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all disabled:opacity-50"
-        />
+
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            disabled={!!specificDate}
+            title="From"
+            className="h-11 px-3 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all disabled:opacity-50 cursor-pointer"
+          />
+          <span className="text-xs font-bold text-slate-400">to</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            disabled={!!specificDate}
+            title="To"
+            className="h-11 px-3 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all disabled:opacity-50 cursor-pointer"
+          />
+        </div>
 
         {/* Clear filters */}
         {hasFilters && (
           <button
+            type="button"
             onClick={clearFilters}
-            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors whitespace-nowrap"
+            title="Clear all filters"
+            className="h-11 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
           >
-            Clear ({activeFilterCount})
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Clear ({activeFilterCount})</span>
           </button>
         )}
       </div>
 
       {/* ── 4. Bulk Action Bar ───────────────────────────────────────── */}
       {admin && selectedIds.length > 0 && (
-        <div className="flex items-center justify-between px-5 py-3 bg-emerald-600 text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
-          <span className="text-sm font-semibold">{selectedIds.length} tasks selected</span>
+        <div className="flex items-center justify-between px-5 py-3 bg-[#1E4C92] text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <span className="text-xs font-bold">{selectedIds.length} tasks selected</span>
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
+            <button
+              type="button"
               onClick={() => setRemarkModal(selectedIds)}
-              className="!bg-white/20 hover:!bg-white/30 !text-white !border-0"
+              className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <MessageSquare size={14} className="mr-1" /> Add remark
-            </Button>
-            <Button
-              size="sm"
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Add Remark</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setSelectedIds([])}
-              className="!bg-white/20 hover:!bg-white/30 !text-white !border-0"
+              className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-colors cursor-pointer"
             >
               Clear
-            </Button>
+            </button>
           </div>
         </div>
       )}
@@ -605,7 +630,7 @@ export function ChecklistPage() {
 
       {/* ── 6. Footer Count ──────────────────────────────────────────── */}
       {view === 'tasks' && tasks.length > 0 && (
-        <p className="text-center text-[12px] text-slate-400">
+        <p className="text-center text-xs font-semibold text-slate-400">
           Showing {tasks.length} tasks{selectedSite ? ` for ${selectedSite}` : ''}
         </p>
       )}

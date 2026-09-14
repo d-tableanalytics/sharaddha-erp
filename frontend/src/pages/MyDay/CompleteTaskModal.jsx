@@ -15,7 +15,7 @@ import {
  * CompleteTaskModal
  *
  * Handles file evidence upload, notes, and submits completion or verification dispatch
- * for Delegation and Group tasks according to MY-DAY-UI specification.
+ * for Delegation and Group tasks according to application design standards.
  */
 export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
   const [notes, setNotes] = useState("");
@@ -62,7 +62,6 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
 
     setSubmitting(true);
     try {
-      // In web apps without direct blob upload endpoints, we can encode filename or data URL
       let evidenceUrl = task.evidenceUrl || "";
       let evidenceNotes = notes.trim();
 
@@ -93,20 +92,20 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-lg bg-white dark:bg-[#1f293d] rounded-2xl shadow-enterprise border border-slate-200 dark:border-slate-700/80 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center gap-3">
             <div
-              className={`p-2 rounded-xl ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                 isVerificationRequired
-                  ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-                  : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  ? "bg-indigo-50 text-indigo-600 border border-indigo-200/60"
+                  : "bg-emerald-50 text-emerald-600 border border-emerald-200/60"
               }`}
             >
               {isVerificationRequired ? (
@@ -116,10 +115,10 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
               )}
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+              <h3 className="text-base font-black text-slate-800 leading-tight">
                 {isVerificationRequired ? "Submit for Verification" : "Complete Task"}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-sm">
+              <p className="text-xs font-bold text-slate-400 truncate max-w-sm mt-0.5">
                 {task.taskTitle || task.taskName}
               </p>
             </div>
@@ -127,7 +126,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
           <button
             onClick={onClose}
             type="button"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -136,7 +135,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
           {error && (
-            <div className="flex items-center gap-2 p-3 text-xs font-semibold text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300 rounded-xl border border-red-200 dark:border-red-900/50">
+            <div className="flex items-center gap-2 p-3 text-xs font-semibold text-red-700 bg-red-50 rounded-xl border border-red-200">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -146,8 +145,8 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
           <div
             className={`p-3.5 rounded-xl text-xs font-medium border ${
               isVerificationRequired
-                ? "bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200/70 dark:border-indigo-900/40 text-indigo-900 dark:text-indigo-200"
-                : "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/70 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200"
+                ? "bg-indigo-50/60 border-indigo-200/70 text-indigo-900"
+                : "bg-emerald-50/60 border-emerald-200/70 text-emerald-900"
             }`}
           >
             {isVerificationRequired
@@ -158,10 +157,10 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
           {/* File Upload Zone */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Upload Evidence / Photos {isEvidenceRequired && <span className="text-red-500">*</span>}
               </label>
-              <span className="text-[11px] text-slate-400">JPG, PNG, PDF up to 100MB</span>
+              <span className="text-[11px] font-medium text-slate-400">JPG, PNG, PDF up to 100MB</span>
             </div>
 
             <div
@@ -174,7 +173,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                   setFiles((prev) => [...prev, ...droppedFiles]);
                 }
               }}
-              className="group border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-500 dark:hover:border-emerald-400 rounded-2xl p-6 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-slate-800/30 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10"
+              className="group border-2 border-dashed border-slate-300 hover:border-[#1E4C92] rounded-2xl p-6 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-blue-50/30"
             >
               <input
                 ref={fileInputRef}
@@ -184,14 +183,14 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                 className="hidden"
                 onChange={handleFileChange}
               />
-              <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 transition-colors">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-500 group-hover:text-[#1E4C92] transition-colors">
                 <Upload className="w-6 h-6" />
               </div>
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                Drop files here or <span className="text-emerald-600 underline">browse</span>
+              <p className="text-xs font-bold text-slate-700">
+                Drop files here or <span className="text-[#1E4C92] underline">browse</span>
               </p>
               <p className="text-[11px] text-slate-400 mt-1">
-                Attach job-site photos, test certificates, or signoff PDFs
+                Attach job-site photos, test certificates, or signoff documents
               </p>
             </div>
 
@@ -201,7 +200,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                 {files.map((file, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs"
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs"
                   >
                     <div className="flex items-center gap-2 truncate">
                       {file.type.startsWith("image/") ? (
@@ -209,7 +208,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                       ) : (
                         <FileText className="w-4 h-4 text-blue-500 shrink-0" />
                       )}
-                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      <span className="font-semibold text-slate-700 truncate">
                         {file.name}
                       </span>
                       <span className="text-[11px] text-slate-400 shrink-0">
@@ -219,7 +218,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                     <button
                       type="button"
                       onClick={() => handleRemoveFile(idx)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -231,7 +230,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
 
           {/* Notes Textarea */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Completion Notes / Remarks
             </label>
             <textarea
@@ -239,7 +238,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add observations, site conditions, inspection notes, or handover comments..."
-              className="w-full p-3 text-xs font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 resize-none transition-all"
+              className="w-full p-3 text-xs font-semibold bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 text-slate-800 placeholder-slate-400 resize-none transition-all"
             />
           </div>
 
@@ -249,16 +248,16 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className={`px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-sm flex items-center gap-2 disabled:opacity-50 transition-all ${
+              className={`px-5 py-2.5 text-xs font-bold text-white rounded-xl shadow-xs flex items-center gap-2 disabled:opacity-50 transition-all cursor-pointer ${
                 isVerificationRequired
-                  ? "bg-indigo-600 hover:bg-indigo-700"
+                  ? "bg-[#1E4C92] hover:bg-[#163a6a]"
                   : "bg-emerald-600 hover:bg-emerald-700"
               }`}
             >
