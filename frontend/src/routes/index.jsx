@@ -65,16 +65,6 @@ const HrmsInboxPage = lazy(() => import("../pages/Hrms/inbox/InboxPage").then(m 
 const O2dPage = lazy(() => import("../pages/O2d/O2dPage").then(m => ({ default: m.O2dPage })));
 const O2dNewOrderPage = lazy(() => import("../pages/O2d/NewOrderPage").then(m => ({ default: m.NewOrderPage })));
 
-<<<<<<< HEAD
-const ChecklistPage = lazy(() => import("../pages/Checklist/ChecklistPage").then(m => ({ default: m.ChecklistPage })));
-const DelegationPage = lazy(() => import("../pages/Delegation/DelegationPage").then(m => ({ default: m.DelegationPage })));
-const MyDay = lazy(() => import("../pages/MyDay/MyDay").then(m => ({ default: m.MyDay })));
-const InLoopTasks = lazy(() => import("../pages/InLoopTasks").then(m => ({ default: m.InLoopTasks })));
-const AllTasks = lazy(() => import("../pages/AllTasks").then(m => ({ default: m.AllTasks })));
-const DeletedTasks = lazy(() => import("../pages/DeletedTasks").then(m => ({ default: m.DeletedTasks })));
-const ExecutiveScoreboard = lazy(() => import("../pages/ExecutiveScoreboard/ExecutiveScoreboard").then(m => ({ default: m.ExecutiveScoreboard })));
-const Activities = lazy(() => import("../pages/Activities").then(m => ({ default: m.Activities })));
-=======
 /**
  * `/o2d/<anything>` → `/fms/o2d/<anything>` (§1).
  *
@@ -89,7 +79,16 @@ function LegacyO2dRedirect() {
   const { search, hash } = useLocation();
   return <Navigate to={`/fms/o2d/${rest}${search}${hash}`} replace />;
 }
->>>>>>> d30a7b3eeb113a903fa0600e126499b41491df56
+
+
+const ChecklistPage = lazy(() => import("../pages/Checklist/ChecklistPage").then(m => ({ default: m.ChecklistPage })));
+const DelegationPage = lazy(() => import("../pages/Delegation/DelegationPage").then(m => ({ default: m.DelegationPage })));
+const MyDay = lazy(() => import("../pages/MyDay/MyDay").then(m => ({ default: m.MyDay })));
+const InLoopTasks = lazy(() => import("../pages/InLoopTasks").then(m => ({ default: m.InLoopTasks })));
+const AllTasks = lazy(() => import("../pages/AllTasks").then(m => ({ default: m.AllTasks })));
+const DeletedTasks = lazy(() => import("../pages/DeletedTasks").then(m => ({ default: m.DeletedTasks })));
+const ExecutiveScoreboard = lazy(() => import("../pages/ExecutiveScoreboard/ExecutiveScoreboard").then(m => ({ default: m.ExecutiveScoreboard })));
+const Activities = lazy(() => import("../pages/Activities").then(m => ({ default: m.Activities })));
 
 // ── Public careers (no session: an applicant has no account) ──────────────
 const CareersLayout = lazy(() => import("../pages/Careers/CareersLayout").then(m => ({ default: m.CareersLayout })));

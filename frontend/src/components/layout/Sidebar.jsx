@@ -1,9 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-<<<<<<< HEAD
 import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
-=======
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid } from "lucide-react";
->>>>>>> d30a7b3eeb113a903fa0600e126499b41491df56
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -142,7 +138,6 @@ export const Sidebar = () => {
    */
   const o2dGroups = canUseO2d(user)
     ? [{
-<<<<<<< HEAD
       key: "o2d",
       label: "Order to Dispatch",
       icon: Truck,
@@ -152,18 +147,6 @@ export const Sidebar = () => {
         { id: "o2d:exits", key: "exits", label: "Exit Register", path: "/o2d/exits", icon: Ban },
       ],
     }]
-=======
-        key: "o2d",
-        label: "FMS",
-        icon: Truck,
-        items: [
-          { id: "o2d:tasks", key: "tasks", label: "O2D — My Tasks", path: "/fms/o2d/tasks", icon: ListChecks },
-          { id: "o2d:orders", key: "orders", label: "O2D — Order Tracker", path: "/fms/o2d/orders", icon: Truck },
-          { id: "o2d:stages", key: "stages", label: "O2D — Stages", path: "/fms/o2d/stages", icon: LayoutGrid },
-          { id: "o2d:exits", key: "exits", label: "O2D — Exit Register", path: "/fms/o2d/exits", icon: Ban },
-        ],
-      }]
->>>>>>> d30a7b3eeb113a903fa0600e126499b41491df56
     : [];
 
 
