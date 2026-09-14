@@ -142,8 +142,8 @@ const ACTIVITY_TYPE_OPTIONS = [
   { value: 'deleted', label: 'Tasks Deleted' },
 ];
 
-// Generate task badges [T-X ➔ T-Y] or use metadata
-function getTaskFlowBadge(act, index) {
+// Resolve task flow badge [origin ➔ dest] only if real metadata exists
+function getTaskFlowBadge(act) {
   if (act.metadata?.originTag && act.metadata?.destTag) {
     return {
       origin: act.metadata.originTag,
@@ -154,18 +154,11 @@ function getTaskFlowBadge(act, index) {
   if (act.metadata?.taskUid) {
     return {
       origin: act.metadata.taskUid,
-      dest: act.metadata.newStatus ? act.metadata.newStatus : `REV-${((index % 3) + 1)}`,
+      dest: act.metadata.newStatus || null,
     };
   }
 
-  const hash = String(act.id || act._id || index).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const originNum = (hash % 18) + 1;
-  const destNum = ((hash * 3) % 45) + 10;
-
-  return {
-    origin: `T-${originNum}`,
-    dest: `T-${destNum}`,
-  };
+  return null;
 }
 
 export function Activities() {
@@ -471,7 +464,7 @@ export function Activities() {
           <div className="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shadow-xs">
             <ShieldAlert size={32} strokeWidth={2.5} />
           </div>
-          <h2 className="text-xl font-black text-slate-800">Admin Access Required</h2>
+          <h2 className="text-xl font-semibold text-slate-800">Admin Access Required</h2>
           <p className="text-sm font-medium text-slate-500 leading-relaxed">
             The centralized Activities audit log is restricted to administrative and management roles.
           </p>
@@ -496,8 +489,8 @@ export function Activities() {
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-black text-slate-800 leading-none">Activities</h1>
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
+              <h1 className="text-2xl font-bold text-slate-800 leading-none">Activities</h1>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
                 Audit Log
               </span>
             </div>
@@ -527,7 +520,7 @@ export function Activities() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 Top Contributors
               </span>
             </div>
@@ -565,23 +558,23 @@ export function Activities() {
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <div className={`w-10 h-10 rounded-full font-black text-xs flex items-center justify-center border shadow-xs ${colorClass}`}>
+                    <div className={`w-10 h-10 rounded-full font-semibold text-xs flex items-center justify-center border shadow-xs ${colorClass}`}>
                       {initials}
                     </div>
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] font-black flex items-center justify-center border border-white shadow-xs">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center border border-white shadow-xs">
                       #{i + 1}
                     </span>
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-black text-slate-800 truncate group-hover:text-[#1E4C92] transition-colors block">
+                    <span className="text-xs font-semibold text-slate-800 truncate group-hover:text-[#1E4C92] transition-colors block">
                       {displayName}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 truncate block">
                       {designation}
                     </span>
                     <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-base font-black text-slate-800 leading-tight">
+                      <span className="text-base font-semibold text-slate-800 leading-tight">
                         {stat.count}
                       </span>
                       <span className="text-[10px] font-bold text-slate-400">
@@ -741,7 +734,7 @@ export function Activities() {
           <div className="w-14 h-14 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3">
             <AlertCircle size={28} />
           </div>
-          <h3 className="text-base font-black text-slate-800">No Activities Found</h3>
+          <h3 className="text-base font-semibold text-slate-800">No Activities Found</h3>
           <p className="text-xs font-medium text-slate-400 mt-1 max-w-sm">
             No timeline activity logs matched your active filters or date range.
           </p>
@@ -760,7 +753,7 @@ export function Activities() {
           {activities.map((act, index) => {
             const cfg = getActivityConfig(act.type);
             const IconComponent = cfg.icon;
-            const flowBadge = getTaskFlowBadge(act, index);
+            const flowBadge = getTaskFlowBadge(act);
             const initials = getInitials(act.user);
             const authorFullName = `${act.user?.firstName || ''} ${act.user?.lastName || ''}`.trim() || act.user?.user || 'Staff Member';
             const authorDesignation = act.user?.designation || 'Staff';
@@ -781,10 +774,10 @@ export function Activities() {
                 {/* Content: Badge, Title & Description */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border shrink-0 ${cfg.badge}`}>
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md border shrink-0 ${cfg.badge}`}>
                       {cfg.label}
                     </span>
-                    <h4 className="text-sm font-black text-slate-800 group-hover:text-[#1E4C92] transition-colors truncate">
+                    <h4 className="text-sm font-semibold text-slate-800 group-hover:text-[#1E4C92] transition-colors truncate">
                       {act.title}
                     </h4>
                   </div>
@@ -793,20 +786,26 @@ export function Activities() {
                   </p>
                 </div>
 
-                {/* Task Relation Flow Pill */}
-                <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-lg text-[11px] font-black font-mono shrink-0">
-                  <span className="text-slate-600">{flowBadge.origin}</span>
-                  <ArrowRight size={12} className="text-slate-400" />
-                  <span className="text-[#1E4C92]">{flowBadge.dest}</span>
-                </div>
+                {/* Task Relation Flow Pill (shown only when real relation exists) */}
+                {flowBadge && (
+                  <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-lg text-[11px] font-semibold font-mono shrink-0">
+                    <span className="text-slate-600">{flowBadge.origin}</span>
+                    {flowBadge.dest && (
+                      <>
+                        <ArrowRight size={12} className="text-slate-400" />
+                        <span className="text-[#1E4C92]">{flowBadge.dest}</span>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Author Identity Pill */}
                 <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/60 px-2.5 py-1.5 rounded-xl shrink-0">
-                  <div className={`w-7 h-7 rounded-full font-black text-[11px] flex items-center justify-center border shrink-0 ${avatarClass}`}>
+                  <div className={`w-7 h-7 rounded-full font-semibold text-[11px] flex items-center justify-center border shrink-0 ${avatarClass}`}>
                     {initials}
                   </div>
                   <div className="flex flex-col min-w-[70px]">
-                    <span className="text-xs font-black text-slate-800 leading-tight truncate max-w-[130px]">
+                    <span className="text-xs font-semibold text-slate-800 leading-tight truncate max-w-[130px]">
                       {authorFullName}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate max-w-[130px]">
@@ -817,7 +816,7 @@ export function Activities() {
 
                 {/* Formatted Timestamp */}
                 <div className="text-right hidden sm:flex flex-col shrink-0 min-w-[125px]">
-                  <span className="text-xs font-black text-slate-700">
+                  <span className="text-xs font-semibold text-slate-700">
                     {formattedDate.date}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400">

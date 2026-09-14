@@ -629,7 +629,7 @@ export function InLoopTasks() {
             <Bell className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 leading-none">
+            <h1 className="text-2xl font-bold text-slate-800 leading-none">
               Loop Tasks
             </h1>
             <p className="text-xs font-bold text-slate-400 mt-1">
@@ -702,13 +702,13 @@ export function InLoopTasks() {
               }`}
             >
               <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
                   {card.label}
                 </span>
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${card.dot}`} />
               </div>
               <div className="flex items-baseline justify-between mt-1">
-                <span className={`text-2xl font-black ${card.textColor}`}>
+                <span className={`text-2xl font-semibold ${card.textColor}`}>
                   {count}
                 </span>
                 <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
@@ -781,7 +781,7 @@ export function InLoopTasks() {
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filters</span>
             {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-black ml-0.5">
+              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
                 {activeFilterCount}
               </span>
             )}
@@ -791,7 +791,7 @@ export function InLoopTasks() {
           {isFilterFlyoutOpen && (
             <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl p-5 shadow-2xl z-40 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
                   Filters
                 </span>
                 <button
@@ -812,7 +812,7 @@ export function InLoopTasks() {
               <div className="space-y-3 text-xs">
                 {/* Assigned By */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Assigned By
                   </label>
                   <select
@@ -831,7 +831,7 @@ export function InLoopTasks() {
 
                 {/* Priority */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Priority
                   </label>
                   <select
@@ -849,7 +849,7 @@ export function InLoopTasks() {
 
                 {/* Category */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Category
                   </label>
                   <select
@@ -868,7 +868,7 @@ export function InLoopTasks() {
 
                 {/* Tag */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Tag
                   </label>
                   <select
@@ -887,7 +887,7 @@ export function InLoopTasks() {
 
                 {/* Verification */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Verification
                   </label>
                   <select
@@ -1004,13 +1004,13 @@ export function InLoopTasks() {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${
-                  isActive ? 'text-slate-900 font-black' : 'text-slate-500 font-bold hover:text-slate-800'
+                  isActive ? 'text-slate-900 font-semibold' : 'text-slate-500 font-bold hover:text-slate-800'
                 }`}
               >
                 {tab.key !== 'All' && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
                 <span>{tab.label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${
                     isActive ? 'bg-[#1E4C92] text-white' : 'bg-slate-100 text-slate-500'
                   }`}
                 >
@@ -1118,7 +1118,7 @@ export function InLoopTasks() {
           <div className="w-16 h-16 rounded-2xl bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center mb-4">
             <CheckSquare className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-black text-slate-800 mb-1">No Tasks In-Loop</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks In-Loop</h3>
           <p className="text-sm font-medium text-slate-500 max-w-md">
             Tasks you are copied on will appear here.
           </p>
@@ -1129,7 +1129,7 @@ export function InLoopTasks() {
           <div className="w-16 h-16 rounded-2xl bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center mb-4">
             <CheckSquare className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-black text-slate-800 mb-1">No Tasks Match Filters</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks Match Filters</h3>
           <p className="text-sm font-medium text-slate-500 max-w-md mb-6">
             Try changing your filters or date range.
           </p>
@@ -1230,14 +1230,14 @@ export function InLoopTasks() {
                   {/* Assigner Avatar */}
                   <div
                     title={`Assigned by ${assignerFullName}`}
-                    className="w-10 h-10 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-xs flex items-center justify-center border border-[#1E4C92]/20 shrink-0 shadow-xs"
+                    className="w-10 h-10 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-semibold text-xs flex items-center justify-center border border-[#1E4C92]/20 shrink-0 shadow-xs"
                   >
                     {getInitials(assignerFirst, assignerLast)}
                   </div>
 
                   {/* Assigner & Hierarchy */}
                   <div className="hidden sm:flex flex-col min-w-[130px] max-w-[170px] shrink-0">
-                    <span className="text-xs font-black text-slate-800 truncate">
+                    <span className="text-xs font-semibold text-slate-800 truncate">
                       From: {assignerFullName}
                     </span>
                     <span className="text-[11px] font-bold text-[#1E4C92] truncate">
@@ -1247,7 +1247,7 @@ export function InLoopTasks() {
 
                   {/* Task Title */}
                   <div className="flex-1 min-w-[180px]">
-                    <h4 className="text-sm font-black text-slate-800 line-clamp-1 group-hover:text-[#1E4C92] transition-colors">
+                    <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-[#1E4C92] transition-colors">
                       {task.taskTitle}
                     </h4>
                     <div className="sm:hidden text-[10px] font-bold text-slate-400">
@@ -1257,7 +1257,7 @@ export function InLoopTasks() {
 
                   {/* Status Badge */}
                   <span
-                    className={`text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider ${statusBadgeStyle} shrink-0`}
+                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border uppercase tracking-wider ${statusBadgeStyle} shrink-0`}
                   >
                     {task.status}
                   </span>
@@ -1277,7 +1277,7 @@ export function InLoopTasks() {
                   </span>
 
                   {/* Priority Indicator */}
-                  <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-xs font-black">
+                  <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-xs font-semibold">
                     <span
                       className={`w-2 h-2 rounded-full ${
                         priorityDots[task.priority] || 'bg-slate-400'

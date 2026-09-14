@@ -18,186 +18,6 @@ const endOfDay = (d) => {
   return dt;
 };
 
-// Seed sample delegations if the collection is empty
-async function seedInitialDelegations(currentUserId, currentUserName) {
-  const count = await Delegation.countDocuments();
-  if (count > 0) return;
-
-  const users = await User.find({ status: 'Active' }).limit(5).lean();
-  const doer1 = users[0] || { _id: currentUserId, user: 'Amit Kumar' };
-  const doer2 = users[1] || { _id: currentUserId, user: 'Rahul Verma' };
-  const doer3 = users[2] || { _id: currentUserId, user: 'Priya Sharma' };
-
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const pastThreeDays = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-
-  const sampleTasks = [
-    {
-      taskTitle: 'Quarterly Tax Filing Audit & Reconciliation',
-      description: '<p>Please reconcile the Q4 invoices against GST portal filings. Check for mismatch in ITC claimed versus GSTR-2B before final tax ledger credit.</p>',
-      assignerId: currentUserId,
-      assignerName: currentUserName || 'Operations Lead',
-      doerId: doer1._id,
-      doerFirstName: (doer1.user || 'Amit').split(' ')[0],
-      doerLastName: (doer1.user || 'Amit Kumar').split(' ')[1] || 'Kumar',
-      assigneeHierarchy: `${doer1.user || 'Amit Kumar'} → Head Ops`,
-      status: 'Awaiting Verification',
-      priority: 'Urgent',
-      category: 'Finance',
-      categoryColor: '#0284c7',
-      tags: [
-        { name: 'Tax', color: '#0284c7' },
-        { name: 'Audit', color: '#dc2626' },
-        { name: 'Compliance', color: '#16a34a' },
-      ],
-      startDate: yesterday,
-      dueDate: tomorrow,
-      recurrence: 'Weekly',
-      verificationRequired: true,
-      evidenceRequired: true,
-      evidenceUrl: 'https://gst.gov.in/reconciliation-q4.pdf',
-      evidenceNotes: 'Reconciliation spreadsheet uploaded with GSTR-2B cross check.',
-      subtasks: [
-        { title: 'Download GSTR-2B summary', completed: true, completedAt: yesterday },
-        { title: 'Match sales invoice register', completed: true, completedAt: now },
-        { title: 'Flag variance above ₹500', completed: true, completedAt: now },
-      ],
-      remarks: [
-        { text: 'Completed the reconciliation and uploaded the summary sheet. Awaiting signoff.', by: doer1._id, byName: doer1.user || 'Amit Kumar', createdAt: now },
-      ],
-    },
-    {
-      taskTitle: 'Biometric Attendance Device Sync Verification',
-      description: '<p>Ensure HO and Plant biometric logs are synchronized with the attendance module without time drift.</p>',
-      assignerId: currentUserId,
-      assignerName: currentUserName || 'Operations Lead',
-      doerId: doer2._id,
-      doerFirstName: (doer2.user || 'Rahul').split(' ')[0],
-      doerLastName: (doer2.user || 'Rahul Verma').split(' ')[1] || 'Verma',
-      assigneeHierarchy: `${doer2.user || 'Rahul Verma'} → IT Support`,
-      status: 'In Progress',
-      priority: 'High',
-      category: 'Operations',
-      categoryColor: '#ea580c',
-      tags: [
-        { name: 'IT', color: '#7c3aed' },
-        { name: 'Attendance', color: '#ea580c' },
-      ],
-      startDate: now,
-      dueDate: nextWeek,
-      recurrence: 'Daily',
-      verificationRequired: true,
-      subtasks: [
-        { title: 'Ping check all 4 terminal IPs', completed: true, completedAt: now },
-        { title: 'Verify webhook receiver logs', completed: false },
-        { title: 'Confirm push synchronization', completed: false },
-      ],
-      remarks: [],
-    },
-    {
-      taskTitle: 'Vendor Contract Annual Renewal - Transport & Logistics',
-      description: '<p>Review rates per MT with primary fleet operators and finalize service level agreements for the next fiscal year.</p>',
-      assignerId: currentUserId,
-      assignerName: currentUserName || 'Operations Lead',
-      doerId: doer3._id,
-      doerFirstName: (doer3.user || 'Priya').split(' ')[0],
-      doerLastName: (doer3.user || 'Priya Sharma').split(' ')[1] || 'Sharma',
-      assigneeHierarchy: `${doer3.user || 'Priya Sharma'} → Logistics Manager`,
-      status: 'Pending',
-      priority: 'Medium',
-      category: 'Logistics',
-      categoryColor: '#d97706',
-      tags: [
-        { name: 'Vendor', color: '#059669' },
-        { name: 'Contracts', color: '#2563eb' },
-      ],
-      startDate: now,
-      dueDate: nextWeek,
-      recurrence: 'none',
-      verificationRequired: false,
-      subtasks: [
-        { title: 'Obtain rate quotations', completed: false },
-        { title: 'Compare historical freight charges', completed: false },
-      ],
-      remarks: [],
-    },
-    {
-      taskTitle: 'Safety Equipment Audit & Fire Extinguisher Refill',
-      description: '<p>Audit all floor safety stations, test alarm sirens, and verify inspection stickers on fire extinguishers.</p>',
-      assignerId: currentUserId,
-      assignerName: currentUserName || 'Operations Lead',
-      doerId: doer1._id,
-      doerFirstName: (doer1.user || 'Amit').split(' ')[0],
-      doerLastName: (doer1.user || 'Amit Kumar').split(' ')[1] || 'Kumar',
-      assigneeHierarchy: `${doer1.user || 'Amit Kumar'} → Head Ops`,
-      status: 'Pending',
-      priority: 'Urgent',
-      category: 'Operations',
-      categoryColor: '#ea580c',
-      tags: [
-        { name: 'Safety', color: '#dc2626' },
-        { name: 'Plant', color: '#4b5563' },
-      ],
-      startDate: pastThreeDays,
-      dueDate: yesterday, // Overdue!
-      recurrence: 'Monthly',
-      verificationRequired: true,
-      subtasks: [
-        { title: 'Floor walkthrough with safety officer', completed: true, completedAt: pastThreeDays },
-        { title: 'Compile refill vendor order list', completed: false },
-      ],
-      remarks: [
-        { text: 'Waiting for vendor quote response since yesterday.', by: doer1._id, byName: doer1.user || 'Amit Kumar', createdAt: yesterday },
-      ],
-    },
-    {
-      taskTitle: 'Client Dispatch Documentation Sign-off (Order #4912)',
-      description: '<p>Generate final packing list, inspect e-way bill accuracy, and obtain gate pass clearance from customs desk.</p>',
-      assignerId: currentUserId,
-      assignerName: currentUserName || 'Operations Lead',
-      doerId: doer3._id,
-      doerFirstName: (doer3.user || 'Priya').split(' ')[0],
-      doerLastName: (doer3.user || 'Priya Sharma').split(' ')[1] || 'Sharma',
-      assigneeHierarchy: `${doer3.user || 'Priya Sharma'} → Logistics Manager`,
-      status: 'Completed',
-      priority: 'Low',
-      category: 'Dispatch',
-      categoryColor: '#16a34a',
-      tags: [
-        { name: 'Client', color: '#16a34a' },
-        { name: 'Dispatch', color: '#0891b2' },
-      ],
-      startDate: pastThreeDays,
-      dueDate: yesterday,
-      completedAt: yesterday,
-      verifiedAt: now,
-      verifiedBy: currentUserId,
-      recurrence: 'none',
-      subtasks: [
-        { title: 'Prepare packing list', completed: true, completedAt: pastThreeDays },
-        { title: 'Validate GST E-way bill', completed: true, completedAt: pastThreeDays },
-        { title: 'Security gate stamping', completed: true, completedAt: yesterday },
-      ],
-      remarks: [],
-    },
-  ];
-
-  await Delegation.insertMany(sampleTasks);
-
-  // If sample delegations exist but none have inLoop, ensure inLoop is populated on a couple of tasks for testing
-  const inLoopCount = await Delegation.countDocuments({ 'inLoop.0': { $exists: true } });
-  if (inLoopCount === 0) {
-    const existing = await Delegation.find().limit(3);
-    for (const t of existing) {
-      t.inLoop = [{ userId: currentUserId, name: currentUserName || 'System User' }];
-      await t.save();
-    }
-  }
-}
-
 /**
  * GET /api/v1/delegation
  * List delegated tasks.
@@ -206,9 +26,6 @@ export async function getDelegations(req, res, next) {
   try {
     const currentUserId = req.user._id;
     const currentUserName = req.user.user || req.user.email;
-
-    // Seed if empty
-    await seedInitialDelegations(currentUserId, currentUserName);
 
     const {
       search,
@@ -780,75 +597,74 @@ async function seedInitialDeletedDelegations(currentUserId, currentUserName) {
   const doer2 = users[1] || { _id: currentUserId, user: 'Priya Sharma' };
   const doer3 = users[2] || { _id: currentUserId, user: 'Amit Kumar' };
 
-  const now = new Date();
   const sampleDeleted = [
-    {
-      taskTitle: 'HVAC Duct Pressure Test - Tower B',
-      description: 'Perform static pressure boundary leak testing along risers 4 through 7 on Tower B mechanical floor.',
-      assignerId: currentUserId,
-      assignerName: 'Amit Kumar',
-      doerId: doer1._id,
-      doerFirstName: 'Rahul',
-      doerLastName: 'Sharma',
-      assigneeHierarchy: 'Rahul Sharma → MEP Lead',
-      status: 'In Progress',
-      priority: 'High',
-      category: 'MEP',
-      categoryColor: '#ef4444',
-      tags: [{ name: 'Safety', color: '#dc2626' }, { name: 'MEP', color: '#3b82f6' }],
-      startDate: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
-      dueDate: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
-      isDeleted: true,
-      deletedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
-      deletedBy: currentUserId,
-      deletedByFirstName: 'Admin',
-      deletedByLastName: 'User',
-    },
-    {
-      taskTitle: 'Procurement PO Approval for Substation Switchgear',
-      description: 'Review quote variances with vendor engineering team and clear high-priority payment approval milestone.',
-      assignerId: currentUserId,
-      assignerName: 'Priya Sharma',
-      doerId: doer2._id,
-      doerFirstName: 'Priya',
-      doerLastName: 'Sharma',
-      assigneeHierarchy: 'Priya Sharma → Electrical Head',
-      status: 'Pending',
-      priority: 'Urgent',
-      category: 'Procurement',
-      categoryColor: '#f97316',
-      tags: [{ name: 'PO', color: '#f59e0b' }, { name: 'Urgent', color: '#ef4444' }],
-      startDate: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
-      dueDate: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000), // Overdue
-      isDeleted: true,
-      deletedAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-      deletedBy: currentUserId,
-      deletedByFirstName: 'Admin',
-      deletedByLastName: 'User',
-    },
-    {
-      taskTitle: 'Basement Water Retention Wall Waterproofing Audit',
-      description: 'Physical inspection of membrane barrier curing and sign-off on third-party QA certificate.',
-      assignerId: currentUserId,
-      assignerName: 'Amit Kumar',
-      doerId: doer3._id,
-      doerFirstName: 'Amit',
-      doerLastName: 'Kumar',
-      assigneeHierarchy: 'Amit Kumar → Site Supervisor',
-      status: 'Completed',
-      priority: 'Medium',
-      category: 'Civil',
-      categoryColor: '#10b981',
-      tags: [{ name: 'Civil', color: '#10b981' }, { name: 'QA', color: '#6366f1' }],
-      startDate: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
-      dueDate: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
-      completedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
-      isDeleted: true,
-      deletedAt: new Date(now.getTime() - 36 * 60 * 60 * 1000),
-      deletedBy: currentUserId,
-      deletedByFirstName: 'Admin',
-      deletedByLastName: 'User',
-    }
+    // {
+    //   taskTitle: 'HVAC Duct Pressure Test - Tower B',
+    //   description: 'Perform static pressure boundary leak testing along risers 4 through 7 on Tower B mechanical floor.',
+    //   assignerId: currentUserId,
+    //   assignerName: 'Amit Kumar',
+    //   doerId: doer1._id,
+    //   doerFirstName: 'Rahul',
+    //   doerLastName: 'Sharma',
+    //   assigneeHierarchy: 'Rahul Sharma → MEP Lead',
+    //   status: 'In Progress',
+    //   priority: 'High',
+    //   category: 'MEP',
+    //   categoryColor: '#ef4444',
+    //   tags: [{ name: 'Safety', color: '#dc2626' }, { name: 'MEP', color: '#3b82f6' }],
+    //   startDate: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+    //   dueDate: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
+    //   isDeleted: true,
+    //   deletedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+    //   deletedBy: currentUserId,
+    //   deletedByFirstName: 'Admin',
+    //   deletedByLastName: 'User',
+    // },
+    // {
+    //   taskTitle: 'Procurement PO Approval for Substation Switchgear',
+    //   description: 'Review quote variances with vendor engineering team and clear high-priority payment approval milestone.',
+    //   assignerId: currentUserId,
+    //   assignerName: 'Priya Sharma',
+    //   doerId: doer2._id,
+    //   doerFirstName: 'Priya',
+    //   doerLastName: 'Sharma',
+    //   assigneeHierarchy: 'Priya Sharma → Electrical Head',
+    //   status: 'Pending',
+    //   priority: 'Urgent',
+    //   category: 'Procurement',
+    //   categoryColor: '#f97316',
+    //   tags: [{ name: 'PO', color: '#f59e0b' }, { name: 'Urgent', color: '#ef4444' }],
+    //   startDate: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
+    //   dueDate: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000), // Overdue
+    //   isDeleted: true,
+    //   deletedAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+    //   deletedBy: currentUserId,
+    //   deletedByFirstName: 'Admin',
+    //   deletedByLastName: 'User',
+    // },
+    // {
+    //   taskTitle: 'Basement Water Retention Wall Waterproofing Audit',
+    //   description: 'Physical inspection of membrane barrier curing and sign-off on third-party QA certificate.',
+    //   assignerId: currentUserId,
+    //   assignerName: 'Amit Kumar',
+    //   doerId: doer3._id,
+    //   doerFirstName: 'Amit',
+    //   doerLastName: 'Kumar',
+    //   assigneeHierarchy: 'Amit Kumar → Site Supervisor',
+    //   status: 'Completed',
+    //   priority: 'Medium',
+    //   category: 'Civil',
+    //   categoryColor: '#10b981',
+    //   tags: [{ name: 'Civil', color: '#10b981' }, { name: 'QA', color: '#6366f1' }],
+    //   startDate: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
+    //   dueDate: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+    //   completedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+    //   isDeleted: true,
+    //   deletedAt: new Date(now.getTime() - 36 * 60 * 60 * 1000),
+    //   deletedBy: currentUserId,
+    //   deletedByFirstName: 'Admin',
+    //   deletedByLastName: 'User',
+    // }
   ];
   await Delegation.insertMany(sampleDeleted);
 }

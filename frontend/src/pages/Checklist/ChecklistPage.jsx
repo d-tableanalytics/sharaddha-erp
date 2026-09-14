@@ -305,7 +305,7 @@ export function ChecklistPage() {
             <ClipboardList className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 leading-none">Checklist</h1>
+            <h1 className="text-2xl font-bold text-slate-800 leading-none">Checklist</h1>
             <p className="text-xs font-bold text-slate-400 mt-1">
               Recurring compliance tasks — generated ahead, tracked to completion
             </p>
@@ -374,14 +374,14 @@ export function ChecklistPage() {
               }`}
             >
               <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
                   {tile.label}
                 </span>
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${tile.accent}`} />
               </div>
 
               <div className="flex items-baseline justify-between mt-1">
-                <span className={`text-2xl font-black ${tile.textColor}`}>{value}</span>
+                <span className={`text-2xl font-semibold ${tile.textColor}`}>{value}</span>
                 {tile.key !== 'complianceRate' && (
                   <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
                     {isActive ? 'Showing' : 'View →'}

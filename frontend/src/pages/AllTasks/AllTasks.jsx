@@ -657,7 +657,7 @@ export function AllTasks() {
             <LayoutGrid className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 leading-none">All Tasks</h1>
+            <h1 className="text-2xl font-bold text-slate-800 leading-none">All Tasks</h1>
             <p className="text-xs font-bold text-slate-400 mt-1">Every task across all users</p>
           </div>
         </div>
@@ -695,13 +695,13 @@ export function AllTasks() {
             title={s.desc}
           >
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
                 {s.label}
               </span>
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
             </div>
             <div className="flex items-baseline justify-between mt-1">
-              <span className={`text-2xl font-black ${s.textColor}`}>{s.count}</span>
+              <span className={`text-2xl font-semibold ${s.textColor}`}>{s.count}</span>
               <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
                 View →
               </span>
@@ -770,7 +770,7 @@ export function AllTasks() {
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filters</span>
             {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-black ml-0.5">
+              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
                 {activeFilterCount}
               </span>
             )}
@@ -780,7 +780,7 @@ export function AllTasks() {
           {isFilterFlyoutOpen && (
             <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl p-5 shadow-2xl z-40 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
                   Filters
                 </span>
                 <button
@@ -802,7 +802,7 @@ export function AllTasks() {
               <div className="space-y-3 text-xs">
                 {/* Assigned To */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Assigned To</label>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">Assigned To</label>
                   <select
                     value={assignedToFilter}
                     onChange={(e) => setAssignedToFilter(e.target.value)}
@@ -819,7 +819,7 @@ export function AllTasks() {
 
                 {/* Assigned By */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Assigned By</label>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">Assigned By</label>
                   <select
                     value={assignedByFilter}
                     onChange={(e) => setAssignedByFilter(e.target.value)}
@@ -836,7 +836,7 @@ export function AllTasks() {
 
                 {/* Priority */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Priority</label>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">Priority</label>
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
@@ -852,7 +852,7 @@ export function AllTasks() {
 
                 {/* Category */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Category</label>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">Category</label>
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
@@ -872,7 +872,7 @@ export function AllTasks() {
 
                 {/* Tag */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Tag</label>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">Tag</label>
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
@@ -889,7 +889,7 @@ export function AllTasks() {
 
                 {/* Verification */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">Verification</label>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">Verification</label>
                   <select
                     value={verificationFilter}
                     onChange={(e) => setVerificationFilter(e.target.value)}
@@ -989,7 +989,7 @@ export function AllTasks() {
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${isActive ? 'text-slate-900 font-black' : 'text-slate-500 font-bold hover:text-slate-800'
+                className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${isActive ? 'text-slate-900 font-semibold' : 'text-slate-500 font-bold hover:text-slate-800'
                   }`}
               >
                 {tab.key !== 'All' && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
@@ -1113,7 +1113,7 @@ export function AllTasks() {
             <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center mb-3">
               <CheckSquare className="w-7 h-7" />
             </div>
-            <h3 className="text-base font-black text-slate-800 mb-1">No Tasks Found</h3>
+            <h3 className="text-base font-semibold text-slate-800 mb-1">No Tasks Found</h3>
             <p className="text-xs font-medium text-slate-500 max-w-md mb-4">
               Try changing your filters, search term, or date range.
             </p>
@@ -1201,7 +1201,7 @@ export function AllTasks() {
                 >
                   {/* Dashboard highlight banner */}
                   {isHighlighted && (
-                    <div className="bg-[#1E4C92]/10 border-b border-[#1E4C92]/20 px-4 py-1.5 flex items-center gap-2 text-xs font-black text-[#1E4C92]">
+                    <div className="bg-[#1E4C92]/10 border-b border-[#1E4C92]/20 px-4 py-1.5 flex items-center gap-2 text-xs font-semibold text-[#1E4C92]">
                       <span className="w-2 h-2 bg-[#1E4C92] rounded-full animate-ping" />
                       <span>From Dashboard Filter</span>
                     </div>
@@ -1223,7 +1223,7 @@ export function AllTasks() {
 
                     {/* Doer Avatar with Initials */}
                     <div
-                      className="w-9 h-9 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black flex items-center justify-center text-xs shrink-0 border border-[#1E4C92]/30"
+                      className="w-9 h-9 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-semibold flex items-center justify-center text-xs shrink-0 border border-[#1E4C92]/30"
                       title={`Assigned to ${doerName}`}
                     >
                       {getInitials(task.doerFirstName, task.doerLastName)}

@@ -422,7 +422,7 @@ const KPI_CARDS = [
             <CheckSquare className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 leading-none">Delegation</h1>
+            <h1 className="text-2xl font-bold text-slate-800 leading-none">Delegation</h1>
             <p className="text-xs font-bold text-slate-400 mt-1">
               Delegate, track, and verify assigned tasks across your team
             </p>
@@ -468,13 +468,13 @@ const KPI_CARDS = [
               }`}
             >
               <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
                   {card.label}
                 </span>
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${card.dot}`} />
               </div>
               <div className="flex items-baseline justify-between mt-1">
-                <span className={`text-2xl font-black ${card.textColor}`}>
+                <span className={`text-2xl font-semibold ${card.textColor}`}>
                   {count}
                 </span>
                 <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
@@ -547,7 +547,7 @@ const KPI_CARDS = [
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filters</span>
             {activeSecondaryFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-black ml-0.5">
+              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
                 {activeSecondaryFilterCount}
               </span>
             )}
@@ -557,7 +557,7 @@ const KPI_CARDS = [
           {isFilterFlyoutOpen && (
             <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl p-5 shadow-2xl z-40 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
                   Filters
                 </span>
                 <button
@@ -578,7 +578,7 @@ const KPI_CARDS = [
               <div className="space-y-3 text-xs">
                 {/* Assigned To */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Assigned To
                   </label>
                   <select
@@ -597,7 +597,7 @@ const KPI_CARDS = [
 
                 {/* Priority */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Priority
                   </label>
                   <select
@@ -615,7 +615,7 @@ const KPI_CARDS = [
 
                 {/* Category */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Category
                   </label>
                   <select
@@ -637,7 +637,7 @@ const KPI_CARDS = [
 
                 {/* Tag */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Tag
                   </label>
                   <select
@@ -656,7 +656,7 @@ const KPI_CARDS = [
 
                 {/* Verification */}
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-500 tracking-wider mb-1">
                     Verification
                   </label>
                   <select
@@ -765,7 +765,7 @@ const KPI_CARDS = [
                 onClick={() => setActiveTab(tab.key)}
                 className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${
                   isActive
-                    ? 'text-slate-900 font-black'
+                    ? 'text-slate-900 font-semibold'
                     : 'text-slate-500 font-bold hover:text-slate-800'
                 }`}
               >
@@ -774,7 +774,7 @@ const KPI_CARDS = [
                 )}
                 <span>{tab.label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${
                     isActive ? 'bg-[#1E4C92] text-white' : 'bg-slate-100 text-slate-500'
                   }`}
                 >

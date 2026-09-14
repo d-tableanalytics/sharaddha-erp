@@ -50,10 +50,10 @@ function getInitials(name = '') {
  */
 export function band(score) {
   if (score === null || score === undefined) return 'text-slate-400';
-  if (score >= 85) return 'text-emerald-600 font-black';
-  if (score >= 70) return 'text-sky-600 font-bold';
-  if (score >= 50) return 'text-amber-600 font-bold';
-  return 'text-red-600 font-black';
+  if (score >= 85) return 'text-emerald-600 font-semibold';
+  if (score >= 70) return 'text-sky-600 font-semibold';
+  if (score >= 50) return 'text-amber-600 font-semibold';
+  return 'text-red-600 font-semibold';
 }
 
 /**
@@ -61,10 +61,10 @@ export function band(score) {
  */
 export function missBand(pct) {
   if (pct === null || pct === undefined) return 'text-slate-400';
-  if (pct === 0) return 'text-emerald-600 font-black';
-  if (pct <= 15) return 'text-sky-600 font-bold';
-  if (pct <= 30) return 'text-amber-600 font-bold';
-  return 'text-red-600 font-black';
+  if (pct === 0) return 'text-emerald-600 font-semibold';
+  if (pct <= 15) return 'text-sky-600 font-semibold';
+  if (pct <= 30) return 'text-amber-600 font-semibold';
+  return 'text-red-600 font-semibold';
 }
 
 /**
@@ -94,7 +94,7 @@ function EditableNum({
           : value
         : placeholder;
     return (
-      <span className="tabular-nums text-slate-600 font-bold text-xs">
+      <span className="tabular-nums text-slate-600 font-semibold text-xs">
         {formatted}
       </span>
     );
@@ -141,7 +141,7 @@ function EditableNum({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={`${width} h-7 px-2 py-0.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-800 text-xs font-bold tabular-nums text-center focus:outline-none focus:ring-2 focus:ring-[#1E4C92]/20 focus:border-[#1E4C92] shadow-xs transition-all`}
+        className={`${width} h-7 px-2 py-0.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-800 text-xs font-semibold tabular-nums text-center focus:outline-none focus:ring-2 focus:ring-[#1E4C92]/20 focus:border-[#1E4C92] shadow-xs transition-all`}
       />
       {isSaving && (
         <Loader2
@@ -190,12 +190,12 @@ function PodiumCard({ row, rankIdx }) {
     >
       <div className="relative shrink-0">
         <div
-          className={`w-12 h-12 rounded-full font-black text-xs flex items-center justify-center border shadow-xs ${avatarColor}`}
+          className={`w-12 h-12 rounded-full font-semibold text-xs flex items-center justify-center border shadow-xs ${avatarColor}`}
         >
           {initials}
         </div>
         <span
-          className={`absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-black flex items-center justify-center border border-white shadow-xs ${rankTheme.badge}`}
+          className={`absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-semibold flex items-center justify-center border border-white shadow-xs ${rankTheme.badge}`}
         >
           #{row.rank}
         </span>
@@ -206,20 +206,20 @@ function PodiumCard({ row, rankIdx }) {
           <span className="text-base leading-none select-none">
             {MEDALS[rankIdx] || '🎖️'}
           </span>
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Rank {row.rank}
           </span>
         </div>
-        <div className="text-sm font-black text-slate-800 truncate mt-0.5">
+        <div className="text-sm font-semibold text-slate-800 truncate mt-0.5">
           {row.doer}
         </div>
-        <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 mt-0.5">
+        <div className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5 mt-0.5">
           <span>Final Score:</span>
-          <span className={`font-black tabular-nums ${band(row.finalScore)}`}>
+          <span className={`font-semibold tabular-nums ${band(row.finalScore)}`}>
             {row.finalScore ?? '—'}
           </span>
           {row.mdAdjustment !== 0 && (
-            <span className="text-[10px] font-bold text-slate-400">
+            <span className="text-[10px] font-semibold text-slate-400">
               ({row.mdAdjustment > 0 ? `+${row.mdAdjustment}` : row.mdAdjustment})
             </span>
           )}
@@ -227,7 +227,7 @@ function PodiumCard({ row, rankIdx }) {
       </div>
 
       <div
-        className={`text-2xl font-black tabular-nums px-3 py-1.5 rounded-xl ${rankTheme.scoreGlow}`}
+        className={`text-2xl font-semibold tabular-nums px-3 py-1.5 rounded-xl ${rankTheme.scoreGlow}`}
       >
         {row.finalScore ?? '—'}
       </div>
@@ -428,24 +428,24 @@ export function ExecutiveScoreboard() {
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-black text-slate-800 leading-none">
+              <h1 className="text-2xl font-bold text-slate-800 leading-none">
                 Executive Scoreboard
               </h1>
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
                 Leadership
               </span>
             </div>
-            <p className="text-xs font-bold text-slate-400 mt-1">
+            <p className="text-xs font-semibold text-slate-400 mt-1">
               {loading && !data ? (
                 'Loading…'
               ) : (
                 <>
                   {periodLabel} of {data?.periodStart} — {data?.periodEnd} ·{' '}
-                  <span className="font-bold text-slate-600">
+                  <span className="font-semibold text-slate-600">
                     {data?.totalDoers || 0} doers
                   </span>{' '}
                   ·{' '}
-                  <span className="font-bold text-emerald-600">
+                  <span className="font-semibold text-emerald-600">
                     {data?.activeDoers || 0} active with work
                   </span>{' '}
                   this {period}
@@ -464,7 +464,7 @@ export function ExecutiveScoreboard() {
                 key={p}
                 type="button"
                 onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
                   period === p
                     ? 'bg-[#1E4C92] text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
@@ -487,7 +487,7 @@ export function ExecutiveScoreboard() {
                 key={s.id}
                 type="button"
                 onClick={() => setScope(s.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   scope === s.id
                     ? 'bg-[#1E4C92] text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
@@ -504,7 +504,7 @@ export function ExecutiveScoreboard() {
             onClick={() => loadData(true)}
             disabled={loading || refreshing}
             title="Refresh Scoreboard"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-semibold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
           >
             <RefreshCw
               className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`}
@@ -516,7 +516,7 @@ export function ExecutiveScoreboard() {
           <button
             type="button"
             onClick={exportToExcel}
-            className="h-10 px-4 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm shadow-[#1E4C92]/20 transition-all active:scale-95 cursor-pointer shrink-0"
+            className="h-10 px-4 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-semibold text-xs flex items-center gap-2 shadow-sm shadow-[#1E4C92]/20 transition-all active:scale-95 cursor-pointer shrink-0"
           >
             <Download size={14} strokeWidth={2.5} />
             <span>Export</span>
@@ -529,7 +529,7 @@ export function ExecutiveScoreboard() {
         <div className="space-y-2.5">
           <div className="flex items-center gap-2">
             <Trophy className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Top Performers Podium
             </span>
           </div>
@@ -555,7 +555,7 @@ export function ExecutiveScoreboard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by doer name..."
-            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
+            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
           />
           {search && (
             <button
@@ -571,14 +571,14 @@ export function ExecutiveScoreboard() {
         {/* Advisory Banner */}
         <div className="shrink-0">
           {canEdit ? (
-            <div className="text-[11px] font-bold text-[#1E4C92] inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#1E4C92]/5 border border-[#1E4C92]/20 shadow-xs">
+            <div className="text-[11px] font-semibold text-[#1E4C92] inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#1E4C92]/5 border border-[#1E4C92]/20 shadow-xs">
               <Target size={14} className="text-[#1E4C92] shrink-0" />
               <span>
                 Set the <strong>{nextLabel}</strong> score goal & MD adjustment inline — rankings recalculate instantly.
               </span>
             </div>
           ) : (
-            <div className="text-[11px] font-bold text-slate-500 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 shadow-xs">
+            <div className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 shadow-xs">
               <Info size={14} className="text-slate-400 shrink-0" />
               <span>Score goals and leadership adjustments are set by the CEO/MD.</span>
             </div>
@@ -592,43 +592,43 @@ export function ExecutiveScoreboard() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200">
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center w-14">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center w-14">
                   Rank
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider min-w-[200px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider min-w-[200px]">
                   Doer Name
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider min-w-[190px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider min-w-[190px]">
                   KRA
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider min-w-[160px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider min-w-[160px]">
                   KPI
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center w-24">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center w-24">
                   Benchmark
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center min-w-[120px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[120px]">
                   Last {periodLabel} Actual %
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center min-w-[110px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[110px]">
                   Current {periodLabel} Planned
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
                   Current {periodLabel} Actual
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center min-w-[120px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[120px]">
                   Current {periodLabel} Actual %
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
+                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
                   {nextLabel} Planned
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black uppercase tracking-wider text-center min-w-[120px] bg-[#1E4C92]/5 text-[#1E4C92] border-l border-slate-200">
+                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[120px] bg-[#1E4C92]/5 text-[#1E4C92] border-l border-slate-200">
                   {nextLabel} Score Goal
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black uppercase tracking-wider text-center min-w-[115px] bg-[#1E4C92]/5 text-[#1E4C92] border-l border-slate-200">
+                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[115px] bg-[#1E4C92]/5 text-[#1E4C92] border-l border-slate-200">
                   MD Adjustment
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-black uppercase tracking-wider text-center min-w-[105px] bg-[#1E4C92]/10 text-[#1E4C92] border-l border-slate-200">
+                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[105px] bg-[#1E4C92]/10 text-[#1E4C92] border-l border-slate-200">
                   Final Score
                 </th>
               </tr>
@@ -650,10 +650,10 @@ export function ExecutiveScoreboard() {
                     <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
                       <Trophy size={26} strokeWidth={2} />
                     </div>
-                    <h3 className="text-sm font-black text-slate-800">
+                    <h3 className="text-sm font-semibold text-slate-800">
                       No doers found
                     </h3>
-                    <p className="text-xs font-bold text-slate-400 mt-1">
+                    <p className="text-xs font-semibold text-slate-400 mt-1">
                       No scoreboard records match your current filter criteria.
                     </p>
                   </td>
@@ -684,11 +684,11 @@ export function ExecutiveScoreboard() {
                             rowSpan={2}
                             className="px-3.5 py-2.5 text-center align-middle border-r border-slate-100 bg-white"
                           >
-                            <div className="inline-flex items-center gap-1 justify-center font-black text-xs tabular-nums text-slate-800">
+                            <div className="inline-flex items-center gap-1 justify-center font-semibold text-xs tabular-nums text-slate-800">
                               {medalEmoji ? (
                                 <span className="text-base leading-none">{medalEmoji}</span>
                               ) : (
-                                <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-black">
+                                <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-semibold">
                                   {r.rank}
                                 </span>
                               )}
@@ -704,20 +704,20 @@ export function ExecutiveScoreboard() {
                           >
                             <div className="flex items-center gap-2.5">
                               <div
-                                className={`w-8 h-8 rounded-full font-black text-[11px] flex items-center justify-center border shadow-xs shrink-0 ${avatarColor}`}
+                                className={`w-8 h-8 rounded-full font-semibold text-[11px] flex items-center justify-center border shadow-xs shrink-0 ${avatarColor}`}
                               >
                                 {initials}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-black text-xs text-slate-800 hover:text-[#1E4C92] transition-colors truncate">
+                                <div className="font-semibold text-xs text-slate-800 hover:text-[#1E4C92] transition-colors truncate">
                                   {r.doer}
                                 </div>
                                 {!r.hasWork ? (
-                                  <span className="inline-block text-[9px] font-black text-slate-400 uppercase tracking-wider mt-0.5">
+                                  <span className="inline-block text-[9px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
                                     No tasks
                                   </span>
                                 ) : (
-                                  <span className="inline-block text-[10px] font-bold text-slate-400 truncate">
+                                  <span className="inline-block text-[10px] font-semibold text-slate-400 truncate">
                                     Active Contributor
                                   </span>
                                 )}
@@ -727,7 +727,7 @@ export function ExecutiveScoreboard() {
                         )}
 
                         {/* KRA description */}
-                        <td className="px-3.5 py-2.5 text-xs font-bold text-slate-800">
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-800">
                           {k.kra}
                         </td>
 
@@ -737,13 +737,13 @@ export function ExecutiveScoreboard() {
                         </td>
 
                         {/* Benchmark: 0% */}
-                        <td className="px-3.5 py-2.5 text-center text-xs font-bold text-slate-400">
+                        <td className="px-3.5 py-2.5 text-center text-xs font-semibold text-slate-400">
                           0%
                         </td>
 
                         {/* Last Period Actual % */}
                         <td
-                          className={`px-3.5 py-2.5 text-center text-xs font-black tabular-nums ${missBand(
+                          className={`px-3.5 py-2.5 text-center text-xs font-semibold tabular-nums ${missBand(
                             k.lastPct
                           )}`}
                         >
@@ -751,18 +751,18 @@ export function ExecutiveScoreboard() {
                         </td>
 
                         {/* Current Planned */}
-                        <td className="px-3.5 py-2.5 text-center text-xs font-bold tabular-nums text-slate-700">
+                        <td className="px-3.5 py-2.5 text-center text-xs font-semibold tabular-nums text-slate-700">
                           {k.planned}
                         </td>
 
                         {/* Current Actual */}
-                        <td className="px-3.5 py-2.5 text-center text-xs font-bold tabular-nums text-slate-700">
+                        <td className="px-3.5 py-2.5 text-center text-xs font-semibold tabular-nums text-slate-700">
                           {k.actual}
                         </td>
 
                         {/* Current Actual % */}
                         <td
-                          className={`px-3.5 py-2.5 text-center text-xs font-black tabular-nums ${missBand(
+                          className={`px-3.5 py-2.5 text-center text-xs font-semibold tabular-nums ${missBand(
                             k.actualPct
                           )}`}
                         >
@@ -773,7 +773,7 @@ export function ExecutiveScoreboard() {
                         {isFirstKra && (
                           <td
                             rowSpan={2}
-                            className="px-3.5 py-2.5 text-center align-middle text-xs font-bold tabular-nums text-slate-700 border-l border-slate-100 bg-white"
+                            className="px-3.5 py-2.5 text-center align-middle text-xs font-semibold tabular-nums text-slate-700 border-l border-slate-100 bg-white"
                           >
                             {r.nextPlanned}
                           </td>
@@ -818,7 +818,7 @@ export function ExecutiveScoreboard() {
                         {isFirstKra && (
                           <td
                             rowSpan={2}
-                            className={`px-3.5 py-2.5 text-center align-middle bg-[#1E4C92]/[0.04] text-base font-black tabular-nums border-l border-slate-100 ${band(
+                            className={`px-3.5 py-2.5 text-center align-middle bg-[#1E4C92]/[0.04] text-base font-semibold tabular-nums border-l border-slate-100 ${band(
                               r.finalScore
                             )}`}
                           >
@@ -841,7 +841,7 @@ export function ExecutiveScoreboard() {
           <div className="w-6 h-6 rounded-lg bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center shrink-0">
             <Info size={14} strokeWidth={2.5} />
           </div>
-          <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
             Scoring Methodology & Operational Benchmarks
           </h4>
         </div>
@@ -849,7 +849,7 @@ export function ExecutiveScoreboard() {
           Both Key Result Areas (KRAs) evaluate operational misses against an absolute benchmark of{' '}
           <strong className="text-slate-700">0%</strong>. Lower miss percentages indicate superior velocity and discipline. Baseline individual score is mathematically calculated as:
         </p>
-        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 w-fit text-xs font-mono font-bold text-slate-700 shadow-xs">
+        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 w-fit text-xs font-mono font-semibold text-slate-700 shadow-xs">
           Baseline Score = Mean( (100 - % Work Not Done) + (100 - % Work Not Done On Time) )
         </div>
         <p className="text-xs font-medium text-slate-500">

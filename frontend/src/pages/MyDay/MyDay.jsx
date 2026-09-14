@@ -542,7 +542,7 @@ export function MyDay() {
             <Sparkles className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 leading-none">
+            <h1 className="text-xl font-bold text-slate-800 leading-none">
               {firstName ? `Hi ${firstName}` : "My Work"}
             </h1>
             <p className="text-xs font-bold text-slate-400 mt-1">
@@ -586,7 +586,7 @@ export function MyDay() {
               <Icon className="w-4 h-4 shrink-0" />
               <span>{tab.label}</span>
               <span
-                className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
                   active
                     ? "bg-white/20 text-white"
                     : "bg-slate-200 text-slate-600"
@@ -627,7 +627,7 @@ export function MyDay() {
             <SlidersHorizontal className="w-4 h-4" />
             <span>Filters</span>
             {activeFilters.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-black">
+              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold">
                 {activeFilters.length}
               </span>
             )}
@@ -765,13 +765,13 @@ export function MyDay() {
           className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
               Late
             </span>
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-red-600">{groups.late.length}</span>
+            <span className="text-2xl font-semibold text-red-600">{groups.late.length}</span>
             <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
               Jump ↓
             </span>
@@ -784,13 +784,13 @@ export function MyDay() {
           className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
               Today
             </span>
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-amber-600">{groups.today.length}</span>
+            <span className="text-2xl font-semibold text-amber-600">{groups.today.length}</span>
             <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
               Jump ↓
             </span>
@@ -803,13 +803,13 @@ export function MyDay() {
           className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
               Upcoming
             </span>
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-blue-600">{groups.upcoming.length}</span>
+            <span className="text-2xl font-semibold text-blue-600">{groups.upcoming.length}</span>
             <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
               Jump ↓
             </span>
@@ -822,13 +822,13 @@ export function MyDay() {
           className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
               Done
             </span>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-emerald-600">{groups.done.length}</span>
+            <span className="text-2xl font-semibold text-emerald-600">{groups.done.length}</span>
             <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
               Jump ↓
             </span>
@@ -857,7 +857,7 @@ export function MyDay() {
               <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/60 flex items-center justify-center">
                 <Search className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-black text-slate-800">
+              <h3 className="text-base font-semibold text-slate-800">
                 Nothing matches those filters
               </h3>
               <p className="text-xs font-medium text-slate-500">
@@ -875,7 +875,7 @@ export function MyDay() {
               <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center">
                 <PartyPopper className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-black text-slate-800">
+              <h3 className="text-base font-semibold text-slate-800">
                 Nothing here yet
               </h3>
               <p className="text-xs font-medium text-slate-500">
@@ -893,7 +893,7 @@ export function MyDay() {
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-emerald-950">
+                <h3 className="text-sm font-semibold text-emerald-950">
                   All caught up! 🎉
                 </h3>
                 <p className="text-xs text-emerald-800 font-medium mt-0.5">
@@ -912,7 +912,7 @@ export function MyDay() {
                   <AlertTriangle className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-red-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wider">
                     Late ({groups.late.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -947,7 +947,7 @@ export function MyDay() {
                   <Sun className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-amber-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-amber-600 uppercase tracking-wider">
                     Today ({groups.today.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -982,7 +982,7 @@ export function MyDay() {
                   <CalendarClock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-blue-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
                     Coming Up ({groups.upcoming.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -1017,7 +1017,7 @@ export function MyDay() {
                   <Hourglass className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-indigo-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-indigo-600 uppercase tracking-wider">
                     Waiting for Approval ({groups.waiting.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -1052,7 +1052,7 @@ export function MyDay() {
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-emerald-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-emerald-600 uppercase tracking-wider">
                     Done ({groups.done.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">

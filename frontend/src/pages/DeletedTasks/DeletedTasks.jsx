@@ -475,7 +475,7 @@ export function DeletedTasks() {
           <div className="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shadow-xs">
             <ShieldAlert size={32} strokeWidth={2.5} />
           </div>
-          <h2 className="text-xl font-black text-slate-800">Admin Access Required</h2>
+          <h2 className="text-xl font-semibold text-slate-800">Admin Access Required</h2>
           <p className="text-sm font-medium text-slate-500 leading-relaxed">
             The deleted tasks archive is restricted to administrative and management roles.
           </p>
@@ -510,8 +510,8 @@ export function DeletedTasks() {
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-black text-slate-800 leading-none">Deleted Tasks</h1>
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
+              <h1 className="text-2xl font-bold text-slate-800 leading-none">Deleted Tasks</h1>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
                 Archive
               </span>
             </div>
@@ -595,7 +595,7 @@ export function DeletedTasks() {
             <SlidersHorizontal size={14} />
             <span>Filters</span>
             {activePopoverFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-white text-[#1E4C92] text-[10px] font-black flex items-center justify-center shadow-xs">
+              <span className="w-5 h-5 rounded-full bg-white text-[#1E4C92] text-[10px] font-semibold flex items-center justify-center shadow-xs">
                 {activePopoverFilterCount}
               </span>
             )}
@@ -608,7 +608,7 @@ export function DeletedTasks() {
           {isFilterPanelOpen && (
             <div className="absolute top-[calc(100%+8px)] left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 flex flex-col gap-3.5 min-w-[280px] animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   Filter Criteria
                 </span>
                 {activePopoverFilterCount > 0 && (
@@ -629,7 +629,7 @@ export function DeletedTasks() {
 
               {/* Popover Field: Assigned By */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Assigned By
                 </label>
                 <div className="relative">
@@ -658,7 +658,7 @@ export function DeletedTasks() {
 
               {/* Popover Field: Priority */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Priority
                 </label>
                 <div className="relative">
@@ -682,7 +682,7 @@ export function DeletedTasks() {
 
               {/* Popover Field: Category */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Category
                 </label>
                 <div className="relative">
@@ -707,7 +707,7 @@ export function DeletedTasks() {
 
               {/* Popover Field: Tag */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Tag
                 </label>
                 <div className="relative">
@@ -822,7 +822,7 @@ export function DeletedTasks() {
               key={tab.key}
               type="button"
               onClick={() => setStatusFilter(tab.key)}
-              className={`relative pb-3 flex items-center gap-2 text-xs font-black tracking-wider transition-colors cursor-pointer shrink-0 ${
+              className={`relative pb-3 flex items-center gap-2 text-xs font-semibold tracking-wider transition-colors cursor-pointer shrink-0 ${
                 isActive ? 'text-[#1E4C92]' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
@@ -862,7 +862,7 @@ export function DeletedTasks() {
             <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mb-3 shadow-xs">
               <Trash2 size={28} strokeWidth={2} />
             </div>
-            <h3 className="text-sm font-black text-slate-800 mb-1">Archive Is Empty</h3>
+            <h3 className="text-sm font-semibold text-slate-800 mb-1">Archive Is Empty</h3>
             <p className="text-xs font-medium text-slate-400 mb-4 max-w-sm">
               {isAnyFilterActive
                 ? 'No deleted tasks match your active filter criteria.'
@@ -913,7 +913,7 @@ export function DeletedTasks() {
               >
                 {/* [1] Doer Initials Avatar */}
                 <div
-                  className={`w-10 h-10 rounded-full font-black text-xs flex items-center justify-center border shadow-xs shrink-0 ${avatarColor}`}
+                  className={`w-10 h-10 rounded-full font-semibold text-xs flex items-center justify-center border shadow-xs shrink-0 ${avatarColor}`}
                 >
                   {initials}
                 </div>
@@ -922,11 +922,11 @@ export function DeletedTasks() {
                 <div className="flex-1 min-w-0 space-y-1">
                   {/* 2.1 Header Line */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-black text-slate-800 text-xs sm:text-sm group-hover:text-[#1E4C92] transition-colors">
+                    <span className="font-semibold text-slate-800 text-xs sm:text-sm group-hover:text-[#1E4C92] transition-colors">
                       {doerFullName}
                     </span>
                     <span className="text-slate-300">•</span>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                       {task.category || 'Operations'}
                     </span>
                     <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200/60 px-2 py-0.5 rounded-md ml-auto flex items-center gap-1 shrink-0">
@@ -935,7 +935,7 @@ export function DeletedTasks() {
                   </div>
 
                   {/* 2.2 Title Line */}
-                  <h3 className="text-sm sm:text-base font-black text-slate-800 group-hover:text-[#1E4C92] transition-colors truncate">
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800 group-hover:text-[#1E4C92] transition-colors truncate">
                     {task.taskTitle}
                   </h3>
                   {plainDesc && (
@@ -958,7 +958,7 @@ export function DeletedTasks() {
                       <Clock size={13} className="text-slate-400" />
                       <span>{formatDate(task.dueDate)}</span>
                       {overdue && (
-                        <span className="text-red-600 font-black ml-0.5">| Overdue</span>
+                        <span className="text-red-600 font-semibold ml-0.5">| Overdue</span>
                       )}
                     </span>
 
@@ -966,7 +966,7 @@ export function DeletedTasks() {
 
                     {/* Status Badge */}
                     <div
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider shadow-xs ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider shadow-xs ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
                       <span>{effStatus}</span>
@@ -976,7 +976,7 @@ export function DeletedTasks() {
 
                     {/* Priority Badge */}
                     <div
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider shadow-xs ${priorityConfig.bg} ${priorityConfig.text} ${priorityConfig.border}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider shadow-xs ${priorityConfig.bg} ${priorityConfig.text} ${priorityConfig.border}`}
                     >
                       <Flag size={10} className={priorityConfig.text} />
                       <span>{task.priority || 'Medium'}</span>
