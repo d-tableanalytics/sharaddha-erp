@@ -1,5 +1,9 @@
 import { NavLink, useLocation } from "react-router-dom";
+<<<<<<< HEAD
 import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, BarChart3 } from "lucide-react";
+=======
+import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
+>>>>>>> origin/main
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -63,34 +67,34 @@ export const Sidebar = () => {
 
   const hrmsSections = hasHrmsAccess
     ? groupHrmsNavItems(visibleHrmsNavItems(can, implementedModules)).map((section) => ({
-        key: section.group,
-        // The first section is the module's own core links (Dashboard, Inbox,
-        // My Profile). They sit directly under the HRMS heading with no label
-        // of their own — a heading above three links that are already under
-        // "HRMS" would be a label for the thing you just read.
-        label: section.group === "core" ? null : section.label,
-        items: section.items.map((item) => ({
-          id: `hrms:${item.key}`,
-          key: item.key,
-          label: item.label,
-          path: item.path,
-          icon: item.icon,
-        })),
-      }))
+      key: section.group,
+      // The first section is the module's own core links (Dashboard, Inbox,
+      // My Profile). They sit directly under the HRMS heading with no label
+      // of their own — a heading above three links that are already under
+      // "HRMS" would be a label for the thing you just read.
+      label: section.group === "core" ? null : section.label,
+      items: section.items.map((item) => ({
+        id: `hrms:${item.key}`,
+        key: item.key,
+        label: item.label,
+        path: item.path,
+        icon: item.icon,
+      })),
+    }))
     : [];
 
   const hrmsGroups =
     hrmsSections.length > 0
       ? [
-          {
-            key: HRMS_SIDEBAR_GROUP_KEY,
-            label: HRMS_SIDEBAR_GROUP_LABEL,
-            icon: Users,
-            alwaysGrouped: true,
-            sections: hrmsSections,
-            items: hrmsSections.flatMap((s) => s.items),
-          },
-        ]
+        {
+          key: HRMS_SIDEBAR_GROUP_KEY,
+          label: HRMS_SIDEBAR_GROUP_LABEL,
+          icon: Users,
+          alwaysGrouped: true,
+          sections: hrmsSections,
+          items: hrmsSections.flatMap((s) => s.items),
+        },
+      ]
       : [];
 
   /**
@@ -162,6 +166,7 @@ export const Sidebar = () => {
    */
   const o2dSections = canUseO2d(user)
     ? [{
+<<<<<<< HEAD
         key: "o2d",
         label: "O2D",
         items: [
@@ -192,10 +197,60 @@ export const Sidebar = () => {
           items: o2dSections.flatMap((sec) => sec.items),
         }]
       : [];
+=======
+      key: "o2d",
+      label: "Order to Dispatch",
+      icon: Truck,
+      items: [
+        { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: "/o2d/tasks", icon: ListChecks },
+        { id: "o2d:orders", key: "orders", label: "Order Tracker", path: "/o2d/orders", icon: Truck },
+        { id: "o2d:exits", key: "exits", label: "Exit Register", path: "/o2d/exits", icon: Ban },
+      ],
+    }]
+    : [];
+
+
+  /*
+  The menu item “Work Queue” should show up if user has either of the following permissions:
+
+assign_any_task
+
+assign_own_task
+
+When that menu item is clicked, it should go to /work-queue, NOT to /wq/tasks.
+
+Inside /work-queue:
+
+If the user only has assign_own_task, the UI must show ONLY their own tasks.
+
+If the user has assign_any_task, the UI must show ALL tasks, with columns for “Assignee”, “Delegate To”, etc.
+
+No “Delegation” submenu. No separate “Checklist” page. Just one single work-queue page with the behavior above.
+  */
+
+  const workQueue = canUseO2d(user)
+    ? [{
+      key: "workQueue",
+      label: "Work Queue",
+      icon: BookAIcon,
+      items: [
+        { id: "wq:mywork", key: "mywork", label: "My Work", path: "/work-queue", icon: Table },
+        { id: "wq:delegation", key: "delegation", label: "Delegation", path: "/wq/delegation", icon: Forward },
+        { id: "wq:looptasks", key: "looptasks", label: "Loop Tasks", path: "/wq/looptasks", icon: RefreshCwIcon },
+        { id: "wq:alltasks", key: "alltasks", label: "All Tasks", path: "/wq/alltasks", icon: Table2 },
+        { id: "wq:deletedtasks", key: "deletedtasks", label: "Deleted Tasks", path: "/wq/deletedtasks", icon: Trash2 },
+        { id: "wq:checklist", key: "checklist", label: "Checklist", path: "/wq/checklist", icon: CheckSquare },
+        { id: "wq:executivescoreboard", key: "executivescoreboard", label: "Executive Scoreboard", path: "/wq/executivescoreboard", icon: Trophy },
+        { id: "wq:activities", key: "activities", label: "Activities", path: "/wq/activities", icon: BarChart3 },
+      ],
+    }]
+    : [];
+
+>>>>>>> origin/main
 
   // Administration sits at the BOTTOM of the rail, under everything it
   // administers — the same order the Customer Portal settled on.
-  const groups = [...hrmsGroups, ...o2dGroups, ...adminGroups];
+  const groups = [...hrmsGroups, ...o2dGroups, ...workQueue, ...adminGroups];
 
   /**
    * Exactly ONE item is highlighted, and it is the most specific match.
@@ -226,10 +281,9 @@ export const Sidebar = () => {
   const iconFor = (icon) => icon || Circle;
 
   const linkClass = (isActive) =>
-    `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${
-      isActive
-        ? "nav-active bg-white/10 text-white font-semibold"
-        : "text-primary-100/90 font-medium hover:bg-white/[0.07] hover:text-white"
+    `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${isActive
+      ? "nav-active bg-white/10 text-white font-semibold"
+      : "text-primary-100/90 font-medium hover:bg-white/[0.07] hover:text-white"
     }`;
 
   const renderItem = (item) => {
@@ -263,9 +317,8 @@ export const Sidebar = () => {
 
   return (
     <aside
-      className={`bg-linear-to-bl from-slate-800 via-primary-900 to-slate-900 h-screen flex flex-col transition-all duration-300 relative z-30 select-none shadow-xl shadow-primary-950/20 ${
-        sidebarOpen ? "w-64" : "w-20"
-      }`}
+      className={`bg-linear-to-bl from-slate-800 via-primary-900 to-slate-900 h-screen flex flex-col transition-all duration-300 relative z-30 select-none shadow-xl shadow-primary-950/20 ${sidebarOpen ? "w-64" : "w-20"
+        }`}
     >
       <button
         onClick={toggleSidebar}
@@ -275,15 +328,13 @@ export const Sidebar = () => {
       </button>
 
       <div
-        className={`py-4 flex flex-col items-center overflow-hidden border-b border-white/10 ${
-          sidebarOpen ? "px-4" : "justify-center"
-        }`}
+        className={`py-4 flex flex-col items-center overflow-hidden border-b border-white/10 ${sidebarOpen ? "px-4" : "justify-center"
+          }`}
       >
         <NavLink
           to="/hrms/dashboard"
-          className={`bg-white rounded-xl flex items-center justify-center transition-all duration-300 ${
-            sidebarOpen ? "w-44 h-14 p-2" : "w-11 h-11 p-1"
-          }`}
+          className={`bg-white rounded-xl flex items-center justify-center transition-all duration-300 ${sidebarOpen ? "w-44 h-14 p-2" : "w-11 h-11 p-1"
+            }`}
         >
           <img
             src="/logo.avif"
@@ -323,11 +374,10 @@ export const Sidebar = () => {
                 type="button"
                 onClick={() => toggleNavGroup(group.key)}
                 aria-expanded={!collapsed}
-                className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors duration-150 focus:outline-none ${
-                  holdsActive
-                    ? "text-white"
-                    : "text-primary-100 hover:bg-white/[0.07] hover:text-white"
-                }`}
+                className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors duration-150 focus:outline-none ${holdsActive
+                  ? "text-white"
+                  : "text-primary-100 hover:bg-white/[0.07] hover:text-white"
+                  }`}
               >
                 {/* Shut, but this is where you are. The accent says so, so
                     collapsing the group never costs you your place. */}
@@ -348,20 +398,20 @@ export const Sidebar = () => {
               {!collapsed &&
                 (group.sections
                   ? group.sections.map((section) => (
-                      <div key={section.key} className="space-y-0.5 pt-2 first:pt-0.5">
-                        {section.label && (
-                          <p className="px-3 pt-1 pb-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-primary-200/55">
-                            {section.label}
-                          </p>
-                        )}
-                        {section.items.map((item) => renderItem(item))}
-                      </div>
-                    ))
+                    <div key={section.key} className="space-y-0.5 pt-2 first:pt-0.5">
+                      {section.label && (
+                        <p className="px-3 pt-1 pb-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-primary-200/55">
+                          {section.label}
+                        </p>
+                      )}
+                      {section.items.map((item) => renderItem(item))}
+                    </div>
+                  ))
                   : (
-                      <div className="space-y-0.5">
-                        {group.items.map((item) => renderItem(item))}
-                      </div>
-                    ))}
+                    <div className="space-y-0.5">
+                      {group.items.map((item) => renderItem(item))}
+                    </div>
+                  ))}
             </div>
           );
         })}
@@ -369,9 +419,8 @@ export const Sidebar = () => {
 
       <div className="p-3 border-t border-white/10">
         <div
-          className={`flex items-center rounded-lg border border-white/10 bg-white/5 ${
-            sidebarOpen ? "gap-2 p-2.5" : "flex-col gap-2 p-2"
-          }`}
+          className={`flex items-center rounded-lg border border-white/10 bg-white/5 ${sidebarOpen ? "gap-2 p-2.5" : "flex-col gap-2 p-2"
+            }`}
         >
           <NavLink
             to="/hrms/me"

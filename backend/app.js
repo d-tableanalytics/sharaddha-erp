@@ -12,6 +12,10 @@ import userRoutes from './modules/users/user.routes.js';
 import roleRoutes from './modules/roles/role.routes.js';
 import hrmsRoutes from './modules/hrms/hrms.routes.js';
 import o2dRoutes from './modules/o2d/o2d.routes.js';
+import checklistRoutes from './modules/checklist/checklist.routes.js';
+import delegationRoutes from './modules/delegation/delegation.routes.js';
+import scoreboardRoutes from './modules/scoreboard/scoreboard.routes.js';
+import activityRoutes from './modules/activities/activity.routes.js';
 import { captureBiometricRawBody } from './modules/hrms/attendance/rawBody.js';
 import { captureZohoRawBody } from './modules/o2d/zoho-webhook.js';
 
@@ -113,6 +117,20 @@ app.use('/api/v1/hrms', hrmsRoutes);
 // unconditionally is therefore safe — the fence travels with the routes rather
 // than depending on this line being written correctly in each repository.
 app.use('/api/v1/o2d', o2dRoutes);
+
+// Checklist — compliance task tracking, part of the Work Queue group.
+// Gated on view_o2d like the rest of the Work Queue.
+app.use('/api/v1/checklist', checklistRoutes);
+
+// Delegation — task delegation & verification, part of the Work Queue group.
+// Gated on view_o2d like the rest of the Work Queue.
+app.use('/api/v1/delegation', delegationRoutes);
+
+// Scoreboard — unified executive scoreboard across delegations and checklists.
+app.use('/api/v1/scoreboard', scoreboardRoutes);
+
+// Activities — centralized administrative audit log and forensic timeline.
+app.use('/api/v1/activities', activityRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {
