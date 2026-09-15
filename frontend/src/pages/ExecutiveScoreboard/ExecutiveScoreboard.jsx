@@ -10,6 +10,11 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+import { PageHeader } from '../../components/common/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { scoreboardApi } from '../../services/scoreboard';
 import { useUserStore } from '../../store/userStore';
 import { useHrmsStore } from '../../store/hrmsStore';
@@ -17,25 +22,9 @@ import { useHrmsStore } from '../../store/hrmsStore';
 // Medals for top 3
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-// Enterprise Avatar Color Palette (consistent with application standard)
-const AVATAR_COLOR_PALETTE = [
-  'bg-primary-50 text-primary-700 border-primary-200',
-  'bg-indigo-50 text-indigo-700 border-indigo-200/60',
-  'bg-emerald-50 text-emerald-700 border-emerald-200/60',
-  'bg-sky-50 text-sky-700 border-sky-200/60',
-  'bg-amber-50 text-amber-700 border-amber-200/60',
-  'bg-purple-50 text-purple-700 border-purple-200/60',
-];
-
-function getAvatarColor(nameOrId = '', index = 0) {
-  if (!nameOrId) return AVATAR_COLOR_PALETTE[index % AVATAR_COLOR_PALETTE.length];
-  let hash = 0;
-  for (let i = 0; i < nameOrId.length; i++) {
-    hash = nameOrId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const idx = Math.abs(hash) % AVATAR_COLOR_PALETTE.length;
-  return AVATAR_COLOR_PALETTE[idx];
-}
+// The portal's initials chip, as HRMS's EmployeesPage renders it: one flat
+// primary disc, no per-person hue and no border.
+const AVATAR_CLASS = 'bg-primary-100 text-primary-700';
 
 function getInitials(name = '') {
   if (!name) return 'U';
@@ -49,10 +38,10 @@ function getInitials(name = '') {
  */
 export function band(score) {
   if (score === null || score === undefined) return 'text-slate-400';
-  if (score >= 85) return 'text-emerald-600 font-semibold';
-  if (score >= 70) return 'text-sky-600 font-semibold';
-  if (score >= 50) return 'text-amber-600 font-semibold';
-  return 'text-red-600 font-semibold';
+  if (score >= 85) return 'text-success-600 font-semibold';
+  if (score >= 70) return 'text-primary-600 font-semibold';
+  if (score >= 50) return 'text-warning-600 font-semibold';
+  return 'text-error-600 font-semibold';
 }
 
 /**
@@ -60,10 +49,10 @@ export function band(score) {
  */
 export function missBand(pct) {
   if (pct === null || pct === undefined) return 'text-slate-400';
-  if (pct === 0) return 'text-emerald-600 font-semibold';
-  if (pct <= 15) return 'text-sky-600 font-semibold';
-  if (pct <= 30) return 'text-amber-600 font-semibold';
-  return 'text-red-600 font-semibold';
+  if (pct === 0) return 'text-success-600 font-semibold';
+  if (pct <= 15) return 'text-primary-600 font-semibold';
+  if (pct <= 30) return 'text-warning-600 font-semibold';
+  return 'text-error-600 font-semibold';
 }
 
 /**
@@ -140,7 +129,7 @@ function EditableNum({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={`${width} h-7 px-2 py-0.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-800 text-xs font-semibold tabular-nums text-center focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-600 shadow-xs transition-all`}
+        className={`${width} h-7 px-2 py-0.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs font-semibold tabular-nums text-center outline-none shadow-sm transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500`}
       />
       {isSaving && (
         <Loader2
@@ -160,14 +149,13 @@ function PodiumCard({ row, rankIdx }) {
   const isSecond = rankIdx === 1;
 
   const initials = getInitials(row.doer);
-  const avatarColor = getAvatarColor(row.doer, rankIdx);
 
   const rankTheme = isFirst
     ? {
-        border: 'border-amber-200/90 hover:border-amber-400',
-        bg: 'bg-gradient-to-br from-amber-50/40 via-white to-white',
-        badge: 'bg-amber-500 text-white',
-        scoreGlow: 'bg-amber-50 text-amber-700 border border-amber-200/60',
+        border: 'border-warning-100/90 hover:border-warning-500',
+        bg: 'bg-gradient-to-br from-warning-50/40 via-white to-white',
+        badge: 'bg-warning-500 text-white',
+        scoreGlow: 'bg-warning-50 text-warning-600 border border-warning-100/60',
       }
     : isSecond
     ? {
@@ -177,24 +165,24 @@ function PodiumCard({ row, rankIdx }) {
         scoreGlow: 'bg-slate-50 text-slate-700 border border-slate-200',
       }
     : {
-        border: 'border-orange-200/70 hover:border-orange-300',
-        bg: 'bg-gradient-to-br from-orange-50/30 via-white to-white',
-        badge: 'bg-orange-600 text-white',
-        scoreGlow: 'bg-orange-50 text-orange-700 border border-orange-200/60',
+        border: 'border-warning-100/70 hover:border-warning-100',
+        bg: 'bg-gradient-to-br from-warning-50/30 via-white to-white',
+        badge: 'bg-warning-600 text-white',
+        scoreGlow: 'bg-warning-50 text-warning-600 border border-warning-100/60',
       };
 
   return (
     <div
-      className={`relative flex items-center gap-3.5 p-4 rounded-2xl border transition-all duration-200 shadow-xs hover:shadow-md ${rankTheme.border} ${rankTheme.bg}`}
+      className={`relative flex items-center gap-3.5 p-4 rounded-xl border transition-all duration-200 shadow-enterprise hover:shadow-md ${rankTheme.border} ${rankTheme.bg}`}
     >
       <div className="relative shrink-0">
         <div
-          className={`w-12 h-12 rounded-full font-semibold text-xs flex items-center justify-center border shadow-xs ${avatarColor}`}
+          className={`w-12 h-12 rounded-full font-bold text-xs flex items-center justify-center ${AVATAR_CLASS}`}
         >
           {initials}
         </div>
         <span
-          className={`absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-semibold flex items-center justify-center border border-white shadow-xs ${rankTheme.badge}`}
+          className={`absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold flex items-center justify-center border border-white shadow-enterprise ${rankTheme.badge}`}
         >
           #{row.rank}
         </span>
@@ -209,7 +197,7 @@ function PodiumCard({ row, rankIdx }) {
             Rank {row.rank}
           </span>
         </div>
-        <div className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+        <div className="text-sm font-semibold text-slate-900 truncate mt-0.5">
           {row.doer}
         </div>
         <div className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5 mt-0.5">
@@ -420,44 +408,39 @@ export function ExecutiveScoreboard() {
   return (
     <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & GLOBAL CONTROLS ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-200">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center shadow-enterprise-md shrink-0">
-            <Trophy className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-black text-slate-900">
-                Executive Scoreboard
-              </h1>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-700 bg-primary-50 border border-primary-200 px-2.5 py-0.5 rounded-full">
-                Leadership
-              </span>
-            </div>
-            <p className="text-xs font-semibold text-slate-400 mt-1">
-              {loading && !data ? (
-                'Loading…'
-              ) : (
-                <>
-                  {periodLabel} of {data?.periodStart} — {data?.periodEnd} ·{' '}
-                  <span className="font-semibold text-slate-600">
-                    {data?.totalDoers || 0} doers
-                  </span>{' '}
-                  ·{' '}
-                  <span className="font-semibold text-emerald-600">
-                    {data?.activeDoers || 0} active with work
-                  </span>{' '}
-                  this {period}
-                </>
-              )}
-            </p>
-          </div>
-        </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page already use it.
 
-        {/* Global Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        The “Leadership” chip becomes the `eyebrow` - the slot that exists
+        for exactly this - and the period line becomes the `subtitle`, which is
+        where a screen says what it is showing. The 40px Trophy tile is dropped:
+        no other page in the portal puts an icon beside its title, and the rail
+        already carries this page's Trophy.
+      */}
+      <PageHeader
+        eyebrow="Leadership"
+        title="Executive Scoreboard"
+        subtitle={
+          loading && !data ? (
+            'Loading…'
+          ) : (
+            <>
+              {periodLabel} of {data?.periodStart} — {data?.periodEnd} ·{' '}
+              <span className="font-semibold text-slate-600">
+                {data?.totalDoers || 0} doers
+              </span>{' '}
+              ·{' '}
+              <span className="font-semibold text-success-600">
+                {data?.activeDoers || 0} active with work
+              </span>{' '}
+              this {period}
+            </>
+          )
+        }
+        actions={
+          <>
           {/* Period Selector Pill Group */}
-          <div className="h-10 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
+          <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-enterprise shrink-0">
             {['week', 'month', 'year'].map((p) => (
               <button
                 key={p}
@@ -465,7 +448,7 @@ export function ExecutiveScoreboard() {
                 onClick={() => setPeriod(p)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
                   period === p
-                    ? 'bg-primary-600 text-white shadow-xs'
+                    ? 'bg-primary-600 text-white shadow-enterprise'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
@@ -475,7 +458,7 @@ export function ExecutiveScoreboard() {
           </div>
 
           {/* Scope Selector Pill Group */}
-          <div className="h-10 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
+          <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-enterprise shrink-0">
             <Building2 size={14} className="ml-2 mr-0.5 text-slate-400 shrink-0" />
             {[
               { id: 'all', label: 'Overall' },
@@ -488,7 +471,7 @@ export function ExecutiveScoreboard() {
                 onClick={() => setScope(s.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   scope === s.id
-                    ? 'bg-primary-600 text-white shadow-xs'
+                    ? 'bg-primary-600 text-white shadow-enterprise'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
@@ -499,16 +482,13 @@ export function ExecutiveScoreboard() {
 
 
           {/* Excel Export Button */}
-          <button
-            type="button"
-            onClick={exportToExcel}
-            className="h-10 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-xs flex items-center gap-2 shadow-enterprise transition-all active:scale-95 cursor-pointer shrink-0"
-          >
-            <Download size={14} strokeWidth={2.5} />
-            <span>Export</span>
-          </button>
-        </div>
-      </div>
+          <Button size="sm" onClick={exportToExcel}>
+            <Download size={14} className="mr-2" />
+            Export
+          </Button>
+          </>
+        }
+      />
 
       {/* ── 2. TOP 3 PODIUM CARDS ────────────────────────────────────────── */}
       {!loading && data?.top?.length > 0 && (
@@ -534,14 +514,14 @@ export function ExecutiveScoreboard() {
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search
             size={15}
-            className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by doer name..."
-            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           />
           {search && (
             <button
@@ -557,14 +537,14 @@ export function ExecutiveScoreboard() {
         {/* Advisory Banner */}
         <div className="shrink-0">
           {canEdit ? (
-            <div className="text-[11px] font-semibold text-primary-700 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-primary-50 border border-primary-200 shadow-xs">
+            <div className="text-[11px] font-semibold text-primary-700 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-primary-50 border border-primary-200 shadow-enterprise">
               <Target size={14} className="text-primary-700 shrink-0" />
               <span>
                 Set the <strong>{nextLabel}</strong> score goal & MD adjustment inline — rankings recalculate instantly.
               </span>
             </div>
           ) : (
-            <div className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-200 shadow-xs">
+            <div className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-200 shadow-enterprise">
               <Info size={14} className="text-slate-400 shrink-0" />
               <span>Score goals and leadership adjustments are set by the CEO/MD.</span>
             </div>
@@ -573,81 +553,72 @@ export function ExecutiveScoreboard() {
       </div>
 
       {/* ── 4. KRA/KPI SCOREBOARD GRID TABLE ──────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-enterprise">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200">
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center w-14">
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-14">
                   Rank
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider min-w-[200px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 min-w-[200px]">
                   Doer Name
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider min-w-[190px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 min-w-[190px]">
                   KRA
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider min-w-[160px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 min-w-[160px]">
                   KPI
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center w-24">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-24">
                   Benchmark
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[120px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center min-w-[120px]">
                   Last {periodLabel} Actual %
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[110px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center min-w-[110px]">
                   Current {periodLabel} Planned
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center min-w-[100px]">
                   Current {periodLabel} Actual
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[120px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center min-w-[120px]">
                   Current {periodLabel} Actual %
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center min-w-[100px]">
                   {nextLabel} Planned
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[120px] bg-primary-50 text-primary-700 border-l border-slate-200">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-center min-w-[120px] bg-primary-50 text-primary-700 border-l border-slate-200">
                   {nextLabel} Score Goal
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[115px] bg-primary-50 text-primary-700 border-l border-slate-200">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-center min-w-[115px] bg-primary-50 text-primary-700 border-l border-slate-200">
                   MD Adjustment
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[105px] bg-primary-50 text-primary-700 border-l border-slate-200">
+                <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-center min-w-[105px] bg-primary-50 text-primary-700 border-l border-slate-200">
                   Final Score
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && !data ? (
-                // Skeleton Rows
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={13} className="px-4 py-3">
-                      <div className="h-10 bg-slate-100 rounded-lg" />
-                    </td>
-                  </tr>
-                ))
+                // The shared placeholder rows, as HrmsDataTable uses them, so a
+                // loading table fills in its own shape rather than showing six
+                // grey bars that match no column.
+                <TableSkeleton rows={6} columns={13} cellClass="px-3 py-2" />
               ) : filteredRows.length === 0 ? (
-                // Empty State
                 <tr>
-                  <td colSpan={13} className="py-16 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-                      <Trophy size={26} strokeWidth={2} />
-                    </div>
-                    <h3 className="text-sm font-semibold text-slate-800">
-                      No doers found
-                    </h3>
-                    <p className="text-xs font-semibold text-slate-400 mt-1">
-                      No scoreboard records match your current filter criteria.
-                    </p>
+                  <td colSpan={13} className="p-0">
+                    <EmptyState
+                      title="No doers found"
+                      description="No scoreboard records match your current filter criteria."
+                      icon={<Trophy className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+                      className="border-0 rounded-none py-12"
+                    />
                   </td>
                 </tr>
               ) : (
                 filteredRows.map((r, rIdx) => {
                   const initials = getInitials(r.doer);
-                  const avatarColor = getAvatarColor(r.doer, rIdx);
 
                   return r.kras.map((k, i) => {
                     const isFirstKra = i === 0;
@@ -670,7 +641,7 @@ export function ExecutiveScoreboard() {
                             rowSpan={2}
                             className="px-3.5 py-2.5 text-center align-middle border-r border-slate-100 bg-white"
                           >
-                            <div className="inline-flex items-center gap-1 justify-center font-semibold text-xs tabular-nums text-slate-800">
+                            <div className="inline-flex items-center gap-1 justify-center font-semibold text-xs tabular-nums text-slate-900">
                               {medalEmoji ? (
                                 <span className="text-base leading-none">{medalEmoji}</span>
                               ) : (
@@ -690,12 +661,12 @@ export function ExecutiveScoreboard() {
                           >
                             <div className="flex items-center gap-2.5">
                               <div
-                                className={`w-8 h-8 rounded-full font-semibold text-[11px] flex items-center justify-center border shadow-xs shrink-0 ${avatarColor}`}
+                                className={`w-8 h-8 rounded-full font-bold text-[11px] flex items-center justify-center shrink-0 ${AVATAR_CLASS}`}
                               >
                                 {initials}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-semibold text-xs text-slate-800 hover:text-primary-700 transition-colors truncate">
+                                <div className="font-semibold text-xs text-slate-900 hover:text-primary-700 transition-colors truncate">
                                   {r.doer}
                                 </div>
                                 {!r.hasWork ? (
@@ -713,7 +684,7 @@ export function ExecutiveScoreboard() {
                         )}
 
                         {/* KRA description */}
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-800">
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-slate-900">
                           {k.kra}
                         </td>
 
@@ -822,12 +793,12 @@ export function ExecutiveScoreboard() {
       </div>
 
       {/* ── 5. FOOTNOTE & CALCULATION METHODOLOGY ─────────────────────────── */}
-      <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs text-slate-600 text-xs space-y-3 leading-relaxed">
+      <div className="p-5 rounded-xl border border-slate-200 bg-white shadow-enterprise text-slate-600 text-xs space-y-3 leading-relaxed">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-primary-50 text-primary-700 flex items-center justify-center shrink-0">
             <Info size={14} strokeWidth={2.5} />
           </div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
             Scoring Methodology & Operational Benchmarks
           </h4>
         </div>
@@ -835,7 +806,7 @@ export function ExecutiveScoreboard() {
           Both Key Result Areas (KRAs) evaluate operational misses against an absolute benchmark of{' '}
           <strong className="text-slate-700">0%</strong>. Lower miss percentages indicate superior velocity and discipline. Baseline individual score is mathematically calculated as:
         </p>
-        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 w-fit text-xs font-mono font-semibold text-slate-700 shadow-xs">
+        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 w-fit text-xs font-mono font-semibold text-slate-700 shadow-enterprise">
           Baseline Score = Mean( (100 - % Work Not Done) + (100 - % Work Not Done On Time) )
         </div>
         <p className="text-xs font-medium text-slate-500">

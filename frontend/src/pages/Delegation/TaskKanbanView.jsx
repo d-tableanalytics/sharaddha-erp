@@ -15,10 +15,10 @@ function getInitials(first = '', last = '') {
 }
 
 const COLUMNS = [
-  { id: 'Pending', label: 'Pending', icon: AlertCircle, color: 'text-red-500', headerBg: 'bg-red-50' },
+  { id: 'Pending', label: 'Pending', icon: AlertCircle, color: 'text-error-500', headerBg: 'bg-error-50' },
   { id: 'Need Revision', label: 'Need Revision', icon: History, color: 'text-primary-500', headerBg: 'bg-primary-50' },
-  { id: 'In Progress', label: 'In Progress', icon: History, color: 'text-orange-400', headerBg: 'bg-orange-50' },
-  { id: 'Completed', label: 'Completed', icon: CheckCircle2, color: 'text-emerald-500', headerBg: 'bg-emerald-50' },
+  { id: 'In Progress', label: 'In Progress', icon: History, color: 'text-warning-500', headerBg: 'bg-warning-50' },
+  { id: 'Completed', label: 'Completed', icon: CheckCircle2, color: 'text-success-500', headerBg: 'bg-success-50' },
 ];
 
 export function TaskKanbanView({ tasks = [], onTaskClick }) {
@@ -49,8 +49,8 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
   }, [tasks]);
 
   const priorityColors = {
-    Urgent: 'bg-red-50 text-red-600 border-red-200',
-    High: 'bg-orange-50 text-orange-600 border-orange-200',
+    Urgent: 'bg-error-50 text-error-600 border-error-100',
+    High: 'bg-warning-50 text-warning-600 border-warning-100',
     Medium: 'bg-primary-50 text-primary-600 border-primary-200',
     Low: 'bg-slate-50 text-slate-500 border-slate-200',
   };
@@ -64,13 +64,13 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
         return (
           <div
             key={col.id}
-            className="flex flex-col rounded-2xl bg-slate-100/70 border border-slate-200/70 min-w-[280px] max-h-[80vh] flex-1"
+            className="flex flex-col rounded-xl bg-slate-100/70 border border-slate-200/70 min-w-[280px] max-h-[80vh] flex-1"
           >
             {/* Column Header */}
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200/80 bg-white/70 rounded-t-2xl">
               <div className="flex items-center gap-2">
                 <Icon className={`w-4 h-4 ${col.color}`} />
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-slate-700">
                   {col.label}
                 </h3>
               </div>
@@ -96,15 +96,15 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
                     <div
                       key={task._id}
                       onClick={() => onTaskClick(task)}
-                      className="group bg-white rounded-lg p-4 border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer border-l-4 border-l-transparent hover:border-l-primary-600 flex flex-col gap-2.5"
+                      className="group bg-white rounded-xl p-4 border border-slate-200/90 shadow-enterprise hover:shadow-md transition-all duration-200 cursor-pointer border-l-4 border-l-transparent hover:border-l-primary-600 flex flex-col gap-2.5"
                     >
                       {/* Card Top: Category & Priority */}
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 truncate max-w-[120px]">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate max-w-[120px]">
                           {task.category || 'Operations'}
                         </span>
                         <span
-                          className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                             priorityColors[task.priority] || priorityColors.Medium
                           }`}
                         >
@@ -113,7 +113,7 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
                       </div>
 
                       {/* Card Title */}
-                      <h4 className="text-sm font-black text-slate-800 line-clamp-2 group-hover:text-primary-700 transition-colors leading-snug">
+                      <h4 className="text-sm font-bold text-slate-900 line-clamp-2 group-hover:text-primary-700 transition-colors leading-snug">
                         {task.taskTitle}
                       </h4>
 
@@ -127,7 +127,7 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
 
                       {/* Verification Status tag if applicable */}
                       {task.status === 'Awaiting Verification' && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary-50 border border-primary-200 text-primary-600 text-[10px] font-black uppercase tracking-wider">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary-50 border border-primary-200 text-primary-600 text-[10px] font-bold uppercase tracking-wider">
                           <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-pulse" />
                           Awaiting Verification
                         </div>
@@ -157,7 +157,7 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500 font-semibold">
                         <div className="flex items-center gap-2">
                           <div
-                            className="w-7 h-7 rounded-full bg-primary-50 text-primary-700 font-black text-[10px] flex items-center justify-center border border-primary-200"
+                            className="w-7 h-7 rounded-full bg-primary-50 text-primary-700 font-bold text-[10px] flex items-center justify-center border border-primary-200"
                             title={`${task.doerFirstName} ${task.doerLastName}`}
                           >
                             {getInitials(task.doerFirstName, task.doerLastName)}
@@ -169,11 +169,11 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
 
                         <div className="flex items-center gap-1">
                           <Calendar
-                            className={`w-3 h-3 ${overdue ? 'text-red-500' : 'text-slate-400'}`}
+                            className={`w-3 h-3 ${overdue ? 'text-error-500' : 'text-slate-400'}`}
                           />
                           <span
                             className={`text-[10px] font-bold ${
-                              overdue ? 'text-red-600' : 'text-slate-500'
+                              overdue ? 'text-error-600' : 'text-slate-500'
                             }`}
                           >
                             {task.dueDate

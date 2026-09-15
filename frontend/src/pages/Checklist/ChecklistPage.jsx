@@ -42,6 +42,8 @@ import {
   ChevronDown,
   RotateCcw,
 } from 'lucide-react';
+import { PageHeader } from '../../components/common/PageHeader';
+import { Button } from '../../components/ui/Button';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -55,11 +57,11 @@ const isManager = (user) =>
 // ── KPI Tile Config ──────────────────────────────────────────────────────────
 
 const KPI_TILES = [
-  { key: 'total',          label: 'Total',          icon: ClipboardList, accent: 'bg-slate-400', textColor: 'text-slate-800' },
+  { key: 'total',          label: 'Total',          icon: ClipboardList, accent: 'bg-slate-400', textColor: 'text-slate-900' },
   { key: 'pendingToday',   label: 'Pending Today',  icon: Clock,         accent: 'bg-primary-500',  textColor: 'text-primary-600' },
-  { key: 'overdue',        label: 'Overdue',        icon: AlertTriangle, accent: 'bg-red-500',   textColor: 'text-red-600' },
-  { key: 'completed',      label: 'Completed',      icon: CheckCircle2,  accent: 'bg-emerald-500', textColor: 'text-emerald-600' },
-  { key: 'complianceRate', label: 'Compliance',     icon: TrendingUp,    accent: 'bg-indigo-500', textColor: 'text-indigo-600' },
+  { key: 'overdue',        label: 'Overdue',        icon: AlertTriangle, accent: 'bg-error-500',   textColor: 'text-error-600' },
+  { key: 'completed',      label: 'Completed',      icon: CheckCircle2,  accent: 'bg-success-500', textColor: 'text-success-600' },
+  { key: 'complianceRate', label: 'Compliance',     icon: TrendingUp,    accent: 'bg-primary-500', textColor: 'text-primary-600' },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -298,23 +300,22 @@ export function ChecklistPage() {
     <div className="flex flex-col gap-6 pb-10">
 
       {/* ── 1. Header Bar ────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-200">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center shadow-enterprise-md shrink-0">
-            <ClipboardList className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900">Checklist</h1>
-            <p className="text-sm text-slate-500 font-medium mt-1 max-w-2xl leading-relaxed">
-              Recurring compliance tasks — generated ahead, tracked to completion
-            </p>
-          </div>
-        </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page use it. It carries the
+        title, the description line and the right-aligned actions, and draws the
+        bottom rule every other page in the portal ends its header with.
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        The 40px icon tile is dropped: no other page in the portal puts an icon
+        beside its title, and the sidebar already marks which page this is.
+      */}
+      <PageHeader
+        title="Checklist"
+        subtitle="Recurring compliance tasks — generated ahead, tracked to completion"
+        actions={
+          <>
           {/* Site switcher */}
           {locations.length > 1 && (
-            <div className="h-10 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs">
+            <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-enterprise">
               {locations.map((site) => (
                 <button
                   key={site}
@@ -322,7 +323,7 @@ export function ChecklistPage() {
                   onClick={() => setSelectedSite(site === selectedSite ? '' : site)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     selectedSite === site
-                      ? 'bg-primary-600 text-white shadow-xs'
+                      ? 'bg-primary-600 text-white shadow-enterprise'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
@@ -334,16 +335,13 @@ export function ChecklistPage() {
 
 
           {/* New checklist CTA */}
-          <button
-            type="button"
-            onClick={() => setCreateDrawer(true)}
-            className="flex items-center justify-center gap-2 px-5 h-10 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" strokeWidth={2.5} />
-            <span>{admin ? 'New Checklist' : 'Add Task'}</span>
-          </button>
-        </div>
-      </div>
+          <Button size="sm" onClick={() => setCreateDrawer(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            {admin ? 'New Checklist' : 'Add Task'}
+          </Button>
+          </>
+        }
+      />
 
       {/* ── 2. KPI Stat Tiles ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -357,7 +355,7 @@ export function ChecklistPage() {
             <div
               key={tile.key}
               onClick={() => tile.key !== 'complianceRate' && handleKpiClick(tile.key)}
-              className={`p-3.5 rounded-lg border bg-white transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${
+              className={`p-3.5 rounded-xl border bg-white transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group ${
                 isActive ? 'border-primary-600 ring-2 ring-primary-500/10' : 'border-slate-200 hover:border-primary-600'
               }`}
             >
@@ -391,7 +389,7 @@ export function ChecklistPage() {
       <div className="flex flex-wrap items-center gap-2.5">
         {/* View switcher (admin only) */}
         {admin && (
-          <div className="h-11 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
+          <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-enterprise shrink-0">
             {[
               { key: 'tasks',       label: 'Tasks',       icon: ClipboardList },
               { key: 'routines',    label: 'Routines',    icon: ListTree },
@@ -406,7 +404,7 @@ export function ChecklistPage() {
                   onClick={() => setView(tab.key)}
                   className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${
                     isCurrent
-                      ? 'bg-primary-600 text-white shadow-xs'
+                      ? 'bg-primary-600 text-white shadow-enterprise'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                   }`}
                 >
@@ -426,7 +424,7 @@ export function ChecklistPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search checklist tasks..."
-            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           />
         </div>
 
@@ -435,7 +433,7 @@ export function ChecklistPage() {
           <select
             value={frequencyFilter}
             onChange={(e) => setFrequencyFilter(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="">All Frequencies</option>
             {FREQUENCIES.map((f) => (
@@ -450,7 +448,7 @@ export function ChecklistPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="">All Statuses</option>
             {STATUSES.map((s) => (
@@ -466,7 +464,7 @@ export function ChecklistPage() {
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+              className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="">All Departments</option>
               {departments.map((d) => (
@@ -483,7 +481,7 @@ export function ChecklistPage() {
             <select
               value={siteFilter}
               onChange={(e) => setSiteFilter(e.target.value)}
-              className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+              className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="">All Sites</option>
               {locations.map((s) => (
@@ -500,7 +498,7 @@ export function ChecklistPage() {
             <select
               value={doerFilter}
               onChange={(e) => setDoerFilter(e.target.value)}
-              className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+              className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="">All Doers</option>
               {users.map((u) => (
@@ -517,7 +515,7 @@ export function ChecklistPage() {
           value={specificDate}
           onChange={(e) => setSpecificDate(e.target.value)}
           title="Specific date"
-          className={`h-11 px-3 bg-white border rounded-lg text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer ${
+          className={`px-3 py-2 text-sm bg-white border rounded-lg shadow-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all cursor-pointer ${
             specificDate ? 'border-primary-600 ring-2 ring-primary-500/20' : 'border-slate-200 hover:border-slate-300'
           }`}
         />
@@ -529,7 +527,7 @@ export function ChecklistPage() {
             onChange={(e) => setFromDate(e.target.value)}
             disabled={!!specificDate}
             title="From"
-            className="h-11 px-3 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all disabled:opacity-50 cursor-pointer"
+            className="px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 cursor-pointer disabled:opacity-50"
           />
           <span className="text-xs font-bold text-slate-400">to</span>
           <input
@@ -538,7 +536,7 @@ export function ChecklistPage() {
             onChange={(e) => setToDate(e.target.value)}
             disabled={!!specificDate}
             title="To"
-            className="h-11 px-3 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all disabled:opacity-50 cursor-pointer"
+            className="px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 cursor-pointer disabled:opacity-50"
           />
         </div>
 
@@ -548,7 +546,7 @@ export function ChecklistPage() {
             type="button"
             onClick={clearFilters}
             title="Clear all filters"
-            className="h-11 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-primary-700 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            className="inline-flex items-center justify-center gap-2 font-medium rounded-lg px-3 py-1.5 text-xs bg-transparent border border-slate-300 hover:bg-slate-50 text-slate-700 transition-all active:scale-[0.98] shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Clear ({activeFilterCount})</span>
@@ -558,7 +556,7 @@ export function ChecklistPage() {
 
       {/* ── 4. Bulk Action Bar ───────────────────────────────────────── */}
       {admin && selectedIds.length > 0 && (
-        <div className="flex items-center justify-between px-5 py-3 bg-primary-600 text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
+        <div className="flex items-center justify-between px-5 py-3 bg-primary-600 text-white rounded-xl shadow-enterprise-lg animate-in slide-in-from-top-2 duration-200">
           <span className="text-xs font-bold">{selectedIds.length} tasks selected</span>
           <div className="flex items-center gap-2">
             <button

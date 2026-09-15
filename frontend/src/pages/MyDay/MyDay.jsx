@@ -27,6 +27,8 @@ import { useUserStore } from "../../store/userStore";
 import { delegationService } from "../../services/delegation";
 import { checklistApi } from "../../services/checklist";
 import { CompleteTaskModal } from "./CompleteTaskModal";
+import { PageHeader } from '../../components/common/PageHeader';
+import { TabNav } from '../../components/hrms/TabNav';
 
 // Helper: Normalize due date diff
 function getDueDiffDays(dueDate) {
@@ -533,60 +535,53 @@ export function MyDay() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 pb-10">
       {/* 1. Header & Sync Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
-            <Sparkles className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800 leading-none">
-              {firstName ? `Hi ${firstName}` : "My Work"}
-            </h1>
-            <p className="text-xs font-bold text-slate-400 mt-1">
-              {todayFormatted} · Your personal responsibilities & work queue
-            </p>
-          </div>
-        </div>
-      </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page use it. It carries the
+        title, the description line and the right-aligned actions, and draws the
+        bottom rule every other page in the portal ends its header with.
 
-      {/* 2. Task Type Segmented Switcher */}
-      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 overflow-x-auto shadow-xs">
-        {[
+        The 40px icon tile is dropped: no other page in the portal puts an icon
+        beside its title, and the sidebar already marks which page this is.
+      */}
+      <PageHeader
+        title={firstName ? `Hi ${firstName}` : "My Work"}
+        subtitle={`${todayFormatted} · Your personal responsibilities & work queue`}
+      />
+
+      {/* 2. Task Type Switcher */}
+      {/*
+        These four are tabs over one dataset, so they are the portal's tab strip
+        - components/hrms/TabNav.jsx - rather than a filled-pill segmented group
+        of their own. The segmented control stays where it belongs, on the
+        Scoreboard's period and scope switchers, which choose a FILTER rather
+        than a view.
+
+        TabNav renders whatever JSX the label holds, so each tab keeps its icon.
+      */}
+      <TabNav
+        tabs={[
           { id: "delegation", label: "Delegation", icon: ClipboardList, count: tabCounts.delegation },
           { id: "checklist", label: "Checklist", icon: Repeat, count: tabCounts.checklist },
           { id: "loop", label: "Loop", icon: Radio, count: tabCounts.loop },
           { id: "group", label: "Group", icon: Users, count: tabCounts.group },
         ].map((tab) => {
           const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              type="button"
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer select-none whitespace-nowrap ${
-                active
-                  ? "bg-[#1E4C92] text-white shadow-xs"
-                  : "text-slate-600 hover:text-[#1E4C92] hover:bg-white"
-              }`}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              <span>{tab.label}</span>
-              <span
-                className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                  active
-                    ? "bg-white/20 text-white"
-                    : "bg-slate-200 text-slate-600"
-                }`}
-              >
-                {tab.count}
+          return {
+            key: tab.id,
+            label: (
+              <span className="inline-flex items-center gap-2">
+                <Icon className="w-4 h-4 shrink-0" />
+                {tab.label}
               </span>
-            </button>
-          );
+            ),
+            badge: tab.count,
+          };
         })}
-      </div>
+        activeKey={activeTab}
+        onChange={setActiveTab}
+      />
 
       {/* 3. Search & Filter Controls */}
       <div className="space-y-3">
@@ -599,7 +594,7 @@ export function MyDay() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search my work by title or code…"
-              className="w-full h-11 pl-10 pr-4 text-xs font-semibold bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 text-slate-800 placeholder-slate-400 shadow-xs transition-all"
+              className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -607,16 +602,16 @@ export function MyDay() {
           <button
             onClick={() => setShowFilters((prev) => !prev)}
             type="button"
-            className={`h-11 px-4 rounded-xl border text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer ${
+            className={`h-11 px-4 rounded-xl border text-xs font-bold flex items-center gap-2 shadow-enterprise transition-all cursor-pointer ${
               showFilters || activeFilters.length > 0
-                ? "bg-[#1E4C92]/10 border-[#1E4C92]/30 text-[#1E4C92]"
+                ? "bg-primary-50 border-primary-200 text-primary-700"
                 : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
             <span>Filters</span>
             {activeFilters.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold">
+              <span className="w-5 h-5 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center font-semibold">
                 {activeFilters.length}
               </span>
             )}
@@ -625,7 +620,7 @@ export function MyDay() {
 
         {/* Collapsible Filter Row */}
         {showFilters && (
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs animate-in fade-in duration-150">
+          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-enterprise animate-in fade-in duration-150">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {/* Status Dropdown */}
               <div>
@@ -636,7 +631,7 @@ export function MyDay() {
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full h-10 pl-3 pr-8 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none appearance-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 cursor-pointer shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Statuses</option>
                     <option value="Overdue">Overdue</option>
@@ -659,7 +654,7 @@ export function MyDay() {
                     <select
                       value={filterPriority}
                       onChange={(e) => setFilterPriority(e.target.value)}
-                      className="w-full h-10 pl-3 pr-8 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none appearance-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 cursor-pointer shadow-xs"
+                      className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                     >
                       <option value="All">All Priorities</option>
                       <option value="Urgent">Urgent / Critical</option>
@@ -681,7 +676,7 @@ export function MyDay() {
                   <select
                     value={filterCategory}
                     onChange={(e) => setFilterCategory(e.target.value)}
-                    className="w-full h-10 pl-3 pr-8 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none appearance-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 cursor-pointer shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Categories</option>
                     {availableCategories.map((c) => (
@@ -703,7 +698,7 @@ export function MyDay() {
                   <select
                     value={filterDateRange}
                     onChange={(e) => setFilterDateRange(e.target.value)}
-                    className="w-full h-10 pl-3 pr-8 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none appearance-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 cursor-pointer shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All Time">All Time</option>
                     <option value="Today">Today</option>
@@ -724,12 +719,12 @@ export function MyDay() {
             {activeFilters.map((f) => (
               <span
                 key={f.key}
-                className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs"
+                className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise"
               >
                 <span>{f.label}</span>
                 <button
                   onClick={() => clearFilter(f.key)}
-                  className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -751,17 +746,17 @@ export function MyDay() {
         {/* LATE */}
         <div
           onClick={() => scrollToSection("sec-late")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors">
               Late
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-error-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-red-600">{groups.late.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+            <span className="text-2xl font-semibold text-error-600">{groups.late.length}</span>
+            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
               Jump ↓
             </span>
           </div>
@@ -770,17 +765,17 @@ export function MyDay() {
         {/* TODAY */}
         <div
           onClick={() => scrollToSection("sec-today")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors">
               Today
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-warning-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-amber-600">{groups.today.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+            <span className="text-2xl font-semibold text-warning-600">{groups.today.length}</span>
+            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
               Jump ↓
             </span>
           </div>
@@ -789,17 +784,17 @@ export function MyDay() {
         {/* UPCOMING */}
         <div
           onClick={() => scrollToSection("sec-upcoming")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
               Upcoming
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-primary-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-blue-600">{groups.upcoming.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+            <span className="text-2xl font-semibold text-primary-600">{groups.upcoming.length}</span>
+            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
               Jump ↓
             </span>
           </div>
@@ -808,17 +803,17 @@ export function MyDay() {
         {/* DONE */}
         <div
           onClick={() => scrollToSection("sec-done")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors">
               Done
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-success-500 shrink-0" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-emerald-600">{groups.done.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+            <span className="text-2xl font-semibold text-success-600">{groups.done.length}</span>
+            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
               Jump ↓
             </span>
           </div>
@@ -831,7 +826,7 @@ export function MyDay() {
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div
               key={i}
-              className="h-36 rounded-2xl bg-white border border-slate-200 p-4 animate-pulse space-y-3"
+              className="h-36 rounded-xl bg-white border border-slate-200 p-4 animate-pulse space-y-3"
             >
               <div className="h-4 bg-slate-200 rounded-md w-3/4" />
               <div className="h-3 bg-slate-100 rounded-md w-1/2" />
@@ -840,13 +835,13 @@ export function MyDay() {
           ))}
         </div>
       ) : filteredTasks.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
+        <div className="text-center py-16 px-4 bg-white rounded-xl border border-slate-200 shadow-enterprise">
           {activeFilters.length > 0 ? (
             <div className="max-w-sm mx-auto space-y-3">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/60 flex items-center justify-center">
+              <div className="w-14 h-14 mx-auto rounded-xl bg-warning-50 text-warning-600 border border-warning-100/60 flex items-center justify-center">
                 <Search className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-semibold text-slate-800">
+              <h3 className="text-base font-semibold text-slate-900">
                 Nothing matches those filters
               </h3>
               <p className="text-xs font-medium text-slate-500">
@@ -861,10 +856,10 @@ export function MyDay() {
             </div>
           ) : (
             <div className="max-w-sm mx-auto space-y-3">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center">
+              <div className="w-14 h-14 mx-auto rounded-xl bg-primary-50 text-primary-700 border border-primary-200/60 flex items-center justify-center">
                 <PartyPopper className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-semibold text-slate-800">
+              <h3 className="text-base font-semibold text-slate-900">
                 Nothing here yet
               </h3>
               <p className="text-xs font-medium text-slate-500">
@@ -877,15 +872,15 @@ export function MyDay() {
         <div className="space-y-8">
           {/* All caught up banner */}
           {openCount === 0 && groups.done.length > 0 && (
-            <div className="flex items-center gap-4 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 shadow-xs">
-              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <div className="flex items-center gap-4 p-5 rounded-xl bg-success-50 border border-success-100 text-success-600 shadow-enterprise">
+              <div className="w-10 h-10 rounded-xl bg-success-600 text-white flex items-center justify-center shrink-0 shadow-sm">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-emerald-950">
+                <h3 className="text-sm font-semibold text-success-600">
                   All caught up! 🎉
                 </h3>
-                <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                <p className="text-xs text-success-600 font-medium mt-0.5">
                   No pending work right now. Great job keeping the work queue clear.
                 </p>
               </div>
@@ -897,11 +892,11 @@ export function MyDay() {
           {groups.late.length > 0 && (
             <section id="sec-late" className="space-y-3 scroll-mt-6">
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-red-500 text-white shadow-xs">
+                <div className="p-1.5 rounded-lg bg-error-500 text-white shadow-enterprise">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-error-600 uppercase tracking-wider">
                     Late ({groups.late.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -932,11 +927,11 @@ export function MyDay() {
           {groups.today.length > 0 && (
             <section id="sec-today" className="space-y-3 scroll-mt-6">
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-amber-500 text-white shadow-xs">
+                <div className="p-1.5 rounded-lg bg-warning-500 text-white shadow-enterprise">
                   <Sun className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-amber-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-warning-600 uppercase tracking-wider">
                     Today ({groups.today.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -967,11 +962,11 @@ export function MyDay() {
           {groups.upcoming.length > 0 && (
             <section id="sec-upcoming" className="space-y-3 scroll-mt-6">
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-blue-500 text-white shadow-xs">
+                <div className="p-1.5 rounded-lg bg-primary-500 text-white shadow-enterprise">
                   <CalendarClock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-primary-600 uppercase tracking-wider">
                     Coming Up ({groups.upcoming.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -1002,11 +997,11 @@ export function MyDay() {
           {groups.waiting.length > 0 && (
             <section id="sec-waiting" className="space-y-3 scroll-mt-6">
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-indigo-500 text-white shadow-xs">
+                <div className="p-1.5 rounded-lg bg-primary-500 text-white shadow-enterprise">
                   <Hourglass className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-indigo-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-primary-600 uppercase tracking-wider">
                     Waiting for Approval ({groups.waiting.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -1037,11 +1032,11 @@ export function MyDay() {
           {groups.done.length > 0 && (
             <section id="sec-done" className="space-y-3 scroll-mt-6">
               <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-emerald-500 text-white shadow-xs">
+                <div className="p-1.5 rounded-lg bg-success-500 text-white shadow-enterprise">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-emerald-600 uppercase tracking-wider">
+                  <h2 className="text-sm font-semibold text-success-600 uppercase tracking-wider">
                     Done ({groups.done.length})
                   </h2>
                   <p className="text-xs text-slate-400 font-bold">
@@ -1107,11 +1102,11 @@ function TaskCard({
 
   // Accent border by theme
   const borderStyles = {
-    late: "border-l-red-500 hover:border-red-300",
-    today: "border-l-amber-500 hover:border-amber-300",
-    upcoming: "border-l-blue-500 hover:border-blue-300",
-    waiting: "border-l-indigo-500 hover:border-indigo-300",
-    done: "border-l-emerald-500 hover:border-emerald-300",
+    late: "border-l-red-500 hover:border-error-100",
+    today: "border-l-amber-500 hover:border-warning-100",
+    upcoming: "border-l-blue-500 hover:border-primary-300",
+    waiting: "border-l-indigo-500 hover:border-primary-300",
+    done: "border-l-emerald-500 hover:border-success-100",
   }[theme] || "border-l-slate-400";
 
   const dueLabel = formatDueWords(task);
@@ -1119,7 +1114,7 @@ function TaskCard({
 
   return (
     <div
-      className={`rounded-2xl border border-slate-200 bg-white border-l-4 p-4.5 flex flex-col justify-between gap-3.5 shadow-xs hover:shadow-md transition-all ${borderStyles}`}
+      className={`rounded-xl border border-slate-200 bg-white border-l-4 p-4.5 flex flex-col justify-between gap-3.5 shadow-enterprise hover:shadow-md transition-all ${borderStyles}`}
     >
       {/* Card Header & Title */}
       <div className="space-y-2">
@@ -1129,11 +1124,11 @@ function TaskCard({
             !isChecklist ? "cursor-pointer" : ""
           }`}
         >
-          <h3 className="text-sm font-extrabold text-slate-800 group-hover:text-[#1E4C92] transition-colors line-clamp-2 leading-snug">
+          <h3 className="text-sm font-bold text-slate-900 group-hover:text-primary-700 transition-colors line-clamp-2 leading-snug">
             {task.taskTitle}
           </h3>
           {!isChecklist && (
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E4C92] group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary-700 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
           )}
         </div>
 
@@ -1142,14 +1137,14 @@ function TaskCard({
           <span
             className={`${
               theme === "late"
-                ? "text-red-600 font-bold"
+                ? "text-error-600 font-bold"
                 : theme === "today"
-                ? "text-amber-600 font-bold"
+                ? "text-warning-600 font-bold"
                 : theme === "done"
-                ? "text-emerald-600 font-bold"
+                ? "text-success-600 font-bold"
                 : theme === "waiting"
-                ? "text-indigo-600 font-bold"
-                : "text-blue-600 font-bold"
+                ? "text-primary-600 font-bold"
+                : "text-primary-600 font-bold"
             }`}
           >
             {dueLabel}
@@ -1170,7 +1165,7 @@ function TaskCard({
             {task.site || "HO"}
           </span>
           {task.category && (
-            <span className="text-[11px] font-bold text-slate-600 bg-blue-50/70 border border-blue-200/50 px-2 py-0.5 rounded-md truncate max-w-[140px]">
+            <span className="text-[11px] font-bold text-slate-600 bg-primary-50/70 border border-primary-200/50 px-2 py-0.5 rounded-md truncate max-w-[140px]">
               {task.category}
             </span>
           )}
@@ -1187,13 +1182,13 @@ function TaskCard({
           </div>
         ) : isWaiting ? (
           /* CASE 2: Waiting for Verification */
-          <div className="h-10 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold text-xs gap-2 select-none">
+          <div className="h-10 rounded-xl bg-primary-50 text-primary-700 border border-primary-200 flex items-center justify-center font-bold text-xs gap-2 select-none">
             <Hourglass className="w-3.5 h-3.5" />
             <span>Sent for approval</span>
           </div>
         ) : isDone ? (
           /* CASE 3: Finished */
-          <div className="h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold text-xs gap-2 select-none">
+          <div className="h-10 rounded-xl bg-success-50 text-success-600 border border-success-100 flex items-center justify-center font-bold text-xs gap-2 select-none">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Completed</span>
           </div>
@@ -1203,7 +1198,7 @@ function TaskCard({
             onClick={() => onChecklistDone(task)}
             disabled={busy}
             type="button"
-            className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs active:scale-98 transition-all disabled:opacity-50 select-none cursor-pointer"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 w-full select-none cursor-pointer"
           >
             {busy ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -1218,7 +1213,7 @@ function TaskCard({
             onClick={() => onDelegationDone(task)}
             disabled={busy}
             type="button"
-            className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs active:scale-98 transition-all disabled:opacity-50 select-none cursor-pointer"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 w-full select-none cursor-pointer"
           >
             {busy ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -1234,7 +1229,7 @@ function TaskCard({
               onClick={() => onStart(task)}
               disabled={busy}
               type="button"
-              className="flex-1 h-11 rounded-xl bg-[#1E4C92] hover:bg-[#163a6a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-98 transition-all disabled:opacity-50 select-none cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-3 py-1.5 text-xs gap-1.5 flex-1 select-none cursor-pointer"
             >
               {busy ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1248,7 +1243,7 @@ function TaskCard({
               onClick={() => onDelegationDone(task)}
               disabled={busy}
               type="button"
-              className="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-98 transition-all disabled:opacity-50 select-none cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-3 py-1.5 text-xs gap-1.5 flex-1 select-none cursor-pointer"
             >
               <Check className="w-4 h-4 stroke-[2.5]" />
               <span>Done</span>

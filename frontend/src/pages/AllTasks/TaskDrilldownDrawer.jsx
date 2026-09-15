@@ -55,19 +55,19 @@ export function TaskDrilldownDrawer({
     <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Drawer Panel */}
-      <div className="relative w-full max-w-md bg-white h-full shadow-2xl z-10 flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="relative w-full max-w-md bg-white h-full shadow-enterprise-lg border-l border-slate-200 z-10 flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="p-5 border-b border-slate-200 flex items-start justify-between bg-slate-50/50">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#1E4C92]" />
-              <h2 className="text-lg font-black text-slate-800 leading-tight">
-                {drill.label} <span className="text-[#1E4C92]">({list.length})</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-primary-600" />
+              <h2 className="text-base font-semibold text-slate-900 leading-tight">
+                {drill.label} <span className="text-primary-700">({list.length})</span>
               </h2>
             </div>
             {drill.description && (
@@ -107,19 +107,19 @@ export function TaskDrilldownDrawer({
                   onClick={() => {
                     onSelectTask(task);
                   }}
-                  className="p-3.5 bg-white border border-slate-200 hover:border-[#1E4C92] hover:shadow-md rounded-xl transition-all cursor-pointer group"
+                  className="p-3.5 bg-white border border-slate-200 hover:border-primary-600 hover:shadow-md rounded-xl transition-all cursor-pointer group"
                 >
                   <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <h3 className="text-sm font-bold text-slate-800 group-hover:text-[#1E4C92] transition-colors line-clamp-1">
+                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-primary-700 transition-colors line-clamp-1">
                       {task.taskTitle || 'Untitled Task'}
                     </h3>
-                    <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1E4C92] shrink-0 transition-colors" />
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary-700 shrink-0 transition-colors" />
                   </div>
 
                   {/* Late Days Badge if overdue */}
                   {isOverdue && (
                     <div className="mb-2">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-error-50 text-error-600 border border-error-100">
                         <Clock className="w-2.5 h-2.5" />
                         {lateDays}d late
                       </span>
@@ -129,7 +129,7 @@ export function TaskDrilldownDrawer({
                   {/* Meta row */}
                   <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 pt-1 border-t border-slate-100 mt-2">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center text-[9px] font-black shrink-0">
+                      <div className="w-5 h-5 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center text-[9px] font-bold shrink-0">
                         {getInitials(task.doerFirstName, task.doerLastName)}
                       </div>
                       <span className="truncate max-w-[110px]" title={`To: ${doerName}`}>
@@ -147,11 +147,11 @@ export function TaskDrilldownDrawer({
                     <div className="ml-auto flex items-center gap-1.5">
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                         task.status === 'Completed'
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                          ? 'bg-success-50 text-success-600 border-success-100'
                           : task.status === 'Awaiting Verification'
-                          ? 'bg-blue-50 text-blue-600 border-blue-200'
+                          ? 'bg-primary-50 text-primary-600 border-primary-200'
                           : task.status === 'In Progress'
-                          ? 'bg-orange-50 text-orange-600 border-orange-200'
+                          ? 'bg-warning-50 text-warning-600 border-warning-100'
                           : 'bg-slate-50 text-slate-600 border-slate-200'
                       }`}>
                         {task.status}

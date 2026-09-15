@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { Building2, ChevronDown, ChevronRight, Users, ArrowRight } from 'lucide-react';
 import { SkeletonLoader } from '../../components/ui/SkeletonLoader';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -18,9 +19,9 @@ const complianceColor = (rate) => {
 };
 
 const rankBadge = (rank) => {
-  if (rank === 1) return 'bg-amber-400 text-white';       // Gold
+  if (rank === 1) return 'bg-warning-500 text-white';       // Gold
   if (rank === 2) return 'bg-slate-300 text-slate-700';    // Silver
-  if (rank === 3) return 'bg-amber-700 text-white';        // Bronze
+  if (rank === 3) return 'bg-warning-600 text-white';        // Bronze
   return 'bg-slate-100 text-slate-500';
 };
 
@@ -28,26 +29,26 @@ const rankBadge = (rank) => {
 
 function SummaryCard({ label, value, color }) {
   const textColors = {
-    emerald: 'text-emerald-600',
-    amber:   'text-amber-600',
-    red:     'text-red-600',
-    indigo:  'text-indigo-600',
+    emerald: 'text-success-600',
+    amber:   'text-warning-600',
+    red:     'text-error-600',
+    indigo:  'text-primary-600',
   };
 
   const dots = {
-    emerald: 'bg-emerald-500',
-    amber:   'bg-amber-500',
-    red:     'bg-red-500',
-    indigo:  'bg-indigo-500',
+    emerald: 'bg-success-500',
+    amber:   'bg-warning-500',
+    red:     'bg-error-500',
+    indigo:  'bg-primary-500',
   };
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between">
+    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-enterprise flex flex-col justify-between">
       <div className="flex items-center justify-between gap-1 mb-1.5">
-        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">{label}</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dots[color] || 'bg-slate-400'}`} />
       </div>
-      <p className={`text-2xl font-black tabular-nums mt-0.5 ${textColors[color] || 'text-slate-800'}`}>{value}</p>
+      <p className={`text-2xl font-black tabular-nums mt-0.5 ${textColors[color] || 'text-slate-900'}`}>{value}</p>
     </div>
   );
 }
@@ -59,13 +60,13 @@ function DepartmentRow({ dept, rank, onViewTasks }) {
   const cc = complianceColor(dept.complianceRate);
 
   const barColors = {
-    emerald: 'bg-emerald-500',
-    amber: 'bg-amber-500',
-    red: 'bg-red-500',
+    emerald: 'bg-success-500',
+    amber: 'bg-warning-500',
+    red: 'bg-error-500',
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden transition-all duration-200 hover:shadow-md shadow-xs">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden transition-all duration-200 hover:shadow-md shadow-enterprise">
       {/* Header row */}
       <button
         type="button"
@@ -73,7 +74,7 @@ function DepartmentRow({ dept, rank, onViewTasks }) {
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50/80 transition-colors cursor-pointer select-none"
       >
         {/* Rank badge */}
-        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${rankBadge(rank)}`}>
+        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${rankBadge(rank)}`}>
           {rank}
         </span>
 
@@ -87,20 +88,20 @@ function DepartmentRow({ dept, rank, onViewTasks }) {
 
         {/* Stats pills */}
         <div className="hidden sm:flex items-center gap-2">
-          <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-bold text-success-600 bg-success-50 border border-success-100 px-2 py-0.5 rounded-full">
             {dept.totalCompleted} ✓
           </span>
-          <span className="text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-bold text-warning-600 bg-warning-50 border border-warning-100 px-2 py-0.5 rounded-full">
             {dept.totalPending} pend
           </span>
-          <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-bold text-error-600 bg-error-50 border border-error-100 px-2 py-0.5 rounded-full">
             {dept.totalMissed} miss
           </span>
         </div>
 
         {/* Compliance */}
         <div className="flex items-center gap-3 shrink-0">
-          <span className={`text-base font-black tabular-nums ${cc === 'emerald' ? 'text-emerald-600' : cc === 'amber' ? 'text-amber-600' : 'text-red-600'}`}>
+          <span className={`text-base font-bold tabular-nums ${cc === 'emerald' ? 'text-success-600' : cc === 'amber' ? 'text-warning-600' : 'text-error-600'}`}>
             {dept.complianceRate}%
           </span>
           <div className="w-24 bg-slate-200 rounded-full h-2 overflow-hidden hidden md:block">
@@ -133,14 +134,14 @@ function DepartmentRow({ dept, rank, onViewTasks }) {
           <div className="divide-y divide-slate-100">
             {(dept.people || []).map((person, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-2.5 text-xs">
-                <span className="flex-1 text-slate-800 font-bold truncate">
+                <span className="flex-1 text-slate-900 font-bold truncate">
                   {person.doerFirstName} {person.doerLastName}
                   <span className="text-slate-400 font-normal ml-1">· {person.total} tasks</span>
                 </span>
-                <span className="text-emerald-600 font-bold text-[11px]">{person.completed}✓</span>
-                <span className="text-amber-600 font-bold text-[11px]">{person.pending} pend</span>
-                <span className="text-red-600 font-bold text-[11px]">{person.missed} miss</span>
-                <span className="text-slate-700 font-black text-[11px] tabular-nums w-10 text-right">{person.complianceRate}%</span>
+                <span className="text-success-600 font-bold text-[11px]">{person.completed}✓</span>
+                <span className="text-warning-600 font-bold text-[11px]">{person.pending} pend</span>
+                <span className="text-error-600 font-bold text-[11px]">{person.missed} miss</span>
+                <span className="text-slate-700 font-bold text-[11px] tabular-nums w-10 text-right">{person.complianceRate}%</span>
               </div>
             ))}
           </div>
@@ -157,7 +158,7 @@ export function DepartmentScoreboard({ data, loading, onViewTasks }) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <SkeletonLoader key={i} variant="rectangular" className="h-24 rounded-2xl" />
+          <SkeletonLoader key={i} variant="rectangular" className="h-24 rounded-xl" />
         ))}
       </div>
     );
@@ -165,15 +166,11 @@ export function DepartmentScoreboard({ data, loading, onViewTasks }) {
 
   if (!data || !data.departments?.length) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs flex flex-col items-center justify-center">
-        <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-700 border border-primary-200/60 flex items-center justify-center mb-3">
-          <Building2 size={28} />
-        </div>
-        <h3 className="text-base font-black text-slate-800 mb-1">No Department Data</h3>
-        <p className="text-xs font-medium text-slate-500 max-w-sm">
-          Run checklists to see rankings and compliance rates across departments.
-        </p>
-      </div>
+      <EmptyState
+        title="No Department Data"
+        description="Run checklists to see rankings and compliance rates across departments."
+        icon={<Building2 className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+      />
     );
   }
 

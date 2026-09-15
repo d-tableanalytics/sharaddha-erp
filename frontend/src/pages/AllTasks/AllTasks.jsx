@@ -34,24 +34,30 @@ import TaskCreationDrawer from '../Delegation/TaskCreationDrawer';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
 import TaskDrilldownDrawer from './TaskDrilldownDrawer';
 import AdvancedExportModal from './AdvancedExportModal';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { PageHeader } from '../../components/common/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { TabNav } from '../../components/hrms/TabNav';
+import { Badge } from '../../components/ui/Badge';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 // Status navigation tab definitions
 const STATUS_TABS = [
   { key: 'All', label: 'All', dot: 'bg-slate-400' },
-  { key: 'Overdue', label: 'Overdue', dot: 'bg-red-500' },
+  { key: 'Overdue', label: 'Overdue', dot: 'bg-error-500' },
   { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent' },
-  { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500' },
-  { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-blue-500' },
-  { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500' },
+  { key: 'In Progress', label: 'In Progress', dot: 'bg-warning-500' },
+  { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500' },
+  { key: 'Completed', label: 'Completed', dot: 'bg-success-500' },
 ];
 
 // Bulk status change options
 const BULK_STATUS_OPTIONS = [
   { status: 'Pending', label: 'Pending', dot: 'bg-slate-400', desc: 'Not started yet' },
-  { status: 'In Progress', label: 'In Progress', dot: 'bg-orange-500', desc: 'Currently being worked on' },
-  { status: 'Awaiting Verification', label: 'Awaiting Verification', dot: 'bg-blue-500', desc: 'Waiting for sign-off' },
-  { status: 'Completed', label: 'Completed', dot: 'bg-emerald-500', desc: 'Finished and verified' },
-  { status: 'Need Revision', label: 'Need Revision', dot: 'bg-amber-500', desc: 'Requires rework' },
+  { status: 'In Progress', label: 'In Progress', dot: 'bg-warning-500', desc: 'Currently being worked on' },
+  { status: 'Awaiting Verification', label: 'Awaiting Verification', dot: 'bg-primary-500', desc: 'Waiting for sign-off' },
+  { status: 'Completed', label: 'Completed', dot: 'bg-success-500', desc: 'Finished and verified' },
+  { status: 'Need Revision', label: 'Need Revision', dot: 'bg-warning-500', desc: 'Requires rework' },
 ];
 
 // Helper: Extract initials
@@ -485,7 +491,7 @@ export function AllTasks() {
         list: totalList,
         desc: 'Every task across all users.',
         dot: 'bg-slate-400',
-        textColor: 'text-slate-800',
+        textColor: 'text-slate-900',
       },
       {
         id: 'overdue',
@@ -493,8 +499,8 @@ export function AllTasks() {
         count: overdueList.length,
         list: overdueList,
         desc: 'Past their due date and not yet completed.',
-        dot: 'bg-red-500',
-        textColor: 'text-red-600',
+        dot: 'bg-error-500',
+        textColor: 'text-error-600',
       },
       {
         id: 'pending',
@@ -511,8 +517,8 @@ export function AllTasks() {
         count: acceptedList.length,
         list: acceptedList,
         desc: 'Accepted by the doer, work not started.',
-        dot: 'bg-cyan-500',
-        textColor: 'text-cyan-600',
+        dot: 'bg-primary-500',
+        textColor: 'text-primary-600',
       },
       {
         id: 'dependent',
@@ -520,8 +526,8 @@ export function AllTasks() {
         count: dependentList.length,
         list: dependentList,
         desc: 'Waiting on another person or team.',
-        dot: 'bg-amber-500',
-        textColor: 'text-amber-600',
+        dot: 'bg-warning-500',
+        textColor: 'text-warning-600',
       },
       {
         id: 'blocked',
@@ -529,8 +535,8 @@ export function AllTasks() {
         count: blockedList.length,
         list: blockedList,
         desc: 'Flagged blocked by a person, vendor or dependency.',
-        dot: 'bg-orange-600',
-        textColor: 'text-orange-600',
+        dot: 'bg-warning-600',
+        textColor: 'text-warning-600',
       },
       {
         id: 'in_progress',
@@ -538,8 +544,8 @@ export function AllTasks() {
         count: inProgressList.length,
         list: inProgressList,
         desc: 'Actively being worked on.',
-        dot: 'bg-orange-500',
-        textColor: 'text-orange-600',
+        dot: 'bg-warning-500',
+        textColor: 'text-warning-600',
       },
       {
         id: 'verification',
@@ -547,8 +553,8 @@ export function AllTasks() {
         count: verifyingList.length,
         list: verifyingList,
         desc: 'Submitted and awaiting the assigner’s approval.',
-        dot: 'bg-blue-500',
-        textColor: 'text-blue-600',
+        dot: 'bg-primary-500',
+        textColor: 'text-primary-600',
       },
       {
         id: 'completed',
@@ -556,8 +562,8 @@ export function AllTasks() {
         count: completedList.length,
         list: completedList,
         desc: 'Finished and approved.',
-        dot: 'bg-emerald-500',
-        textColor: 'text-emerald-600',
+        dot: 'bg-success-500',
+        textColor: 'text-success-600',
       },
       {
         id: 'in_time',
@@ -565,8 +571,8 @@ export function AllTasks() {
         count: inTimeList.length,
         list: inTimeList,
         desc: 'Completed on or before the due date.',
-        dot: 'bg-teal-500',
-        textColor: 'text-teal-600',
+        dot: 'bg-success-500',
+        textColor: 'text-success-600',
       },
       {
         id: 'delayed',
@@ -574,8 +580,8 @@ export function AllTasks() {
         count: delayedList.length,
         list: delayedList,
         desc: 'Still open and past the due date.',
-        dot: 'bg-rose-500',
-        textColor: 'text-rose-600',
+        dot: 'bg-error-500',
+        textColor: 'text-error-600',
       },
     ];
   }, [scopedTasks, baseFilteredTasks]);
@@ -753,30 +759,29 @@ export function AllTasks() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & PRIMARY ACTIONS ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
-            <LayoutGrid className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 leading-none">All Tasks</h1>
-            <p className="text-xs font-bold text-slate-400 mt-1">Every task across all users</p>
-          </div>
-        </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page use it.
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setShowTaskDrawer(true)}
-            className="flex items-center justify-center gap-2 px-5 h-10 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0"
-          >
-            <CheckSquare className="w-4 h-4" strokeWidth={2.5} />
-            <span>Assign Task</span>
-          </button>
-        </div>
-      </div>
+        The hand-rolled header this replaces differed from the rest of the app in
+        every measurable way: `text-2xl font-bold text-slate-900` against the
+        system's `text-xl font-bold text-slate-900`, a `text-xs font-bold
+        text-slate-400` subtitle against `text-sm font-medium text-slate-500`, and
+        no bottom rule at all - so a WorkQueue page announced itself in a different
+        voice from the page the user had just left. The 40px icon tile is dropped:
+        no other page in the portal puts an icon beside its title.
+      */}
+      <PageHeader
+        title="All Tasks"
+        subtitle="Every task across all users"
+        actions={
+          <Button size="sm" onClick={() => setShowTaskDrawer(true)}>
+            <CheckSquare className="w-4 h-4 mr-2" />
+            Assign Task
+          </Button>
+        }
+      />
 
       {/* ── 2. QUICK STATS GRID (11 KPI Metric Cards) ────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -784,18 +789,18 @@ export function AllTasks() {
           <div
             key={s.id}
             onClick={() => setKpiDrill({ label: s.label, description: s.desc, list: s.list })}
-            className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group"
+            className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
             title={s.desc}
           >
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
                 {s.label}
               </span>
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
             </div>
             <div className="flex items-baseline justify-between mt-1">
               <span className={`text-2xl font-semibold ${s.textColor}`}>{s.count}</span>
-              <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+              <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
                 View →
               </span>
             </div>
@@ -810,7 +815,7 @@ export function AllTasks() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="All Time">All Time</option>
             <option value="Today">Today</option>
@@ -828,7 +833,7 @@ export function AllTasks() {
         {/* Custom Start / End Dates */}
         {dateRange === 'Custom' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -838,7 +843,7 @@ export function AllTasks() {
               />
             </div>
             <span className="text-slate-400 text-xs font-bold">to</span>
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -855,15 +860,15 @@ export function AllTasks() {
           <button
             type="button"
             onClick={() => setIsFilterFlyoutOpen((prev) => !prev)}
-            className={`h-11 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${isFilterFlyoutOpen || activeFilterCount > 0
-              ? 'bg-[#1E4C92]/10 border border-[#1E4C92]/30 text-[#1E4C92]'
-              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#1E4C92]'
+            className={`h-11 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-enterprise ${isFilterFlyoutOpen || activeFilterCount > 0
+              ? 'bg-primary-50 border border-primary-200 text-primary-700'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary-700'
               }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filters</span>
             {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
+              <span className="w-5 h-5 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
                 {activeFilterCount}
               </span>
             )}
@@ -871,9 +876,9 @@ export function AllTasks() {
 
           {/* Filter Flyout Popover Panel */}
           {isFilterFlyoutOpen && (
-            <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl p-5 shadow-2xl z-40 animate-in slide-in-from-top-2 duration-200">
+            <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-xl p-5 shadow-enterprise-lg z-40 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
                   Filters
                 </span>
                 <button
@@ -886,7 +891,7 @@ export function AllTasks() {
                     setTagFilter('All');
                     setVerificationFilter('All');
                   }}
-                  className="text-[11px] font-bold text-[#1E4C92] hover:underline cursor-pointer"
+                  className="text-[11px] font-bold text-primary-700 hover:underline cursor-pointer"
                 >
                   Clear All
                 </button>
@@ -899,7 +904,7 @@ export function AllTasks() {
                   <select
                     value={assignedToFilter}
                     onChange={(e) => setAssignedToFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Members</option>
                     {users.map((u) => (
@@ -916,7 +921,7 @@ export function AllTasks() {
                   <select
                     value={assignedByFilter}
                     onChange={(e) => setAssignedByFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">Anyone</option>
                     {users.map((u) => (
@@ -933,7 +938,7 @@ export function AllTasks() {
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Priority</option>
                     <option value="Urgent">Urgent</option>
@@ -949,7 +954,7 @@ export function AllTasks() {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Categories</option>
                     {categories.map((c, i) => {
@@ -969,7 +974,7 @@ export function AllTasks() {
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tags</option>
                     {allTags.map((tg, i) => (
@@ -986,7 +991,7 @@ export function AllTasks() {
                   <select
                     value={verificationFilter}
                     onChange={(e) => setVerificationFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tasks</option>
                     <option value="Verification Required">Verification Required</option>
@@ -1006,7 +1011,7 @@ export function AllTasks() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search all tasks..."
-            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           />
         </div>
 
@@ -1015,7 +1020,7 @@ export function AllTasks() {
           type="button"
           onClick={handleClearFilters}
           title="Reset all filters"
-          className="h-11 w-11 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-colors shrink-0"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -1024,20 +1029,20 @@ export function AllTasks() {
         <button
           type="button"
           onClick={() => setShowExportModal(true)}
-          className="h-11 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          className="inline-flex items-center justify-center gap-2 font-medium rounded-lg px-3 py-1.5 text-xs bg-transparent border border-slate-300 hover:bg-slate-50 text-slate-700 transition-all active:scale-[0.98] shrink-0"
         >
           <FileUp className="w-4 h-4" />
           <span>Export</span>
         </button>
 
         {/* View Mode Switcher */}
-        <div className="h-11 bg-slate-100 rounded-xl p-1 border border-slate-200 flex items-center gap-1 shadow-xs ml-auto shrink-0">
+        <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 ml-auto flex items-center gap-1 shadow-enterprise shrink-0">
           <button
             type="button"
             onClick={() => setViewMode('list')}
             title="List View"
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'list'
-              ? 'bg-[#1E4C92] text-white shadow-xs'
+              ? 'bg-primary-600 text-white shadow-enterprise'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
@@ -1049,7 +1054,7 @@ export function AllTasks() {
             onClick={() => setViewMode('kanban')}
             title="Kanban Board View"
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'kanban'
-              ? 'bg-[#1E4C92] text-white shadow-xs'
+              ? 'bg-primary-600 text-white shadow-enterprise'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
@@ -1061,7 +1066,7 @@ export function AllTasks() {
             onClick={() => setViewMode('calendar')}
             title="Calendar Schedule View"
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${viewMode === 'calendar'
-              ? 'bg-[#1E4C92] text-white shadow-xs'
+              ? 'bg-primary-600 text-white shadow-enterprise'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
@@ -1072,37 +1077,41 @@ export function AllTasks() {
       </div>
 
       {/* ── 4. STATUS NAVIGATION TABS ────────────────────────────────────── */}
-      <div className="border-b border-slate-200 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-6 min-w-max px-1">
-          {STATUS_TABS.map((tab) => {
-            const count = statusTabCounts[tab.key] ?? 0;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${isActive ? 'text-slate-900 font-semibold' : 'text-slate-500 font-bold hover:text-slate-800'
-                  }`}
-              >
-                {tab.key !== 'All' && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
-                <span>{tab.label}</span>
-                <span className="text-slate-400 font-semibold">— {count}</span>
-                {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#1E4C92] rounded-t-full" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/*
+        The portal's tab strip, components/hrms/TabNav.jsx, which every
+        multi-view HRMS module uses.
+
+        The strip this replaces was a second implementation of the same control
+        that agreed with it on nothing: `text-xs uppercase tracking-wider` against
+        TabNav's `text-sm font-semibold`, an absolutely-positioned bar for the
+        active marker instead of a `border-b-2`, `gap-6` between tabs against
+        `gap-1`, and a solid `bg-primary-600` count pill where TabNav tints the
+        active one `bg-primary-100 text-primary-700`.
+
+        The status dot has no equivalent in TabNav, so it rides along inside the
+        label - which TabNav renders as-is, JSX included.
+      */}
+      <TabNav
+        tabs={STATUS_TABS.map((tab) => ({
+          key: tab.key,
+          label: (
+            <span className="inline-flex items-center gap-2">
+              {tab.key !== 'All' && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
+              {tab.label}
+            </span>
+          ),
+          badge: statusTabCounts[tab.key] ?? 0,
+        }))}
+        activeKey={activeTab}
+        onChange={setActiveTab}
+      />
 
       {/* ── 5. ACTIVE FILTER CHIPS BAR ───────────────────────────────────── */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
           <span className="text-xs font-bold text-slate-400 mr-1">Active Filters:</span>
           {assignedToFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>
                 To:{' '}
                 {users.find((u) => String(u._id) === assignedToFilter)?.user ||
@@ -1112,14 +1121,14 @@ export function AllTasks() {
               <button
                 type="button"
                 onClick={() => setAssignedToFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
           {assignedByFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>
                 By:{' '}
                 {users.find((u) => String(u._id) === assignedByFilter)?.user ||
@@ -1129,57 +1138,57 @@ export function AllTasks() {
               <button
                 type="button"
                 onClick={() => setAssignedByFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
           {priorityFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Priority: {priorityFilter}</span>
               <button
                 type="button"
                 onClick={() => setPriorityFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
           {categoryFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Category: {categoryFilter}</span>
               <button
                 type="button"
                 onClick={() => setCategoryFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
           {tagFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Tag: {tagFilter}</span>
               <button
                 type="button"
                 onClick={() => setTagFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
           {verificationFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Verification: {verificationFilter}</span>
               <button
                 type="button"
                 onClick={() => setVerificationFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
@@ -1198,25 +1207,25 @@ export function AllTasks() {
       <div className="space-y-3">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <div className="w-10 h-10 border-3 border-[#1E4C92] border-t-transparent rounded-full animate-spin mb-3" />
+            <LoadingSpinner size={32} className="mb-3" />
             <p className="text-xs font-bold text-slate-500">Loading tasks...</p>
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs flex flex-col items-center justify-center">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center mb-3">
-              <CheckSquare className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-semibold text-slate-800 mb-1">No Tasks Found</h3>
-            <p className="text-xs font-medium text-slate-500 max-w-md mb-4">
-              Try changing your filters, search term, or date range.
-            </p>
+          <div>
+            <EmptyState
+              title="No Tasks Found"
+              description="Try changing your filters, search term, or date range."
+              icon={<CheckSquare className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+            />
+            <div className="flex justify-center mt-4">
             <button
               type="button"
               onClick={handleClearFilters}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-4 py-2 text-sm cursor-pointer"
             >
               Clear Filters
             </button>
+            </div>
           </div>
         ) : viewMode === 'kanban' ? (
           <TaskKanbanView tasks={filteredTasks} onTaskClick={handleOpenDetails} />
@@ -1229,7 +1238,7 @@ export function AllTasks() {
             <div
               className={`flex flex-wrap items-center justify-between gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 selectedIds.length > 0
-                  ? 'bg-[#1E4C92]/5 border border-[#1E4C92]/20 shadow-xs'
+                  ? 'bg-primary-50 border border-primary-200 shadow-enterprise'
                   : 'bg-white/60 border border-slate-200/80 text-slate-500'
               }`}
             >
@@ -1242,16 +1251,16 @@ export function AllTasks() {
                       filteredTasks.every((t) => selectedIds.includes(t._id))
                     }
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
                   />
-                  <span className={selectedIds.length > 0 ? 'text-[#1E4C92]' : 'text-slate-600'}>
+                  <span className={selectedIds.length > 0 ? 'text-primary-700' : 'text-slate-600'}>
                     Select All ({selectedIds.length}/{filteredTasks.length})
                   </span>
                 </label>
 
                 {selectedIds.length > 0 && (
                   <div className="flex items-center gap-2 animate-in fade-in duration-150">
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#1E4C92] text-white shadow-xs">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary-600 text-white shadow-enterprise">
                       {selectedIds.length} Selected
                     </span>
                     <button
@@ -1277,8 +1286,8 @@ export function AllTasks() {
                       selectedIds.length === 0
                         ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
                         : isStatusDropdownOpen
-                          ? 'bg-[#1E4C92] text-white border border-[#1E4C92] shadow-sm'
-                          : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-[#1E4C92] border border-slate-200 hover:border-[#1E4C92]/40 shadow-xs cursor-pointer active:scale-95'
+                          ? 'bg-primary-600 text-white border border-primary-600 shadow-sm'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-primary-700 border border-slate-200 hover:border-primary-300 shadow-enterprise cursor-pointer active:scale-[0.98]'
                     }`}
                     title={selectedIds.length === 0 ? 'Select tasks to update status' : 'Update status for selected tasks'}
                   >
@@ -1296,9 +1305,9 @@ export function AllTasks() {
 
                   {/* Dropdown Popover */}
                   {isStatusDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-enterprise-lg border border-slate-200/80 p-2 z-40 animate-in fade-in zoom-in-95 duration-150">
                       <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           Set Status ({selectedIds.length} Task{selectedIds.length > 1 ? 's' : ''})
                         </span>
                       </div>
@@ -1313,7 +1322,7 @@ export function AllTasks() {
                             <div className="flex items-center gap-2">
                               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.dot}`} />
                               <div>
-                                <p className="text-xs font-bold text-slate-700 group-hover:text-[#1E4C92]">
+                                <p className="text-xs font-bold text-slate-700 group-hover:text-primary-700">
                                   {opt.label}
                                 </p>
                                 <p className="text-[10px] text-slate-400 font-medium">
@@ -1321,7 +1330,7 @@ export function AllTasks() {
                                 </p>
                               </div>
                             </div>
-                            <span className="text-[10px] text-slate-300 group-hover:text-[#1E4C92] font-bold">
+                            <span className="text-[10px] text-slate-300 group-hover:text-primary-700 font-bold">
                               Apply →
                             </span>
                           </button>
@@ -1339,7 +1348,7 @@ export function AllTasks() {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                     selectedIds.length === 0
                       ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
-                      : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 shadow-xs cursor-pointer active:scale-95'
+                      : 'bg-error-50 hover:bg-error-100 text-error-600 border border-error-100 hover:border-error-100 shadow-enterprise cursor-pointer active:scale-[0.98]'
                   }`}
                   title={selectedIds.length === 0 ? 'Select tasks to delete' : 'Delete selected tasks'}
                 >
@@ -1366,44 +1375,44 @@ export function AllTasks() {
 
               const priorityColor =
                 task.priority === 'Urgent'
-                  ? 'text-red-600'
+                  ? 'text-error-600'
                   : task.priority === 'High'
-                    ? 'text-orange-600'
+                    ? 'text-warning-600'
                     : task.priority === 'Medium'
-                      ? 'text-blue-600'
+                      ? 'text-primary-600'
                       : 'text-slate-400';
 
-              const statusBadgeStyles =
+              const statusVariant =
                 task.status === 'Completed'
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                  ? 'success'
                   : task.status === 'Awaiting Verification'
-                    ? 'bg-blue-50 text-blue-600 border-blue-200'
+                    ? 'primary'
                     : task.status === 'In Progress'
-                      ? 'bg-orange-50 text-orange-600 border-orange-200'
+                      ? 'warning'
                       : overdue
-                        ? 'bg-red-50 text-red-600 border-red-200'
+                        ? 'danger'
                         : task.status === 'Hold'
-                          ? 'bg-amber-50 text-amber-600 border-amber-200'
-                          : 'bg-slate-50 text-slate-600 border-slate-200';
+                          ? 'warning'
+                          : 'neutral';
 
               const dueBadge = formatDueBadge(task.dueDate);
 
               return (
                 <div
                   key={task._id}
-                  className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-xs hover:shadow-md ${isAssignerVerificationCue
-                    ? 'ring-2 ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-blue-50/10 border-blue-400'
+                  className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden shadow-enterprise hover:shadow-md ${isAssignerVerificationCue
+                    ? 'ring-2 ring-primary-500 shadow-[0_0_15px_rgba(59,130,246,0.2)] bg-primary-50/10 border-primary-400'
                     : isHighlighted
-                      ? 'ring-2 ring-[#1E4C92] shadow-[0_0_20px_rgba(30,76,146,0.3)] border-[#1E4C92]'
+                      ? 'ring-2 ring-primary-500 shadow-[0_0_20px_rgba(30,76,146,0.3)] border-primary-600'
                       : isExpanded
-                        ? 'border-[#1E4C92]/40 ring-2 ring-[#1E4C92]/10'
+                        ? 'border-primary-300 ring-2 ring-primary-100'
                         : 'border-slate-200 hover:border-slate-300'
                     }`}
                 >
                   {/* Dashboard highlight banner */}
                   {isHighlighted && (
-                    <div className="bg-[#1E4C92]/10 border-b border-[#1E4C92]/20 px-4 py-1.5 flex items-center gap-2 text-xs font-semibold text-[#1E4C92]">
-                      <span className="w-2 h-2 bg-[#1E4C92] rounded-full animate-ping" />
+                    <div className="bg-primary-50 border-b border-primary-200 px-4 py-1.5 flex items-center gap-2 text-xs font-semibold text-primary-700">
+                      <span className="w-2 h-2 bg-primary-600 rounded-full animate-ping" />
                       <span>From Dashboard Filter</span>
                     </div>
                   )}
@@ -1419,12 +1428,12 @@ export function AllTasks() {
                       checked={isSelected}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => handleToggleSelect(task._id)}
-                      className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer shrink-0"
+                      className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer shrink-0"
                     />
 
                     {/* Doer Avatar with Initials */}
                     <div
-                      className="w-9 h-9 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-semibold flex items-center justify-center text-xs shrink-0 border border-[#1E4C92]/30"
+                      className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 font-semibold flex items-center justify-center text-xs shrink-0 border border-primary-200"
                       title={`Assigned to ${doerName}`}
                     >
                       {getInitials(task.doerFirstName, task.doerLastName)}
@@ -1433,16 +1442,16 @@ export function AllTasks() {
                     {/* Main Title & Breadcrumbs */}
                     <div className="flex-1 min-w-0 pr-2">
                       <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-bold text-slate-800 hover:text-[#1E4C92] transition-colors truncate">
+                        <h2 className="text-sm font-bold text-slate-900 hover:text-primary-700 transition-colors truncate">
                           {task.taskTitle || 'Untitled Task'}
                         </h2>
                         {/* Voice Note icon */}
                         {(task.voiceNoteUrl || task.audioNote) && (
-                          <Mic className="w-3.5 h-3.5 text-emerald-500 shrink-0" strokeWidth={2.5} title="Voice Note" />
+                          <Mic className="w-3.5 h-3.5 text-success-500 shrink-0" strokeWidth={2.5} title="Voice Note" />
                         )}
                         {/* Paperclip icon */}
                         {(task.referenceDocs || (task.attachments && task.attachments.length > 0)) && (
-                          <Paperclip className="w-3.5 h-3.5 text-orange-500 shrink-0" strokeWidth={2.5} title="Attachment" />
+                          <Paperclip className="w-3.5 h-3.5 text-warning-500 shrink-0" strokeWidth={2.5} title="Attachment" />
                         )}
                       </div>
 
@@ -1461,29 +1470,27 @@ export function AllTasks() {
                     </div>
 
                     {/* Status Badge */}
-                    <span
-                      className={`hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border uppercase tracking-wider shrink-0 ${statusBadgeStyles}`}
-                    >
+                    <Badge variant={statusVariant} className="hidden sm:inline-flex shrink-0">
                       {task.status}
-                    </span>
+                    </Badge>
 
                     {/* Frequency Badge */}
                     {task.frequency || (task.recurrence && task.recurrence !== 'none') ? (
-                      <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-200 shadow-xs shrink-0">
+                      <Badge variant="primary" className="hidden md:inline-flex gap-1 shrink-0">
                         <RotateCcw className="w-2.5 h-2.5" />
                         <span>{String(task.frequency || task.recurrence).toUpperCase()}</span>
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-400 border border-slate-200 shrink-0">
+                      <Badge variant="neutral" className="hidden lg:inline-flex gap-1 shrink-0">
                         <RotateCcw className="w-2.5 h-2.5 opacity-60" />
                         <span>One Time</span>
-                      </span>
+                      </Badge>
                     )}
 
                     {/* Due Date Badge */}
                     {dueBadge && (
                       <span
-                        className={`hidden md:inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${overdue ? 'text-red-500 font-bold' : 'text-slate-400'
+                        className={`hidden md:inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${overdue ? 'text-error-500 font-bold' : 'text-slate-400'
                           }`}
                       >
                         <CalendarIcon className="w-3 h-3" />
@@ -1504,7 +1511,7 @@ export function AllTasks() {
 
                     {/* Expand/Collapse Chevron Indicator */}
                     <ChevronDown
-                      className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180 text-[#1E4C92]' : ''
+                      className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180 text-primary-700' : ''
                         }`}
                     />
 
@@ -1515,7 +1522,7 @@ export function AllTasks() {
                         e.stopPropagation();
                         handleOpenDetails(task);
                       }}
-                      className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                       title="More Options"
                     >
                       <MoreVertical className="w-4 h-4" />
@@ -1544,18 +1551,18 @@ export function AllTasks() {
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-purple-500" />
+                          <User className="w-3.5 h-3.5 text-primary-500" />
                           <span>By: {assignerName}</span>
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-[#1E4C92]" />
+                          <User className="w-3.5 h-3.5 text-primary-700" />
                           <span>To: {doerName}</span>
                         </div>
 
                         {task.category && (
                           <div className="flex items-center gap-1.5">
-                            <Folder className="w-3.5 h-3.5 text-amber-500" />
+                            <Folder className="w-3.5 h-3.5 text-warning-500" />
                             <span>{task.category}</span>
                           </div>
                         )}
@@ -1568,7 +1575,7 @@ export function AllTasks() {
 
                       {/* Sanitized Description Preview */}
                       {task.description && (
-                        <div className="border-l-2 border-[#1E4C92] pl-3 py-1 mb-3">
+                        <div className="border-l-2 border-primary-600 pl-3 py-1 mb-3">
                           <div
                             className="text-xs font-medium text-slate-600 line-clamp-3"
                             dangerouslySetInnerHTML={{ __html: task.description }}
@@ -1605,7 +1612,7 @@ export function AllTasks() {
                         <button
                           type="button"
                           onClick={() => handleOpenDetails(task)}
-                          className="px-4 py-2 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs"
+                          className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer"
                         >
                           <CheckSquare className="w-3.5 h-3.5" />
                           <span>View Details</span>
@@ -1670,15 +1677,15 @@ export function AllTasks() {
 
       {/* 5. Bulk Delete Confirmation Modal */}
       {showBulkDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-enterprise-lg border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
             {/* Modal Icon & Header */}
             <div className="flex items-start gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-error-100 text-error-600 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-slate-800 leading-snug">
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
                   Delete {selectedIds.length} Selected Task{selectedIds.length > 1 ? 's' : ''}?
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -1688,8 +1695,8 @@ export function AllTasks() {
             </div>
 
             {/* Selected Tasks Preview */}
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5 max-h-36 overflow-y-auto">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5 max-h-36 overflow-y-auto">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Tasks to be deleted:
               </span>
               {filteredTasks
@@ -1697,7 +1704,7 @@ export function AllTasks() {
                 .slice(0, 4)
                 .map((t) => (
                   <div key={t._id} className="flex items-center gap-2 text-xs font-semibold text-slate-700 truncate">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-error-500 shrink-0" />
                     <span className="truncate">{t.taskTitle || 'Untitled Task'}</span>
                   </div>
                 ))}
@@ -1722,7 +1729,7 @@ export function AllTasks() {
                 type="button"
                 disabled={isBulkDeleting}
                 onClick={handleBulkDeleteConfirm}
-                className="flex items-center gap-2 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-error-500 hover:bg-error-600 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer"
               >
                 {isBulkDeleting ? (
                   <>

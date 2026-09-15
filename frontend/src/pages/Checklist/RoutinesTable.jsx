@@ -7,6 +7,7 @@
 
 import { Repeat, Edit3, StopCircle, ClipboardList } from 'lucide-react';
 import { SkeletonLoader } from '../../components/ui/SkeletonLoader';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -21,7 +22,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <SkeletonLoader key={i} variant="rectangular" className="h-16 rounded-2xl" />
+          <SkeletonLoader key={i} variant="rectangular" className="h-16 rounded-xl" />
         ))}
       </div>
     );
@@ -29,30 +30,26 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
 
   if (!routines?.length) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs flex flex-col items-center justify-center">
-        <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-700 border border-primary-200/60 flex items-center justify-center mb-3">
-          <ClipboardList size={28} />
-        </div>
-        <h3 className="text-base font-black text-slate-800 mb-1">No Routines Yet</h3>
-        <p className="text-xs font-medium text-slate-500 max-w-sm">
-          Create one and every occurrence is generated up front.
-        </p>
-      </div>
+      <EmptyState
+        title="No Routines Yet"
+        description="Create one and every occurrence is generated up front."
+        icon={<ClipboardList className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+      />
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-enterprise">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[840px]">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/80">
-              <th className="text-left text-[11px] font-black uppercase tracking-wider text-slate-500 px-4 py-3">Routine</th>
-              <th className="text-left text-[11px] font-black uppercase tracking-wider text-slate-500 px-4 py-3">Owner</th>
-              <th className="text-left text-[11px] font-black uppercase tracking-wider text-slate-500 px-4 py-3">Frequency</th>
-              <th className="text-left text-[11px] font-black uppercase tracking-wider text-slate-500 px-4 py-3">Window</th>
-              <th className="text-left text-[11px] font-black uppercase tracking-wider text-slate-500 px-4 py-3">Progress</th>
-              <th className="text-right text-[11px] font-black uppercase tracking-wider text-slate-500 px-4 py-3">Actions</th>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Routine</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Owner</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Frequency</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Window</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Progress</th>
+              <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -61,30 +58,30 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
               const pct = prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
 
               return (
-                <tr key={routine._id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-colors duration-150">
+                <tr key={routine._id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                   {/* Routine name */}
-                  <td className="px-4 py-3 max-w-[260px]">
-                    <p className="text-sm font-bold text-slate-800 hover:text-primary-700 transition-colors truncate">{routine.taskName}</p>
+                  <td className="px-6 py-4 max-w-[260px]">
+                    <p className="text-sm font-bold text-slate-900 hover:text-primary-700 transition-colors truncate">{routine.taskName}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[11px] font-mono font-semibold text-slate-400">{routine.taskCode}</span>
                       {!routine.isActive && (
                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">stopped</span>
                       )}
                       {!routine.frequency && (
-                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">no cadence</span>
+                        <span className="text-[10px] font-bold text-warning-600 bg-warning-50 px-2 py-0.5 rounded-full border border-warning-100">no cadence</span>
                       )}
                     </div>
                   </td>
 
                   {/* Owner */}
-                  <td className="px-4 py-3">
-                    <p className="text-xs font-bold text-slate-800">{routine.doerFirstName} {routine.doerLastName}</p>
+                  <td className="px-6 py-4">
+                    <p className="text-xs font-bold text-slate-900">{routine.doerFirstName} {routine.doerLastName}</p>
                   </td>
 
                   {/* Frequency */}
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     {routine.frequency && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 text-[10px] font-bold shadow-xs">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-600 border border-primary-200 text-[10px] font-bold shadow-enterprise">
                         <Repeat size={10} />
                         {routine.frequency.toUpperCase()}
                       </span>
@@ -92,18 +89,18 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                   </td>
 
                   {/* Window */}
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     <p className="text-xs font-semibold text-slate-500">
                       {fmtDate(routine.startDate)} to {fmtDate(routine.endDate)}
                     </p>
                   </td>
 
                   {/* Progress */}
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden max-w-[100px]">
                         <div
-                          className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                          className="bg-success-500 h-full rounded-full transition-all duration-300"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -114,12 +111,12 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                   </td>
 
                   {/* Actions */}
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         onClick={() => onEdit(routine)}
-                        className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-primary-700 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-primary-700 font-bold text-xs flex items-center gap-1 shadow-enterprise transition-all cursor-pointer"
                       >
                         <Edit3 size={12} /> Edit
                       </button>
@@ -127,7 +124,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                         <button
                           type="button"
                           onClick={() => onStop(routine)}
-                          className="px-3 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 bg-white hover:bg-amber-50 text-amber-600 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg border border-warning-100 hover:border-warning-100 bg-white hover:bg-warning-50 text-warning-600 font-bold text-xs flex items-center gap-1 shadow-enterprise transition-all cursor-pointer"
                         >
                           <StopCircle size={12} /> Stop
                         </button>

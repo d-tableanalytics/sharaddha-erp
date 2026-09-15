@@ -265,20 +265,20 @@ export function AdvancedExportModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Dialog */}
-      <div className="relative bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl z-10 max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+      <div className="relative bg-white rounded-xl w-full max-w-lg p-6 shadow-enterprise-lg z-10 max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-lg bg-primary-50 text-primary-700 flex items-center justify-center font-bold">
               <Download className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-800">Export Tasks</h2>
+              <h2 className="text-base font-semibold text-slate-900">Export Tasks</h2>
               <p className="text-xs font-semibold text-slate-400">Configure export filters and fields</p>
             </div>
           </div>
@@ -295,13 +295,13 @@ export function AdvancedExportModal({
         <div className="flex-1 overflow-y-auto py-4 space-y-5 pr-1">
           {/* 1. Date Range */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
               Date Range
             </label>
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="w-full h-10 bg-slate-50 border border-slate-200 rounded-lg px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1E4C92]/20"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="All Time">All Time</option>
               <option value="Today">Today</option>
@@ -322,7 +322,7 @@ export function AdvancedExportModal({
                     type="date"
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2 text-xs font-bold text-slate-700 outline-none"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
                 </div>
                 <div>
@@ -331,7 +331,7 @@ export function AdvancedExportModal({
                     type="date"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2 text-xs font-bold text-slate-700 outline-none"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
                 </div>
               </div>
@@ -341,13 +341,13 @@ export function AdvancedExportModal({
           {/* 2. Assigned To */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-700">
                 Assigned To ({selectedDoerIds.length}/{users.length})
               </label>
               <button
                 type="button"
                 onClick={toggleSelectAllDoers}
-                className="text-[11px] font-bold text-[#1E4C92] hover:underline cursor-pointer"
+                className="text-[11px] font-bold text-primary-700 hover:underline cursor-pointer"
               >
                 {selectedDoerIds.length === users.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -365,7 +365,7 @@ export function AdvancedExportModal({
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => toggleDoer(String(u._id))}
-                      className="rounded text-[#1E4C92] focus:ring-[#1E4C92]"
+                      className="rounded text-primary-700 focus:ring-primary-500"
                     />
                     <span className="truncate">{uName}</span>
                   </label>
@@ -377,13 +377,13 @@ export function AdvancedExportModal({
           {/* 3. Assigned By */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-700">
                 Assigned By ({selectedAssignerIds.length}/{uniqueAssignerIds.length})
               </label>
               <button
                 type="button"
                 onClick={toggleSelectAllAssigners}
-                className="text-[11px] font-bold text-[#1E4C92] hover:underline cursor-pointer"
+                className="text-[11px] font-bold text-primary-700 hover:underline cursor-pointer"
               >
                 {selectedAssignerIds.length === uniqueAssignerIds.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -404,7 +404,7 @@ export function AdvancedExportModal({
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => toggleAssigner(id)}
-                      className="rounded text-[#1E4C92] focus:ring-[#1E4C92]"
+                      className="rounded text-primary-700 focus:ring-primary-500"
                     />
                     <span className="truncate">{name}</span>
                   </label>
@@ -415,7 +415,7 @@ export function AdvancedExportModal({
 
           {/* 4. Task Type */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
               Task Type
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -424,7 +424,7 @@ export function AdvancedExportModal({
                   type="checkbox"
                   checked={includeRepetitive}
                   onChange={(e) => setIncludeRepetitive(e.target.checked)}
-                  className="rounded text-[#1E4C92] focus:ring-[#1E4C92]"
+                  className="rounded text-primary-700 focus:ring-primary-500"
                 />
                 <span>Repetitive Tasks</span>
               </label>
@@ -433,7 +433,7 @@ export function AdvancedExportModal({
                   type="checkbox"
                   checked={includeOneTime}
                   onChange={(e) => setIncludeOneTime(e.target.checked)}
-                  className="rounded text-[#1E4C92] focus:ring-[#1E4C92]"
+                  className="rounded text-primary-700 focus:ring-primary-500"
                 />
                 <span>One-Time Tasks</span>
               </label>
@@ -442,13 +442,13 @@ export function AdvancedExportModal({
 
           {/* 5. Reporting Manager (HOD) Scoping */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
               Reporting Manager (HOD)
             </label>
             <select
               value={selectedHodId}
               onChange={(e) => setSelectedHodId(e.target.value)}
-              className="w-full h-10 bg-slate-50 border border-slate-200 rounded-lg px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1E4C92]/20"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="ALL">All Managers & Departments</option>
               {reportingManagers.map((m) => (
@@ -476,7 +476,7 @@ export function AdvancedExportModal({
             type="button"
             onClick={handleExport}
             disabled={matchingTasks.length === 0}
-            className="px-5 py-2.5 bg-[#1E4C92] hover:bg-[#163a6a] disabled:opacity-50 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer"
           >
             <Download className="w-4 h-4" />
             <span>Export Tasks ({matchingTasks.length})</span>

@@ -18,23 +18,25 @@ import toast from 'react-hot-toast';
 
 import { useUserStore } from '../../store/userStore';
 import delegationService from '../../services/delegation';
+import { PageHeader } from '../../components/common/PageHeader';
+import { ErrorState } from '../../components/hrms/ErrorState';
 
 // Enterprise Status Color Mapping
 const STATUS_MAP = {
-  OverDue: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200/60' },
-  Overdue: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200/60' },
+  OverDue: { dot: 'bg-error-500', text: 'text-error-600', bg: 'bg-error-50', border: 'border-error-100/60' },
+  Overdue: { dot: 'bg-error-500', text: 'text-error-600', bg: 'bg-error-50', border: 'border-error-100/60' },
   Pending: { dot: 'border-2 border-slate-400 bg-transparent', text: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
-  'In Progress': { dot: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200/60' },
-  Completed: { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200/60' },
-  'Awaiting Verification': { dot: 'bg-[#1E4C92]', text: 'text-[#1E4C92]', bg: 'bg-[#1E4C92]/10', border: 'border-[#1E4C92]/20' },
+  'In Progress': { dot: 'bg-warning-500', text: 'text-warning-600', bg: 'bg-warning-50', border: 'border-warning-100/60' },
+  Completed: { dot: 'bg-success-500', text: 'text-success-600', bg: 'bg-success-50', border: 'border-success-100/60' },
+  'Awaiting Verification': { dot: 'bg-primary-600', text: 'text-primary-700', bg: 'bg-primary-50', border: 'border-primary-200' },
 };
 
 // Enterprise Priority Color Mapping
 const PRIORITY_COLORS = {
-  Urgent: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200/60' },
-  High: { dot: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200/60' },
-  Medium: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200/60' },
-  Low: { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200/60' },
+  Urgent: { dot: 'bg-error-500', text: 'text-error-600', bg: 'bg-error-50', border: 'border-error-100/60' },
+  High: { dot: 'bg-warning-500', text: 'text-warning-600', bg: 'bg-warning-50', border: 'border-warning-100/60' },
+  Medium: { dot: 'bg-warning-500', text: 'text-warning-600', bg: 'bg-warning-50', border: 'border-warning-100/60' },
+  Low: { dot: 'bg-success-500', text: 'text-success-600', bg: 'bg-success-50', border: 'border-success-100/60' },
 };
 
 // Date range preset options
@@ -51,12 +53,12 @@ const DATE_RANGE_OPTIONS = [
 
 // Enterprise Avatar Palette
 const AVATAR_COLOR_PALETTE = [
-  'bg-[#1E4C92]/10 text-[#1E4C92] border-[#1E4C92]/20',
-  'bg-indigo-50 text-indigo-700 border-indigo-200/60',
-  'bg-emerald-50 text-emerald-700 border-emerald-200/60',
-  'bg-sky-50 text-sky-700 border-sky-200/60',
-  'bg-amber-50 text-amber-700 border-amber-200/60',
-  'bg-purple-50 text-purple-700 border-purple-200/60',
+  'bg-primary-50 text-primary-700 border-primary-200',
+  'bg-primary-50 text-primary-700 border-primary-200/60',
+  'bg-success-50 text-success-600 border-success-100/60',
+  'bg-primary-50 text-primary-700 border-primary-200/60',
+  'bg-warning-50 text-warning-600 border-warning-100/60',
+  'bg-primary-50 text-primary-700 border-primary-200/60',
 ];
 
 function getAvatarColor(nameOrId = '', index = 0) {
@@ -100,12 +102,12 @@ const getEffectiveStatus = (task) => (isOverdue(task) ? 'OverDue' : task.status 
 
 // Active filter chip component
 const FilterChip = ({ label, onRemove }) => (
-  <div className="flex items-center gap-1.5 px-3 py-1 bg-[#1E4C92]/5 border border-[#1E4C92]/20 text-[#1E4C92] rounded-full text-[11px] font-bold shadow-xs">
+  <div className="flex items-center gap-1.5 px-3 py-1 bg-primary-50 border border-primary-200 text-primary-700 rounded-full text-[11px] font-bold shadow-enterprise">
     <span>{label}</span>
     <button
       type="button"
       onClick={onRemove}
-      className="hover:text-red-500 transition-colors ml-0.5 cursor-pointer"
+      className="hover:text-error-500 transition-colors ml-0.5 cursor-pointer"
       title="Remove filter"
     >
       <X size={12} strokeWidth={3} />
@@ -469,20 +471,19 @@ export function DeletedTasks() {
 
   // ── Access Control Guard Render ────────────────────────────────────────
   if (!isAdmin) {
+    // The portal's refusal panel - see the note on Activities.jsx.
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6 select-none">
-        <div className="text-center p-10 bg-white rounded-3xl shadow-xs border border-slate-200 max-w-md space-y-4">
-          <div className="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shadow-xs">
-            <ShieldAlert size={32} strokeWidth={2.5} />
-          </div>
-          <h2 className="text-xl font-semibold text-slate-800">Admin Access Required</h2>
-          <p className="text-sm font-medium text-slate-500 leading-relaxed">
-            The deleted tasks archive is restricted to administrative and management roles.
-          </p>
+        <div className="max-w-md">
+          <ErrorState
+            variant="forbidden"
+            title="Admin Access Required"
+            description="The deleted tasks archive is restricted to administrative and management roles."
+          />
           <button
             type="button"
             onClick={() => navigate('/work-queue')}
-            className="w-full py-3 px-4 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 w-full cursor-pointer mt-4"
           >
             Return to My Work
           </button>
@@ -501,26 +502,24 @@ export function DeletedTasks() {
     tagFilter !== 'All';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & ACTIONS ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
-            <Trash2 className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-800 leading-none">Deleted Tasks</h1>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
-                Archive
-              </span>
-            </div>
-            <p className="text-xs font-bold text-slate-400 mt-1">
-              Central repository for soft-deleted tasks, forensic recovery & audit history
-            </p>
-          </div>
-        </div>
-      </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page use it.
+
+        The hand-rolled header this replaces differed from the rest of the app in
+        every measurable way: `text-2xl font-bold text-slate-900` against the
+        system's `text-xl font-bold text-slate-900`, a `text-xs font-bold
+        text-slate-400` subtitle against `text-sm font-medium text-slate-500`, and
+        no bottom rule at all - so a WorkQueue page announced itself in a different
+        voice from the page the user had just left. The 40px icon tile is dropped:
+        no other page in the portal puts an icon beside its title.
+      */}
+      <PageHeader
+        eyebrow="Archive"
+        title="Deleted Tasks"
+        subtitle="Central repository for soft-deleted tasks, forensic recovery & audit history"
+      />
 
       {/* ── 2. TOOLBAR & MULTI-FACTOR FILTER CONTROLS ───────────────────── */}
       <div className="flex flex-wrap items-center gap-2.5">
@@ -529,7 +528,7 @@ export function DeletedTasks() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             {DATE_RANGE_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
@@ -546,7 +545,7 @@ export function DeletedTasks() {
         {/* Custom Date Pickers */}
         {dateRange === 'Custom' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -556,7 +555,7 @@ export function DeletedTasks() {
               />
             </div>
 
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -573,16 +572,16 @@ export function DeletedTasks() {
           <button
             type="button"
             onClick={() => setIsFilterPanelOpen((prev) => !prev)}
-            className={`h-11 px-4 border rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 ${
+            className={`h-11 px-4 border rounded-xl font-bold text-xs flex items-center gap-2 shadow-enterprise transition-all cursor-pointer active:scale-[0.98] ${
               isFilterPanelOpen || activePopoverFilterCount > 0
-                ? 'bg-[#1E4C92] text-white border-[#1E4C92] shadow-sm'
-                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:text-[#1E4C92]'
+                ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:text-primary-700'
             }`}
           >
             <SlidersHorizontal size={14} />
             <span>Filters</span>
             {activePopoverFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-white text-[#1E4C92] text-[10px] font-semibold flex items-center justify-center shadow-xs">
+              <span className="w-5 h-5 rounded-full bg-white text-primary-700 text-[10px] font-semibold flex items-center justify-center shadow-enterprise">
                 {activePopoverFilterCount}
               </span>
             )}
@@ -593,7 +592,7 @@ export function DeletedTasks() {
           </button>
 
           {isFilterPanelOpen && (
-            <div className="absolute top-[calc(100%+8px)] left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 flex flex-col gap-3.5 min-w-[280px] animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="absolute top-[calc(100%+8px)] left-0 z-50 bg-white border border-slate-200 rounded-xl shadow-enterprise-lg p-4 flex flex-col gap-3.5 min-w-[280px] animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   Filter Criteria
@@ -607,7 +606,7 @@ export function DeletedTasks() {
                       setAssignedByFilter('All');
                       setTagFilter('All');
                     }}
-                    className="text-xs font-bold text-[#1E4C92] hover:underline cursor-pointer"
+                    className="text-xs font-bold text-primary-700 hover:underline cursor-pointer"
                   >
                     Clear All
                   </button>
@@ -623,7 +622,7 @@ export function DeletedTasks() {
                   <select
                     value={assignedByFilter}
                     onChange={(e) => setAssignedByFilter(e.target.value)}
-                    className="w-full h-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3 pr-8 text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">Anyone</option>
                     {users.map((u) => {
@@ -652,7 +651,7 @@ export function DeletedTasks() {
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full h-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3 pr-8 text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Priorities</option>
                     <option value="Urgent">Urgent</option>
@@ -676,7 +675,7 @@ export function DeletedTasks() {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full h-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3 pr-8 text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Categories</option>
                     {categories.map((cat) => (
@@ -701,7 +700,7 @@ export function DeletedTasks() {
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
-                    className="w-full h-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3 pr-8 text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all shadow-xs"
+                    className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tags</option>
                     {allTags.map((t) => (
@@ -724,14 +723,14 @@ export function DeletedTasks() {
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search
             size={15}
-            className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search deleted tasks, authors, titles..."
-            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           />
           {search.trim() !== '' && (
             <button
@@ -749,7 +748,7 @@ export function DeletedTasks() {
           type="button"
           onClick={handleResetFilters}
           title="Reset all filters"
-          className="h-11 w-11 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-colors shrink-0"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -759,7 +758,7 @@ export function DeletedTasks() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="w-full h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="Deleted At">Deleted At</option>
             <option value="Due Date">Due Date</option>
@@ -776,7 +775,7 @@ export function DeletedTasks() {
           type="button"
           onClick={() => setSortDesc((prev) => !prev)}
           title={sortDesc ? 'Descending (Click for Ascending)' : 'Ascending (Click for Descending)'}
-          className="h-11 w-11 flex justify-center items-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-colors shrink-0"
         >
           <ArrowUpDown
             size={15}
@@ -798,10 +797,10 @@ export function DeletedTasks() {
       <div className="flex items-center gap-6 border-b border-slate-200 overflow-x-auto select-none">
         {[
           { key: 'All', label: 'ALL', count: statusCounts.All, dot: 'w-2.5 h-2.5 rounded-full bg-slate-400' },
-          { key: 'OverDue', label: 'OVERDUE', count: statusCounts.OverDue, dot: 'w-2.5 h-2.5 rounded-full bg-red-500' },
+          { key: 'OverDue', label: 'OVERDUE', count: statusCounts.OverDue, dot: 'w-2.5 h-2.5 rounded-full bg-error-500' },
           { key: 'Pending', label: 'PENDING', count: statusCounts.Pending, dot: 'w-2.5 h-2.5 rounded-full border-2 border-slate-400 bg-transparent' },
-          { key: 'In Progress', label: 'IN PROGRESS', count: statusCounts['In Progress'], dot: 'w-2.5 h-2.5 rounded-full bg-orange-500' },
-          { key: 'Completed', label: 'COMPLETED', count: statusCounts.Completed, dot: 'w-2.5 h-2.5 rounded-full bg-emerald-500' },
+          { key: 'In Progress', label: 'IN PROGRESS', count: statusCounts['In Progress'], dot: 'w-2.5 h-2.5 rounded-full bg-warning-500' },
+          { key: 'Completed', label: 'COMPLETED', count: statusCounts.Completed, dot: 'w-2.5 h-2.5 rounded-full bg-success-500' },
         ].map((tab) => {
           const isActive = statusFilter === tab.key;
           return (
@@ -810,7 +809,7 @@ export function DeletedTasks() {
               type="button"
               onClick={() => setStatusFilter(tab.key)}
               className={`relative pb-3 flex items-center gap-2 text-xs font-semibold tracking-wider transition-colors cursor-pointer shrink-0 ${
-                isActive ? 'text-[#1E4C92]' : 'text-slate-400 hover:text-slate-700'
+                isActive ? 'text-primary-700' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
               <span className={tab.dot} />
@@ -818,7 +817,7 @@ export function DeletedTasks() {
                 {tab.label} — {tab.count}
               </span>
               {isActive && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1E4C92] rounded-t-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />
               )}
             </button>
           );
@@ -832,7 +831,7 @@ export function DeletedTasks() {
           Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-xs animate-pulse flex items-center gap-4"
+              className="bg-white rounded-xl border border-slate-200 p-4.5 shadow-enterprise animate-pulse flex items-center gap-4"
             >
               <div className="w-10 h-10 rounded-full bg-slate-100 shrink-0" />
               <div className="flex-1 space-y-2">
@@ -845,11 +844,11 @@ export function DeletedTasks() {
           ))
         ) : sortedTasks.length === 0 ? (
           /* Empty State */
-          <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-16 md:p-20 flex flex-col items-center justify-center text-center shadow-xs">
-            <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mb-3 shadow-xs">
+          <div className="bg-white border-2 border-dashed border-slate-200 rounded-xl p-16 md:p-20 flex flex-col items-center justify-center text-center shadow-enterprise">
+            <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center mb-3 shadow-enterprise">
               <Trash2 size={28} strokeWidth={2} />
             </div>
-            <h3 className="text-sm font-semibold text-slate-800 mb-1">Archive Is Empty</h3>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">Archive Is Empty</h3>
             <p className="text-xs font-medium text-slate-400 mb-4 max-w-sm">
               {isAnyFilterActive
                 ? 'No deleted tasks match your active filter criteria.'
@@ -859,7 +858,7 @@ export function DeletedTasks() {
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="h-10 px-4 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer"
               >
                 Clear Filters
               </button>
@@ -896,11 +895,11 @@ export function DeletedTasks() {
             return (
               <div
                 key={taskId}
-                className="bg-white rounded-2xl border border-slate-200 hover:border-[#1E4C92] p-4.5 shadow-xs hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center gap-4 group"
+                className="bg-white rounded-xl border border-slate-200 hover:border-primary-600 p-4.5 shadow-enterprise hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center gap-4 group"
               >
                 {/* [1] Doer Initials Avatar */}
                 <div
-                  className={`w-10 h-10 rounded-full font-semibold text-xs flex items-center justify-center border shadow-xs shrink-0 ${avatarColor}`}
+                  className={`w-10 h-10 rounded-full font-semibold text-xs flex items-center justify-center border shadow-enterprise shrink-0 ${avatarColor}`}
                 >
                   {initials}
                 </div>
@@ -909,20 +908,20 @@ export function DeletedTasks() {
                 <div className="flex-1 min-w-0 space-y-1">
                   {/* 2.1 Header Line */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-slate-800 text-xs sm:text-sm group-hover:text-[#1E4C92] transition-colors">
+                    <span className="font-semibold text-slate-900 text-xs sm:text-sm group-hover:text-primary-700 transition-colors">
                       {doerFullName}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                       {task.category || 'Operations'}
                     </span>
-                    <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200/60 px-2 py-0.5 rounded-md ml-auto flex items-center gap-1 shrink-0">
+                    <span className="text-[11px] font-bold text-error-600 bg-error-50 border border-error-100/60 px-2 py-0.5 rounded-md ml-auto flex items-center gap-1 shrink-0">
                       Deleted {formatDate(task.deletedAt || task.updatedAt)}
                     </span>
                   </div>
 
                   {/* 2.2 Title Line */}
-                  <h3 className="text-sm sm:text-base font-semibold text-slate-800 group-hover:text-[#1E4C92] transition-colors truncate">
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-900 group-hover:text-primary-700 transition-colors truncate">
                     {task.taskTitle}
                   </h3>
                   {plainDesc && (
@@ -945,7 +944,7 @@ export function DeletedTasks() {
                       <Clock size={13} className="text-slate-400" />
                       <span>{formatDate(task.dueDate)}</span>
                       {overdue && (
-                        <span className="text-red-600 font-semibold ml-0.5">| Overdue</span>
+                        <span className="text-error-600 font-semibold ml-0.5">| Overdue</span>
                       )}
                     </span>
 
@@ -953,7 +952,7 @@ export function DeletedTasks() {
 
                     {/* Status Badge */}
                     <div
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider shadow-xs ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider shadow-enterprise ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
                       <span>{effStatus}</span>
@@ -963,7 +962,7 @@ export function DeletedTasks() {
 
                     {/* Priority Badge */}
                     <div
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider shadow-xs ${priorityConfig.bg} ${priorityConfig.text} ${priorityConfig.border}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider shadow-enterprise ${priorityConfig.bg} ${priorityConfig.text} ${priorityConfig.border}`}
                     >
                       <Flag size={10} className={priorityConfig.text} />
                       <span>{task.priority || 'Medium'}</span>
@@ -973,7 +972,7 @@ export function DeletedTasks() {
 
                     {/* Deletion Author Audit */}
                     <span className="flex items-center gap-1 text-slate-400 font-bold text-[11px]">
-                      <Trash2 size={12} className="text-red-400" />
+                      <Trash2 size={12} className="text-error-500" />
                       <span>Deleted by {deletedByDisplay}</span>
                     </span>
                   </div>
@@ -985,11 +984,11 @@ export function DeletedTasks() {
                     type="button"
                     onClick={() => handleRestore(taskId)}
                     disabled={restoringId === taskId}
-                    className="h-10 px-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+                    className="h-10 px-4 bg-success-50 hover:bg-success-100 border border-success-100 hover:border-success-100 text-success-600 rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-[0.98] cursor-pointer shadow-enterprise disabled:opacity-50 shrink-0"
                     title="Restore task to active workflow"
                   >
                     {restoringId === taskId ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-success-600" />
                     ) : (
                       <RotateCcw size={14} strokeWidth={2.5} />
                     )}

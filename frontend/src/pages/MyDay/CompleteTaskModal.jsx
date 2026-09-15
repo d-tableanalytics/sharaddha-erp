@@ -92,20 +92,20 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-enterprise-lg border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                 isVerificationRequired
-                  ? "bg-indigo-50 text-indigo-600 border border-indigo-200/60"
-                  : "bg-emerald-50 text-emerald-600 border border-emerald-200/60"
+                  ? "bg-primary-50 text-primary-600 border border-primary-200/60"
+                  : "bg-success-50 text-success-600 border border-success-100/60"
               }`}
             >
               {isVerificationRequired ? (
@@ -115,7 +115,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
               )}
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-800 leading-tight">
+              <h3 className="text-base font-semibold text-slate-900 leading-tight">
                 {isVerificationRequired ? "Submit for Verification" : "Complete Task"}
               </h3>
               <p className="text-xs font-bold text-slate-400 truncate max-w-sm mt-0.5">
@@ -126,7 +126,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
           <button
             onClick={onClose}
             type="button"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -135,7 +135,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
           {error && (
-            <div className="flex items-center gap-2 p-3 text-xs font-semibold text-red-700 bg-red-50 rounded-xl border border-red-200">
+            <div className="flex items-center gap-2 p-3 text-xs font-semibold text-error-600 bg-error-50 rounded-xl border border-error-100">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -145,8 +145,8 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
           <div
             className={`p-3.5 rounded-xl text-xs font-medium border ${
               isVerificationRequired
-                ? "bg-indigo-50/60 border-indigo-200/70 text-indigo-900"
-                : "bg-emerald-50/60 border-emerald-200/70 text-emerald-900"
+                ? "bg-primary-50/60 border-primary-200/70 text-primary-900"
+                : "bg-success-50/60 border-success-100/70 text-success-600"
             }`}
           >
             {isVerificationRequired
@@ -158,7 +158,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Upload Evidence / Photos {isEvidenceRequired && <span className="text-red-500">*</span>}
+                Upload Evidence / Photos {isEvidenceRequired && <span className="text-error-500">*</span>}
               </label>
               <span className="text-[11px] font-medium text-slate-400">JPG, PNG, PDF up to 100MB</span>
             </div>
@@ -173,7 +173,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                   setFiles((prev) => [...prev, ...droppedFiles]);
                 }
               }}
-              className="group border-2 border-dashed border-slate-300 hover:border-[#1E4C92] rounded-2xl p-6 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-blue-50/30"
+              className="group border-2 border-dashed border-slate-300 hover:border-primary-600 rounded-xl p-6 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-primary-50/30"
             >
               <input
                 ref={fileInputRef}
@@ -183,11 +183,11 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                 className="hidden"
                 onChange={handleFileChange}
               />
-              <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-500 group-hover:text-[#1E4C92] transition-colors">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-white shadow-enterprise border border-slate-200 flex items-center justify-center text-slate-500 group-hover:text-primary-700 transition-colors">
                 <Upload className="w-6 h-6" />
               </div>
               <p className="text-xs font-bold text-slate-700">
-                Drop files here or <span className="text-[#1E4C92] underline">browse</span>
+                Drop files here or <span className="text-primary-700 underline">browse</span>
               </p>
               <p className="text-[11px] text-slate-400 mt-1">
                 Attach job-site photos, test certificates, or signoff documents
@@ -204,9 +204,9 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                   >
                     <div className="flex items-center gap-2 truncate">
                       {file.type.startsWith("image/") ? (
-                        <ImageIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <ImageIcon className="w-4 h-4 text-success-500 shrink-0" />
                       ) : (
-                        <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                        <FileText className="w-4 h-4 text-primary-500 shrink-0" />
                       )}
                       <span className="font-semibold text-slate-700 truncate">
                         {file.name}
@@ -218,7 +218,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
                     <button
                       type="button"
                       onClick={() => handleRemoveFile(idx)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-error-500 hover:bg-error-50 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -238,7 +238,7 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add observations, site conditions, inspection notes, or handover comments..."
-              className="w-full p-3 text-xs font-semibold bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 text-slate-800 placeholder-slate-400 resize-none transition-all"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -248,18 +248,14 @@ export function CompleteTaskModal({ isOpen, onClose, task, onSubmit }) {
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-slate-100 text-slate-600 px-4 py-2 text-sm cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className={`px-5 py-2.5 text-xs font-bold text-white rounded-xl shadow-xs flex items-center gap-2 disabled:opacity-50 transition-all cursor-pointer ${
-                isVerificationRequired
-                  ? "bg-[#1E4C92] hover:bg-[#163a6a]"
-                  : "bg-emerald-600 hover:bg-emerald-700"
-              }`}
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer"
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

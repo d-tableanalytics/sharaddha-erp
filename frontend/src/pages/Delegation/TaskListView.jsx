@@ -16,6 +16,10 @@ import {
   Check,
 } from 'lucide-react';
 
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { Badge } from '../../components/ui/Badge';
+import { EmptyState } from '../../components/ui/EmptyState';
+
 function getInitials(first = '', last = '') {
   const f = first ? first.charAt(0) : '';
   const l = last ? last.charAt(0) : '';
@@ -73,7 +77,7 @@ export function TaskListView({
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
-        <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <LoadingSpinner size={32} className="mb-4" />
         <p className="text-sm font-semibold text-slate-600">Loading Tasks...</p>
       </div>
     );
@@ -81,20 +85,17 @@ export function TaskListView({
 
   if (tasks.length === 0) {
     return (
-      <div className="bg-white/60 border-2 border-dashed border-slate-300 rounded-3xl p-16 text-center flex flex-col items-center justify-center">
-        <div className="w-16 h-16 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center mb-4">
-          <CheckSquare className="w-8 h-8" />
+      <div>
+        <EmptyState
+          title="No Tasks Found"
+          description="There are no delegated tasks matching the current filters or date range."
+          icon={<CheckSquare className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+        />
+        <div className="flex justify-center mt-4">
+          <button onClick={onClearFilters} className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer">
+            Clear Filters
+          </button>
         </div>
-        <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks Found</h3>
-        <p className="text-sm font-medium text-slate-500 max-w-md mb-6">
-          There are no delegated tasks matching the current filters or date range.
-        </p>
-        <button
-          onClick={onClearFilters}
-          className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-95"
-        >
-          Clear Filters
-        </button>
       </div>
     );
   }
@@ -104,7 +105,7 @@ export function TaskListView({
   return (
     <div className="space-y-3">
       {/* Select All Bar (if tasks exist) */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/70 backdrop-blur-xs border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-600">
+      <div className="flex items-center justify-between px-4 py-2 bg-white/70 backdrop-blur-sm border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-600">
         <div className="flex items-center gap-3">
           <input
             type="checkbox"
@@ -129,31 +130,28 @@ export function TaskListView({
         const isAwaitingVerification = task.status === 'Awaiting Verification';
 
         // Badge styling
-        let statusBadge = {
-          bg: 'bg-slate-50 text-slate-700 border-slate-200',
-          label: task.status,
-        };
+        let statusBadge = { variant: 'neutral', label: task.status };
         if (task.status === 'Completed') {
-          statusBadge = { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Completed' };
+          statusBadge = { variant: 'success', label: 'Completed' };
         } else if (isAwaitingVerification) {
-          statusBadge = { bg: 'bg-primary-50 text-primary-700 border-primary-200', label: 'Awaiting Verification' };
+          statusBadge = { variant: 'primary', label: 'Awaiting Verification' };
         } else if (task.status === 'In Progress') {
-          statusBadge = { bg: 'bg-orange-50 text-orange-700 border-orange-200', label: 'In Progress' };
+          statusBadge = { variant: 'warning', label: 'In Progress' };
         } else if (overdue) {
-          statusBadge = { bg: 'bg-red-50 text-red-700 border-red-200', label: 'Overdue' };
+          statusBadge = { variant: 'danger', label: 'Overdue' };
         }
 
         // Priority colors
         const priorityColors = {
-          Urgent: 'text-red-500',
-          High: 'text-orange-500',
+          Urgent: 'text-error-500',
+          High: 'text-warning-500',
           Medium: 'text-primary-500',
           Low: 'text-slate-400',
         };
 
         const priorityDot = {
-          Urgent: 'bg-red-500',
-          High: 'bg-orange-500',
+          Urgent: 'bg-error-500',
+          High: 'bg-warning-500',
           Medium: 'bg-primary-500',
           Low: 'bg-slate-400',
         };
@@ -165,8 +163,8 @@ export function TaskListView({
             key={task._id}
             className={`group bg-white rounded-lg border transition-all duration-200 ${
               isAwaitingVerification
-                ? 'ring-2 ring-primary-500/20 border-primary-300 bg-primary-50/10 shadow-xs hover:shadow-md'
-                : 'border-slate-200 hover:border-slate-300 shadow-xs hover:shadow-md'
+                ? 'ring-2 ring-primary-500/20 border-primary-300 bg-primary-50/10 shadow-enterprise hover:shadow-md'
+                : 'border-slate-200 hover:border-slate-300 shadow-enterprise hover:shadow-md'
             }`}
           >
             {/* Main Row Header */}
@@ -185,7 +183,7 @@ export function TaskListView({
 
               {/* Assignee Avatar */}
               <div
-                className="w-10 h-10 rounded-full bg-primary-50 text-primary-700 font-black text-xs flex items-center justify-center border border-primary-200 shrink-0 shadow-xs"
+                className="w-10 h-10 rounded-full bg-primary-50 text-primary-700 font-bold text-xs flex items-center justify-center border border-primary-200 shrink-0 shadow-enterprise"
                 title={`${task.doerFirstName} ${task.doerLastName}`}
               >
                 {getInitials(task.doerFirstName, task.doerLastName)}
@@ -193,7 +191,7 @@ export function TaskListView({
 
               {/* Assignee Hierarchy & Doer Name */}
               <div className="hidden sm:flex flex-col min-w-[130px] max-w-[170px] shrink-0">
-                <span className="text-xs font-black text-slate-800 truncate">
+                <span className="text-xs font-bold text-slate-900 truncate">
                   {task.doerFirstName} {task.doerLastName}
                 </span>
                 <span className="text-[11px] font-semibold text-slate-400 truncate">
@@ -203,7 +201,7 @@ export function TaskListView({
 
               {/* Task Title */}
               <div className="flex-1 min-w-[180px]">
-                <h4 className="text-sm font-black text-slate-800 line-clamp-1 group-hover:text-primary-700 transition-colors">
+                <h4 className="text-sm font-bold text-slate-900 line-clamp-1 group-hover:text-primary-700 transition-colors">
                   {task.taskTitle}
                 </h4>
                 <div className="sm:hidden text-[10px] font-semibold text-slate-400">
@@ -212,17 +210,15 @@ export function TaskListView({
               </div>
 
               {/* Status Badge */}
-              <span
-                className={`text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider ${statusBadge.bg} shrink-0`}
-              >
+              <Badge variant={statusBadge.variant} className="shrink-0">
                 {statusBadge.label}
-              </span>
+              </Badge>
 
               {/* Recurrence Badge */}
               <span
                 className={`hidden md:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg border ${
                   isRecurring
-                    ? 'bg-purple-50 text-purple-600 border-purple-200'
+                    ? 'bg-primary-50 text-primary-600 border-primary-200'
                     : 'bg-slate-50 text-slate-400 border-slate-200'
                 } shrink-0`}
               >
@@ -231,7 +227,7 @@ export function TaskListView({
               </span>
 
               {/* Priority Indicator */}
-              <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-xs font-black">
+              <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-xs font-bold">
                 <span className={`w-2 h-2 rounded-full ${priorityDot[task.priority] || 'bg-slate-400'}`} />
                 <span className={priorityColors[task.priority] || 'text-slate-600'}>
                   {task.priority || 'Medium'}
@@ -249,7 +245,7 @@ export function TaskListView({
                   type="button"
                   onClick={(e) => handleQuickVerify(e, task)}
                   disabled={verifyingId === task._id}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer"
+                  className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-3 py-1.5 text-xs gap-1.5 shrink-0 cursor-pointer"
                 >
                   {verifyingId === task._id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -269,7 +265,7 @@ export function TaskListView({
                     e.stopPropagation();
                     onOpenDetails(task);
                   }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -285,8 +281,8 @@ export function TaskListView({
                 {/* Metadata Pills */}
                 <div className="flex flex-wrap items-center gap-4 py-3 text-xs font-semibold text-slate-600">
                   <div className="flex items-center gap-1.5">
-                    <Clock className={`w-3.5 h-3.5 ${overdue ? 'text-red-500' : 'text-slate-400'}`} />
-                    <span className={overdue ? 'text-red-600' : 'text-slate-600'}>
+                    <Clock className={`w-3.5 h-3.5 ${overdue ? 'text-error-500' : 'text-slate-400'}`} />
+                    <span className={overdue ? 'text-error-600' : 'text-slate-600'}>
                       Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No due date'}
                     </span>
                   </div>
@@ -342,7 +338,7 @@ export function TaskListView({
                   <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 text-slate-500 font-semibold">
                       <span>Subtasks:</span>
-                      <span className="font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-900">
                         {task.subtasks.filter((s) => s.completed).length} of {task.subtasks.length} done
                       </span>
                     </div>

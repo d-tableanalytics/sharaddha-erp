@@ -79,13 +79,13 @@ export function CompleteChecklistModal({ isOpen, onClose, task, onSuccess }) {
         )}
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
+            className="flex-1"
           >
             Mark Complete
           </Button>
@@ -120,9 +120,9 @@ export function NonFunctionalModal({ isOpen, onClose, task, onSuccess }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Mark Non-Functional" size="sm">
       <div className="space-y-4">
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-          <p className="text-sm font-semibold text-amber-800">{task?.taskName}</p>
-          <p className="text-xs text-amber-600 font-mono mt-0.5">{task?.taskCode}</p>
+        <div className="p-3 rounded-lg bg-warning-50 border border-warning-100">
+          <p className="text-sm font-semibold text-warning-600">{task?.taskName}</p>
+          <p className="text-xs text-warning-600 font-mono mt-0.5">{task?.taskCode}</p>
         </div>
 
         <div>
@@ -137,13 +137,13 @@ export function NonFunctionalModal({ isOpen, onClose, task, onSuccess }) {
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-amber-500 hover:!bg-amber-600 !text-white rounded-lg font-bold text-xs shadow-sm"
+            className="flex-1 !bg-warning-500 hover:!bg-warning-600 !text-white rounded-lg font-bold text-xs shadow-sm"
           >
             Mark Non-Functional
           </Button>
@@ -184,7 +184,7 @@ export function ReassignChecklistModal({ isOpen, onClose, task, users, onSuccess
     <Modal isOpen={isOpen} onClose={onClose} title="Reassign Task" size="sm">
       <div className="space-y-4">
         <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-          <p className="text-sm font-semibold text-slate-800">{task?.taskName}</p>
+          <p className="text-sm font-semibold text-slate-900">{task?.taskName}</p>
           <p className="text-xs text-slate-500 mt-0.5">
             Currently assigned to: {task?.doerFirstName} {task?.doerLastName}
           </p>
@@ -203,13 +203,13 @@ export function ReassignChecklistModal({ isOpen, onClose, task, users, onSuccess
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
+            className="flex-1"
           >
             Reassign
           </Button>
@@ -265,13 +265,13 @@ export function RemarkModal({ isOpen, onClose, taskIds, onSuccess }) {
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
+            className="flex-1"
           >
             Add Remark
           </Button>
@@ -381,8 +381,8 @@ export function EditChecklistModal({ isOpen, onClose, routine, users, onSuccess 
         </label>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">Cancel</Button>
-          <Button loading={loading} onClick={handleSubmit} className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm">
+          <Button variant="ghost" onClick={onClose} className="flex-1">Cancel</Button>
+          <Button loading={loading} onClick={handleSubmit} className="flex-1">
             Save Changes
           </Button>
         </div>
@@ -585,12 +585,12 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
         {form.startDate && (
           <div className={`flex items-center gap-2.5 p-3 rounded-lg text-xs font-semibold ${
             isInvalidDateRange
-              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+              ? 'bg-warning-50 text-warning-600 border border-warning-100'
               : 'bg-primary-50 text-primary-700 border border-primary-100'
           }`}>
             {isInvalidDateRange ? (
               <>
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                <AlertCircle className="w-4 h-4 shrink-0 text-warning-600" />
                 <span>End date cannot be earlier than start date</span>
               </>
             ) : (
@@ -630,12 +630,12 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
         </label>
 
         <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">Cancel</Button>
+          <Button variant="ghost" onClick={onClose} className="flex-1">Cancel</Button>
           <Button
             loading={loading}
             disabled={loading || isInvalidDateRange}
             onClick={handleSubmit}
-            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
+            className="flex-1"
           >
             {form.frequency === 'once'
               ? 'Create Task'

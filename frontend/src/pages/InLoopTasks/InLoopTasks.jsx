@@ -28,24 +28,30 @@ import delegationService from '../../services/delegation';
 import TaskKanbanView from '../Delegation/TaskKanbanView';
 import TaskCalendarView from '../Delegation/TaskCalendarView';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { PageHeader } from '../../components/common/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { TabNav } from '../../components/hrms/TabNav';
+import { Badge } from '../../components/ui/Badge';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 // Status Tab definitions
 const STATUS_TABS = [
   { key: 'All', label: 'All', dot: 'bg-slate-400' },
-  { key: 'Overdue', label: 'Overdue', dot: 'bg-red-500' },
+  { key: 'Overdue', label: 'Overdue', dot: 'bg-error-500' },
   { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent' },
-  { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500' },
+  { key: 'In Progress', label: 'In Progress', dot: 'bg-warning-500' },
   { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500' },
-  { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500' },
+  { key: 'Completed', label: 'Completed', dot: 'bg-success-500' },
 ];
 
 const KPI_CARDS = [
-  { key: 'All', countKey: 'Total', label: 'Total', dot: 'bg-slate-400', textColor: 'text-slate-800' },
-  { key: 'Overdue', countKey: 'Overdue', label: 'Overdue', dot: 'bg-red-500', textColor: 'text-red-600' },
+  { key: 'All', countKey: 'Total', label: 'Total', dot: 'bg-slate-400', textColor: 'text-slate-900' },
+  { key: 'Overdue', countKey: 'Overdue', label: 'Overdue', dot: 'bg-error-500', textColor: 'text-error-600' },
   { key: 'Pending', countKey: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent', textColor: 'text-slate-700' },
-  { key: 'In Progress', countKey: 'In Progress', label: 'In Progress', dot: 'bg-orange-500', textColor: 'text-orange-500' },
+  { key: 'In Progress', countKey: 'In Progress', label: 'In Progress', dot: 'bg-warning-500', textColor: 'text-warning-500' },
   { key: 'Awaiting Verification', countKey: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500', textColor: 'text-primary-600' },
-  { key: 'Completed', countKey: 'Completed', label: 'Completed', dot: 'bg-emerald-500', textColor: 'text-emerald-600' },
+  { key: 'Completed', countKey: 'Completed', label: 'Completed', dot: 'bg-success-500', textColor: 'text-success-600' },
 ];
 
 // Helper: Extract Initials
@@ -619,15 +625,15 @@ export function InLoopTasks() {
 
   // Priority color config
   const priorityColors = {
-    Urgent: 'text-red-500',
-    High: 'text-orange-500',
+    Urgent: 'text-error-500',
+    High: 'text-warning-500',
     Medium: 'text-primary-500',
     Low: 'text-slate-400',
   };
 
   const priorityDots = {
-    Urgent: 'bg-red-500',
-    High: 'bg-orange-500',
+    Urgent: 'bg-error-500',
+    High: 'bg-warning-500',
     Medium: 'bg-primary-500',
     Low: 'bg-slate-400',
   };
@@ -635,33 +641,30 @@ export function InLoopTasks() {
   return (
     <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & ADMIN EMPLOYEE SWITCHER ───────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-200">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center shadow-enterprise-md shrink-0">
-            <Bell className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900">
-              Loop Tasks
-            </h1>
-            <p className="text-sm text-slate-500 font-medium mt-1 max-w-2xl leading-relaxed">
-              {dynamicSubtitle}
-            </p>
-          </div>
-        </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page use it. It carries the
+        title, the description line and the right-aligned actions, and draws the
+        bottom rule every other page in the portal ends its header with.
 
-        <div className="flex items-center gap-2.5 ml-auto">
+        The 40px icon tile is dropped: no other page in the portal puts an icon
+        beside its title, and the sidebar already marks which page this is.
+      */}
+      <PageHeader
+        title="Loop Tasks"
+        subtitle={dynamicSubtitle}
+        actions={
+          <>
           {/* Refresh Button */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={fetchData}
             disabled={loading}
             title="Refresh loop tasks"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-primary-700 rounded-lg font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
           >
-            <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary-700' : 'text-slate-500'}`} />
-            <span>Refresh</span>
-          </button>
+            <RotateCcw className={`w-3.5 h-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
 
           {/* Role-Gated Admin Switcher */}
           {isAdmin && (
@@ -674,7 +677,7 @@ export function InLoopTasks() {
                   setLoopOwnerId(val === currentUserId ? '' : val);
                   setSelectedIds([]);
                 }}
-                className="h-10 pl-3.5 pr-8 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-700 text-xs font-bold focus:outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs appearance-none cursor-pointer transition-all"
+                className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               >
                 <option value={currentUserId}>My loop tasks</option>
                 {users.map((u) => {
@@ -695,8 +698,9 @@ export function InLoopTasks() {
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* ── 2. QUICK STATS RIBBON (6 KPI Metric Cards) ────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -707,7 +711,7 @@ export function InLoopTasks() {
             <div
               key={card.key}
               onClick={() => setActiveTab(card.key)}
-              className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group ${
                 isActive
                   ? 'border-primary-600 ring-2 ring-primary-500/20 bg-white'
                   : 'border-slate-200 bg-white hover:border-primary-600'
@@ -739,7 +743,7 @@ export function InLoopTasks() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="All Time">All Time</option>
             <option value="Today">Today</option>
@@ -757,7 +761,7 @@ export function InLoopTasks() {
         {/* Custom Start & End Date Inputs */}
         {dateRange === 'Custom' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -767,7 +771,7 @@ export function InLoopTasks() {
               />
             </div>
             <span className="text-slate-400 text-xs font-bold">to</span>
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -784,7 +788,7 @@ export function InLoopTasks() {
           <button
             type="button"
             onClick={() => setIsFilterFlyoutOpen((prev) => !prev)}
-            className={`h-11 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
+            className={`h-11 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-enterprise ${
               isFilterFlyoutOpen || activeFilterCount > 0
                 ? 'bg-primary-50 border border-primary-200 text-primary-700'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary-700'
@@ -801,9 +805,9 @@ export function InLoopTasks() {
 
           {/* Floating Filter Popover Panel */}
           {isFilterFlyoutOpen && (
-            <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl p-5 shadow-2xl z-40 animate-in slide-in-from-top-2 duration-200">
+            <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-xl p-5 shadow-enterprise-lg z-40 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
                   Filters
                 </span>
                 <button
@@ -830,7 +834,7 @@ export function InLoopTasks() {
                   <select
                     value={assignedByFilter}
                     onChange={(e) => setAssignedByFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-bold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">Anyone</option>
                     {availableAssigners.map((a) => (
@@ -849,7 +853,7 @@ export function InLoopTasks() {
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-bold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Priorities</option>
                     <option value="Urgent">Urgent</option>
@@ -867,7 +871,7 @@ export function InLoopTasks() {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-bold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Categories</option>
                     {categories.map((c) => (
@@ -886,7 +890,7 @@ export function InLoopTasks() {
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-bold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tags</option>
                     {allTags.map((tg) => (
@@ -905,7 +909,7 @@ export function InLoopTasks() {
                   <select
                     value={verificationFilter}
                     onChange={(e) => setVerificationFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-bold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tasks</option>
                     <option value="Verification Required">Verification Required</option>
@@ -925,7 +929,7 @@ export function InLoopTasks() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search in loop tasks..."
-            className="w-full h-11 pl-10 pr-8 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           />
           {search && (
             <button
@@ -943,7 +947,7 @@ export function InLoopTasks() {
           type="button"
           title="Reset Filters"
           onClick={handleClearAllFilters}
-          className="h-11 w-11 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-primary-700 rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-colors shrink-0"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -953,21 +957,21 @@ export function InLoopTasks() {
           type="button"
           onClick={handleExport}
           title="Export CSV"
-          className="h-11 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-primary-700 rounded-lg font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          className="inline-flex items-center justify-center gap-2 font-medium rounded-lg px-3 py-1.5 text-xs bg-transparent border border-slate-300 hover:bg-slate-50 text-slate-700 transition-all active:scale-[0.98] shrink-0"
         >
           <FileUp className="w-4 h-4" />
           <span>Export</span>
         </button>
 
         {/* View Mode Switcher */}
-        <div className="h-11 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs ml-auto shrink-0">
+        <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 ml-auto flex items-center gap-1 shadow-enterprise shrink-0">
           <button
             type="button"
             onClick={() => setViewMode('list')}
             title="List View"
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               viewMode === 'list'
-                ? 'bg-primary-600 text-white shadow-xs'
+                ? 'bg-primary-600 text-white shadow-enterprise'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
             }`}
           >
@@ -980,7 +984,7 @@ export function InLoopTasks() {
             title="Kanban Board View"
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               viewMode === 'kanban'
-                ? 'bg-primary-600 text-white shadow-xs'
+                ? 'bg-primary-600 text-white shadow-enterprise'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
             }`}
           >
@@ -993,7 +997,7 @@ export function InLoopTasks() {
             title="Calendar Schedule View"
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               viewMode === 'calendar'
-                ? 'bg-primary-600 text-white shadow-xs'
+                ? 'bg-primary-600 text-white shadow-enterprise'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
             }`}
           >
@@ -1004,44 +1008,40 @@ export function InLoopTasks() {
       </div>
 
       {/* ── 4. STATUS NAVIGATION TAB STRIP ─────────────────────────────── */}
-      <div className="border-b border-slate-200 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-6 min-w-max px-1">
-          {STATUS_TABS.map((tab) => {
-            const isActive = activeTab === tab.key;
-            const count = statusCounts[tab.key] || 0;
+      {/*
+        The portal's tab strip, components/hrms/TabNav.jsx, which every
+        multi-view HRMS module uses.
 
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${
-                  isActive ? 'text-slate-900 font-semibold' : 'text-slate-500 font-bold hover:text-slate-800'
-                }`}
-              >
-                {tab.key !== 'All' && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
-                <span>{tab.label}</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${
-                    isActive ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {count}
-                </span>
-                {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full animate-in fade-in duration-200" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        The strip this replaces was a second implementation of the same control
+        that agreed with it on nothing: `text-xs uppercase tracking-wider` against
+        TabNav's `text-sm font-semibold`, an absolutely-positioned bar for the
+        active marker instead of a `border-b-2`, `gap-6` between tabs against
+        `gap-1`, and a solid `bg-primary-600` count pill where TabNav tints the
+        active one `bg-primary-100 text-primary-700`.
+
+        The status dot has no equivalent in TabNav, so it rides along inside the
+        label - which TabNav renders as-is, JSX included.
+      */}
+      <TabNav
+        tabs={STATUS_TABS.map((tab) => ({
+          key: tab.key,
+          label: (
+            <span className="inline-flex items-center gap-2">
+              {tab.key !== 'All' && <span className={`w-2 h-2 rounded-full ${tab.dot}`} />}
+              {tab.label}
+            </span>
+          ),
+          badge: statusCounts[tab.key] || 0,
+        }))}
+        activeKey={activeTab}
+        onChange={setActiveTab}
+      />
 
       {/* ── 5. ACTIVE FILTER CHIPS ─────────────────────────────────────── */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {assignedByFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>
                 Assigned By: {availableAssigners.find((a) => a.id === assignedByFilter)?.name || assignedByFilter}
               </span>
@@ -1056,7 +1056,7 @@ export function InLoopTasks() {
           )}
 
           {priorityFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Priority: {priorityFilter}</span>
               <button
                 type="button"
@@ -1069,7 +1069,7 @@ export function InLoopTasks() {
           )}
 
           {categoryFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Category: {categoryFilter}</span>
               <button
                 type="button"
@@ -1082,7 +1082,7 @@ export function InLoopTasks() {
           )}
 
           {tagFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Tag: {tagFilter}</span>
               <button
                 type="button"
@@ -1095,7 +1095,7 @@ export function InLoopTasks() {
           )}
 
           {verificationFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-enterprise">
               <span>Verification: {verificationFilter}</span>
               <button
                 type="button"
@@ -1110,7 +1110,7 @@ export function InLoopTasks() {
           <button
             type="button"
             onClick={handleClearAllFilters}
-            className="text-[11px] font-bold text-slate-500 hover:text-red-600 underline cursor-pointer ml-1"
+            className="text-[11px] font-bold text-slate-500 hover:text-error-600 underline cursor-pointer ml-1"
           >
             Clear all
           </button>
@@ -1121,37 +1121,29 @@ export function InLoopTasks() {
       {loading ? (
         /* Loading State */
         <div className="flex flex-col items-center justify-center py-24">
-          <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4" />
+          <LoadingSpinner size={32} className="mb-4" />
           <p className="text-sm font-bold text-slate-600">Loading Loop Tasks...</p>
         </div>
       ) : inLoopTasks.length === 0 ? (
         /* No In-Loop Tasks at all */
-        <div className="bg-white/70 border-2 border-dashed border-slate-200 rounded-3xl p-16 text-center flex flex-col items-center justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center mb-4">
-            <CheckSquare className="w-8 h-8" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks In-Loop</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md">
-            Tasks you are copied on will appear here.
-          </p>
-        </div>
+        <EmptyState
+          title="No Tasks In-Loop"
+          description="Tasks you are copied on will appear here."
+          icon={<CheckSquare className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+        />
       ) : filteredTasks.length === 0 ? (
         /* Filter Mismatch State */
-        <div className="bg-white/70 border-2 border-dashed border-slate-200 rounded-3xl p-16 text-center flex flex-col items-center justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center mb-4">
-            <CheckSquare className="w-8 h-8" />
+        <div>
+          <EmptyState
+            title="No Tasks Match Filters"
+            description="Try changing your filters or date range."
+            icon={<CheckSquare className="w-10 h-10 text-slate-400 stroke-[1.5]" />}
+          />
+          <div className="flex justify-center mt-4">
+            <button type="button" onClick={handleClearAllFilters} className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer">
+              Clear Filters
+            </button>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks Match Filters</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md mb-6">
-            Try changing your filters or date range.
-          </p>
-          <button
-            type="button"
-            onClick={handleClearAllFilters}
-            className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
-          >
-            Clear Filters
-          </button>
         </div>
       ) : viewMode === 'kanban' ? (
         /* 6B. Kanban Board View */
@@ -1163,7 +1155,7 @@ export function InLoopTasks() {
         /* 6A. List View (Default) */
         <div className="space-y-3">
           {/* Select All Bar */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-xs">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-enterprise">
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -1201,17 +1193,17 @@ export function InLoopTasks() {
             const assignerFullName = `${assignerFirst} ${assignerLast}`.trim();
 
             // Status Badge styles
-            let statusBadgeStyle = 'bg-slate-50 text-slate-700 border-slate-200';
+            let statusVariant = 'neutral';
             if (task.status === 'Completed') {
-              statusBadgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+              statusVariant = 'success';
             } else if (task.status === 'Awaiting Verification') {
-              statusBadgeStyle = 'bg-primary-50 text-primary-700 border-primary-200';
+              statusVariant = 'primary';
             } else if (task.status === 'In Progress') {
-              statusBadgeStyle = 'bg-orange-50 text-orange-700 border-orange-200';
+              statusVariant = 'warning';
             } else if (overdue) {
-              statusBadgeStyle = 'bg-red-50 text-red-700 border-red-200';
+              statusVariant = 'danger';
             } else if (task.status === 'Need Revision') {
-              statusBadgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
+              statusVariant = 'warning';
             }
 
             return (
@@ -1219,8 +1211,8 @@ export function InLoopTasks() {
                 key={task._id}
                 className={`group bg-white rounded-lg border transition-all duration-200 ${
                   task.status === 'Awaiting Verification'
-                    ? 'border-primary-300 ring-2 ring-primary-500/20 bg-primary-50/10 shadow-xs hover:shadow-md'
-                    : 'border-slate-200 hover:border-slate-300 shadow-xs hover:shadow-md'
+                    ? 'border-primary-300 ring-2 ring-primary-500/20 bg-primary-50/10 shadow-enterprise hover:shadow-md'
+                    : 'border-slate-200 hover:border-slate-300 shadow-enterprise hover:shadow-md'
                 }`}
               >
                 {/* Collapsed Row Header */}
@@ -1242,14 +1234,14 @@ export function InLoopTasks() {
                   {/* Assigner Avatar */}
                   <div
                     title={`Assigned by ${assignerFullName}`}
-                    className="w-10 h-10 rounded-full bg-primary-50 text-primary-700 font-semibold text-xs flex items-center justify-center border border-primary-200 shrink-0 shadow-xs"
+                    className="w-10 h-10 rounded-full bg-primary-50 text-primary-700 font-semibold text-xs flex items-center justify-center border border-primary-200 shrink-0 shadow-enterprise"
                   >
                     {getInitials(assignerFirst, assignerLast)}
                   </div>
 
                   {/* Assigner & Hierarchy */}
                   <div className="hidden sm:flex flex-col min-w-[130px] max-w-[170px] shrink-0">
-                    <span className="text-xs font-semibold text-slate-800 truncate">
+                    <span className="text-xs font-semibold text-slate-900 truncate">
                       From: {assignerFullName}
                     </span>
                     <span className="text-[11px] font-bold text-primary-700 truncate">
@@ -1259,7 +1251,7 @@ export function InLoopTasks() {
 
                   {/* Task Title */}
                   <div className="flex-1 min-w-[180px]">
-                    <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-primary-700 transition-colors">
+                    <h4 className="text-sm font-semibold text-slate-900 line-clamp-1 group-hover:text-primary-700 transition-colors">
                       {task.taskTitle}
                     </h4>
                     <div className="sm:hidden text-[10px] font-bold text-slate-400">
@@ -1268,16 +1260,14 @@ export function InLoopTasks() {
                   </div>
 
                   {/* Status Badge */}
-                  <span
-                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border uppercase tracking-wider ${statusBadgeStyle} shrink-0`}
-                  >
+                  <Badge variant={statusVariant} className="shrink-0">
                     {task.status}
-                  </span>
+                  </Badge>
 
                   {/* Due Date Badge */}
                   <span
                     className={`hidden md:inline-flex items-center gap-1 text-[10px] font-bold shrink-0 ${
-                      overdue ? 'text-red-600 font-bold' : 'text-slate-400'
+                      overdue ? 'text-error-600 font-bold' : 'text-slate-400'
                     }`}
                   >
                     {task.dueDate
@@ -1314,7 +1304,7 @@ export function InLoopTasks() {
                         e.stopPropagation();
                         handleOpenDetails(task);
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                     >
                       <MoreVertical className="w-4 h-4" />
                     </button>
@@ -1336,10 +1326,10 @@ export function InLoopTasks() {
                       <div className="flex items-center gap-1.5">
                         <Clock
                           className={`w-3.5 h-3.5 ${
-                            overdue ? 'text-red-500' : 'text-slate-400'
+                            overdue ? 'text-error-500' : 'text-slate-400'
                           }`}
                         />
-                        <span className={overdue ? 'text-red-600' : 'text-slate-600'}>
+                        <span className={overdue ? 'text-error-600' : 'text-slate-600'}>
                           Due:{' '}
                           {task.dueDate
                             ? new Date(task.dueDate).toLocaleDateString('en-GB', {
@@ -1412,7 +1402,7 @@ export function InLoopTasks() {
                       <button
                         type="button"
                         onClick={() => handleOpenDetails(task)}
-                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer"
+                        className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 cursor-pointer"
                       >
                         <Bell className="w-3.5 h-3.5" />
                         <span>View Details</span>

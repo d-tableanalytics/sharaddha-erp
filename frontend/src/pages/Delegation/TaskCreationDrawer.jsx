@@ -205,21 +205,21 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
   const priorities = [
     { label: 'Low', color: 'border-slate-300 text-slate-600' },
     { label: 'Medium', color: 'border-primary-400 text-primary-600' },
-    { label: 'High', color: 'border-orange-400 text-orange-600' },
-    { label: 'Urgent', color: 'border-red-500 text-red-600' },
+    { label: 'High', color: 'border-warning-500 text-warning-600' },
+    { label: 'Urgent', color: 'border-error-500 text-error-600' },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl bg-white h-full shadow-enterprise-lg border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
         {/* Drawer Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/70">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-primary-600 text-white">
               <CheckSquare className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-800">Assign New Task</h2>
+              <h2 className="text-base font-semibold text-slate-900">Assign New Task</h2>
               <p className="text-xs font-semibold text-slate-500">
                 Delegate work to a team member with audit tracking
               </p>
@@ -227,7 +227,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -237,7 +237,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           {/* Title */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Task Title *
             </label>
             <input
@@ -246,13 +246,13 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               onChange={(e) => setTaskTitle(e.target.value)}
               placeholder="e.g. Quarterly Tax Filing Audit & Reconciliation"
               required
-              className="w-full h-11 px-3.5 text-sm font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Description & Instructions
             </label>
             <textarea
@@ -260,21 +260,21 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detailed guidelines, objectives, or instructions for the doer..."
-              className="w-full p-3.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 resize-none"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
           {/* Assignee & In-Loop Stakeholders */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Assign To (Doer) *
               </label>
               <select
                 value={doerId}
                 onChange={(e) => setDoerId(e.target.value)}
                 required
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               >
                 {internalMembers.length === 0 ? (
                   <option value="" disabled>No internal members available</option>
@@ -290,7 +290,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700">
                   Category
                 </label>
 
@@ -306,7 +306,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                     setCategory(e.target.value);
                   }
                 }}
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               >
                 {availableCategories.map((cat) => (
                   <option key={cat} value={cat}>
@@ -335,12 +335,12 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                       }
                     }}
                     placeholder="Enter custom category name..."
-                    className="flex-1 h-9 px-3 text-xs font-semibold text-slate-800 bg-white border border-primary-300 rounded-lg outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20"
+                    className="flex-1 px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
                   <button
                     type="button"
                     onClick={handleAddNewCategory}
-                    className="h-8 px-3 text-xs font-bold text-white bg-primary-600 hover:bg-primary-800 rounded-md transition-colors shrink-0 flex items-center gap-1 shadow-xs"
+                    className="h-8 px-3 text-xs font-bold text-white bg-primary-600 hover:bg-primary-800 rounded-md transition-colors shrink-0 flex items-center gap-1 shadow-enterprise"
                   >
                     Add
                   </button>
@@ -359,7 +359,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
 
           {/* In Loop Collaborators */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               In-Loop Stakeholders (Cc)
             </label>
             <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg min-h-[44px]">
@@ -379,7 +379,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                         }
                       }}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${selected
-                        ? 'bg-primary-600 text-white shadow-xs'
+                        ? 'bg-primary-600 text-white shadow-enterprise'
                         : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                         }`}
                     >
@@ -395,7 +395,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
 
           {/* Priority Picker */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
               Priority Level
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -406,7 +406,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                     key={p.label}
                     type="button"
                     onClick={() => setPriority(p.label)}
-                    className={`py-2 px-1 text-center rounded-lg border text-xs font-black transition-all ${active
+                    className={`py-2 px-1 text-center rounded-lg border text-xs font-bold transition-all ${active
                       ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
                       : `${p.color} bg-white hover:bg-slate-50`
                       }`}
@@ -421,19 +421,19 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
           {/* Scheduling & Recurrence */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Start Date
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Due Date *
               </label>
               <input
@@ -441,18 +441,18 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 required
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Recurrence
               </label>
               <select
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value)}
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               >
                 <option value="none">One Time</option>
                 <option value="Daily">Daily</option>
@@ -467,7 +467,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
 
           {/* Tags */}
           <div>
-            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Tags
             </label>
             <div className="space-y-2">
@@ -477,14 +477,14 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
                 placeholder="Type tag and press Enter..."
-                className="w-full h-10 px-3 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               />
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {tags.map((t) => (
                     <span
                       key={t.name}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white shadow-enterprise"
                       style={{ backgroundColor: t.color }}
                     >
                       <span>{t.name}</span>
@@ -505,7 +505,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
           {/* Subtasks */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-700">
                 Subtasks / Action Checklist
               </label>
               <button
@@ -526,13 +526,13 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                     value={st}
                     onChange={(e) => handleSubtaskChange(index, e.target.value)}
                     placeholder={`Step ${index + 1}...`}
-                    className="flex-1 h-9 px-3 text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
+                    className="flex-1 px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
                   {subtasks.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveSubtask(index)}
-                      className="p-2 text-slate-400 hover:text-red-500 rounded-lg"
+                      className="p-2 text-slate-400 hover:text-error-500 rounded-lg"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -548,7 +548,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-primary-700" />
                 <div>
-                  <span className="text-xs font-black text-slate-800 block">
+                  <span className="text-xs font-bold text-slate-900 block">
                     Delegator Verification Required
                   </span>
                   <span className="text-[11px] font-medium text-slate-500">
@@ -567,9 +567,9 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
             <div className="border-t border-slate-200/80 pt-3">
               <label className="flex items-center justify-between cursor-pointer">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-emerald-600" />
+                  <FileText className="w-4 h-4 text-success-600" />
                   <div>
-                    <span className="text-xs font-black text-slate-800 block">
+                    <span className="text-xs font-bold text-slate-900 block">
                       Evidence / Attachment Proof Required
                     </span>
                     <span className="text-[11px] font-medium text-slate-500">
@@ -600,7 +600,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
           <button
             onClick={handleSubmit}
             disabled={submitting || !taskTitle.trim() || !dueDate}
-            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-black rounded-lg shadow-sm flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2"
           >
             {submitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

@@ -86,11 +86,11 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
   const todayStr = new Date().toDateString();
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-enterprise/40 overflow-hidden flex flex-col">
+    <div className="bg-white rounded-xl border border-slate-200/80 shadow-enterprise/40 overflow-hidden flex flex-col">
       {/* Calendar Top Controls */}
       <div className="flex flex-wrap items-center justify-between p-4 border-b border-slate-200 gap-4 bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs">
+          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-enterprise">
             <button
               onClick={prevPeriod}
               className="p-1.5 hover:bg-slate-100 rounded text-slate-600 transition-colors"
@@ -110,7 +110,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <span className="text-sm font-black text-slate-800 ml-2">{headerDateLabel}</span>
+          <span className="text-sm font-bold text-slate-900 ml-2">{headerDateLabel}</span>
         </div>
 
         {/* Day / Week / Month Pill Selector */}
@@ -121,7 +121,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
               onClick={() => setCalendarMode(mode)}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
                 calendarMode === mode
-                  ? 'bg-white text-primary-700 shadow-xs'
+                  ? 'bg-white text-primary-700 shadow-enterprise'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -149,10 +149,10 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                       isToday ? 'bg-primary-50 text-primary-700' : 'text-slate-700'
                     }`}
                   >
-                    <span className="text-[10px] uppercase font-black text-slate-400">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">
                       {d.toLocaleDateString('en-US', { weekday: 'short' })}
                     </span>
-                    <span className={`text-sm font-black mt-0.5 ${isToday ? 'text-primary-700' : ''}`}>
+                    <span className={`text-sm font-bold mt-0.5 ${isToday ? 'text-primary-700' : ''}`}>
                       {d.getDate()}
                     </span>
                   </div>
@@ -194,10 +194,10 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                             <div
                               key={t._id}
                               onClick={() => onTaskClick(t)}
-                              className="px-2 py-1 rounded-md bg-primary-600 text-white text-[10px] font-bold shadow-xs hover:bg-primary-700 cursor-pointer truncate transition-all active:scale-95"
+                              className="px-2 py-1 rounded-md bg-primary-600 text-white text-[10px] font-bold shadow-enterprise hover:bg-primary-700 cursor-pointer truncate transition-all active:scale-[0.98]"
                               title={`${t.taskTitle} (${t.doerFirstName})`}
                             >
-                              <span className="font-black">[{t.priority}]</span> {t.taskTitle}
+                              <span className="font-bold">[{t.priority}]</span> {t.taskTitle}
                             </div>
                           ))}
                       </div>
@@ -214,7 +214,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
       {calendarMode === 'Day' && (
         <div className="p-6">
           <div className="max-w-xl mx-auto space-y-3">
-            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">
+            <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">
               Tasks Scheduled for {currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </h4>
             {tasks
@@ -229,10 +229,10 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                 <div
                   key={t._id}
                   onClick={() => onTaskClick(t)}
-                  className="p-4 rounded-lg border border-slate-200 bg-white hover:border-primary-600 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
+                  className="p-4 rounded-xl border border-slate-200 bg-white hover:border-primary-600 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
                 >
                   <div>
-                    <h5 className="text-sm font-black text-slate-800">{t.taskTitle}</h5>
+                    <h5 className="text-sm font-bold text-slate-900">{t.taskTitle}</h5>
                     <p className="text-xs text-slate-500 font-semibold">
                       Assignee: {t.doerFirstName} {t.doerLastName} · Status: {t.status}
                     </p>
@@ -251,7 +251,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
         <div className="p-6 text-center">
           <p className="text-xs font-bold text-slate-500 mb-4">
             Viewing tasks for month of{' '}
-            <strong className="text-slate-800">
+            <strong className="text-slate-900">
               {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             </strong>
           </p>
@@ -260,14 +260,14 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
               <div
                 key={t._id}
                 onClick={() => onTaskClick(t)}
-                className="p-3 rounded-lg border border-slate-200 bg-white text-left hover:border-primary-600 cursor-pointer hover:shadow-xs"
+                className="p-3 rounded-xl border border-slate-200 bg-white text-left hover:border-primary-600 cursor-pointer hover:shadow-enterprise"
               >
                 <div className="text-[10px] font-bold text-slate-400">
                   {t.dueDate
                     ? new Date(t.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                     : 'No date'}
                 </div>
-                <div className="text-xs font-black text-slate-800 line-clamp-1">{t.taskTitle}</div>
+                <div className="text-xs font-bold text-slate-900 line-clamp-1">{t.taskTitle}</div>
                 <div className="text-[11px] font-medium text-slate-500 truncate">
                   {t.doerFirstName} {t.doerLastName}
                 </div>

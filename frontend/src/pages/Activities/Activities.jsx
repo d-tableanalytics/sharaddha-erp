@@ -27,6 +27,8 @@ import delegationService from '../../services/delegation';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/Button';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { ErrorState } from '../../components/hrms/ErrorState';
 
 // Helper: Extract Initials
 function getInitials(user) {
@@ -58,25 +60,12 @@ function formatActivityDate(dateInput) {
   return { date, time };
 }
 
-// Enterprise Avatar Color Palette
-const AVATAR_COLOR_PALETTE = [
-  'bg-primary-50 text-primary-700 border-primary-200',
-  'bg-indigo-50 text-indigo-700 border-indigo-200/60',
-  'bg-emerald-50 text-emerald-700 border-emerald-200/60',
-  'bg-sky-50 text-sky-700 border-sky-200/60',
-  'bg-amber-50 text-amber-700 border-amber-200/60',
-  'bg-purple-50 text-purple-700 border-purple-200/60',
-];
-
-function getAvatarColor(nameOrId = '', index = 0) {
-  if (!nameOrId) return AVATAR_COLOR_PALETTE[index % AVATAR_COLOR_PALETTE.length];
-  let hash = 0;
-  for (let i = 0; i < nameOrId.length; i++) {
-    hash = nameOrId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const idx = Math.abs(hash) % AVATAR_COLOR_PALETTE.length;
-  return AVATAR_COLOR_PALETTE[idx];
-}
+// The portal's initials chip, as HRMS's EmployeesPage renders it: one flat
+// primary disc, no per-person hue and no border. The six-hue rotation this
+// replaces existed only in the WorkQueue - and once the off-palette hues folded
+// onto the portal's four tokens, four of its six entries were the same colour,
+// so it was rotating between duplicates.
+const AVATAR_CLASS = 'bg-primary-100 text-primary-700';
 
 // Activity Type Config: Semantic styling & Icons
 function getActivityConfig(type) {
@@ -92,36 +81,36 @@ function getActivityConfig(type) {
       return {
         label: 'Subtask Added',
         icon: ListPlus,
-        iconBox: 'bg-emerald-50 text-emerald-600 border-emerald-200/60',
-        badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/60',
+        iconBox: 'bg-success-50 text-success-600 border-success-100/60',
+        badge: 'bg-success-50 text-success-600 border-success-100/60',
       };
     case 'status_change':
       return {
         label: 'Status Change',
         icon: CheckCircle2,
-        iconBox: 'bg-indigo-50 text-indigo-600 border-indigo-200/60',
-        badge: 'bg-indigo-50 text-indigo-700 border-indigo-200/60',
+        iconBox: 'bg-primary-50 text-primary-600 border-primary-200/60',
+        badge: 'bg-primary-50 text-primary-700 border-primary-200/60',
       };
     case 'remark':
       return {
         label: 'Remark Posted',
         icon: MessageSquare,
-        iconBox: 'bg-sky-50 text-sky-600 border-sky-200/60',
-        badge: 'bg-sky-50 text-sky-700 border-sky-200/60',
+        iconBox: 'bg-primary-50 text-primary-600 border-primary-200/60',
+        badge: 'bg-primary-50 text-primary-700 border-primary-200/60',
       };
     case 'date_revision':
       return {
         label: 'Date Revised',
         icon: Calendar,
-        iconBox: 'bg-amber-50 text-amber-600 border-amber-200/60',
-        badge: 'bg-amber-50 text-amber-700 border-amber-200/60',
+        iconBox: 'bg-warning-50 text-warning-600 border-warning-100/60',
+        badge: 'bg-warning-50 text-warning-600 border-warning-100/60',
       };
     case 'deleted':
       return {
         label: 'Task Deleted',
         icon: Trash2,
-        iconBox: 'bg-red-50 text-red-600 border-red-200/60',
-        badge: 'bg-red-50 text-red-700 border-red-200/60',
+        iconBox: 'bg-error-50 text-error-600 border-error-100/60',
+        badge: 'bg-error-50 text-error-600 border-error-100/60',
       };
     default:
       return {
@@ -472,19 +461,23 @@ export function Activities() {
 
   // If user is loaded and not admin, show access notice
   if (user && !isAdmin) {
+    /*
+      The portal's refusal panel, components/hrms/ErrorState.jsx, in its
+      `forbidden` variant - the same thing a user sees when HRMS turns them
+      away. The panel this replaces was a third empty-state shape with its own
+      red icon disc and its own `text-xl font-semibold` heading.
+    */
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6 select-none">
-        <div className="text-center p-10 bg-white rounded-3xl shadow-xs border border-slate-200 max-w-md space-y-4">
-          <div className="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shadow-xs">
-            <ShieldAlert size={32} strokeWidth={2.5} />
-          </div>
-          <h2 className="text-xl font-semibold text-slate-800">Admin Access Required</h2>
-          <p className="text-sm font-medium text-slate-500 leading-relaxed">
-            The centralized Activities audit log is restricted to administrative and management roles.
-          </p>
+        <div className="max-w-md">
+          <ErrorState
+            variant="forbidden"
+            title="Admin Access Required"
+            description="The centralized Activities audit log is restricted to administrative and management roles."
+          />
           <button
             onClick={() => navigate('/work-queue')}
-            className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 w-full cursor-pointer mt-4"
           >
             Return to My Work
           </button>
@@ -500,8 +493,8 @@ export function Activities() {
         The shared PageHeader, as O2D and every HRMS page already use it.
 
         The hand-rolled header this replaces differed from the rest of the app
-        in every measurable way: `text-2xl font-bold text-slate-800` against the
-        system's `text-xl font-black text-slate-900`, a `text-xs font-bold
+        in every measurable way: `text-2xl font-bold text-slate-900` against the
+        system's `text-xl font-bold text-slate-900`, a `text-xs font-bold
         text-slate-400` subtitle against `text-sm font-medium text-slate-500`,
         and no bottom rule at all - so a WorkQueue page announced itself in a
         different voice from the page the user had just left.
@@ -559,37 +552,36 @@ export function Activities() {
                 ? `${stat.user.firstName} ${stat.user.lastName || ''}`.trim()
                 : (stat.user?.user || 'Staff');
               const designation = stat.user?.designation || 'Team Member';
-              const colorClass = getAvatarColor(displayName, i);
 
               return (
                 <div
                   key={uid || i}
                   onClick={() => setUpdatedBy(isSelected ? 'All' : uid)}
                   title={`Filter by ${displayName}`}
-                  className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-3 group ${
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-enterprise hover:shadow-md flex items-center gap-3 group ${
                     isSelected
                       ? 'border-primary-600 ring-2 ring-primary-500/20 bg-white'
                       : 'border-slate-200 bg-white hover:border-primary-600'
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <div className={`w-10 h-10 rounded-full font-semibold text-xs flex items-center justify-center border shadow-xs ${colorClass}`}>
+                    <div className={`w-10 h-10 rounded-full font-bold text-xs flex items-center justify-center ${AVATAR_CLASS}`}>
                       {initials}
                     </div>
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center border border-white shadow-xs">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-800 text-white text-[9px] font-semibold flex items-center justify-center border border-white shadow-enterprise">
                       #{i + 1}
                     </span>
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-slate-800 truncate group-hover:text-primary-700 transition-colors block">
+                    <span className="text-xs font-semibold text-slate-900 truncate group-hover:text-primary-700 transition-colors block">
                       {displayName}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 truncate block">
                       {designation}
                     </span>
                     <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-base font-semibold text-slate-800 leading-tight">
+                      <span className="text-base font-semibold text-slate-900 leading-tight">
                         {stat.count}
                       </span>
                       <span className="text-[10px] font-bold text-slate-400">
@@ -610,14 +602,14 @@ export function Activities() {
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search
             size={15}
-            className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search activities, titles, authors..."
-            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-bold outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           />
           {search && (
             <button
@@ -635,7 +627,7 @@ export function Activities() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="This Month">This Month</option>
             <option value="Today">Today</option>
@@ -654,7 +646,7 @@ export function Activities() {
         {/* Custom Start & End Dates */}
         {dateRange === 'Custom' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -664,7 +656,7 @@ export function Activities() {
               />
             </div>
             <span className="text-slate-400 text-xs font-bold">to</span>
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
+            <div className="border border-slate-300 rounded-lg px-3 py-2 flex items-center gap-2 bg-white min-w-[135px] shadow-sm transition-all focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -681,7 +673,7 @@ export function Activities() {
           <select
             value={activityType}
             onChange={(e) => setActivityType(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             {ACTIVITY_TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -700,7 +692,7 @@ export function Activities() {
           <select
             value={updatedBy}
             onChange={(e) => setUpdatedBy(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
+            className="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-2 text-sm text-slate-900 shadow-sm appearance-none outline-none cursor-pointer transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
           >
             <option value="All">All Authors</option>
             {usersList.map((u) => {
@@ -723,7 +715,7 @@ export function Activities() {
           <button
             type="button"
             onClick={handleClearAllFilters}
-            className="h-11 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 font-medium rounded-lg px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all active:scale-[0.98] shrink-0"
           >
             <X size={14} />
             <span>Reset</span>
@@ -738,18 +730,18 @@ export function Activities() {
 
       {/* ── 4. CHRONOLOGICAL AUDIT LEDGER / FEED ─────────────────────────── */}
       {loading ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-3 shadow-xs">
-          <div className="w-9 h-9 border-3 border-primary-600 border-t-transparent rounded-full animate-spin" />
+        <div className="bg-white rounded-xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-3 shadow-enterprise">
+          <LoadingSpinner size={32} />
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Loading audit timeline...
           </span>
         </div>
       ) : activities.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-16 flex flex-col items-center justify-center text-center shadow-xs">
+        <div className="bg-white rounded-xl border border-slate-200 p-16 flex flex-col items-center justify-center text-center shadow-enterprise">
           <div className="w-14 h-14 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3">
             <AlertCircle size={28} />
           </div>
-          <h3 className="text-base font-semibold text-slate-800">No Activities Found</h3>
+          <h3 className="text-base font-semibold text-slate-900">No Activities Found</h3>
           <p className="text-xs font-medium text-slate-400 mt-1 max-w-sm">
             No timeline activity logs matched your active filters or date range.
           </p>
@@ -757,7 +749,7 @@ export function Activities() {
             <button
               type="button"
               onClick={handleClearAllFilters}
-              className="mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 mt-4 cursor-pointer"
             >
               Clear Filters
             </button>
@@ -773,16 +765,15 @@ export function Activities() {
             const authorFullName = `${act.user?.firstName || ''} ${act.user?.lastName || ''}`.trim() || act.user?.user || 'Staff Member';
             const authorDesignation = act.user?.designation || 'Staff';
             const formattedDate = formatActivityDate(act.createdAt);
-            const avatarClass = getAvatarColor(authorFullName, index);
 
             return (
               <div
                 key={act.id || act._id || index}
                 onClick={() => handleOpenTaskDetails(act.relatedId)}
-                className="bg-white rounded-lg border border-slate-200 hover:border-primary-300 hover:shadow-md p-4 transition-all cursor-pointer group flex flex-col md:flex-row md:items-center gap-3.5 sm:gap-4"
+                className="bg-white rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-md p-4 transition-all cursor-pointer group flex flex-col md:flex-row md:items-center gap-3.5 sm:gap-4"
               >
                 {/* Activity Type Icon Indicator */}
-                <div className={`w-10 h-10 rounded-lg border flex items-center justify-center shrink-0 shadow-xs ${cfg.iconBox}`}>
+                <div className={`w-10 h-10 rounded-lg border flex items-center justify-center shrink-0 shadow-enterprise ${cfg.iconBox}`}>
                   <IconComponent size={18} strokeWidth={2.5} />
                 </div>
 
@@ -792,7 +783,7 @@ export function Activities() {
                     <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md border shrink-0 ${cfg.badge}`}>
                       {cfg.label}
                     </span>
-                    <h4 className="text-sm font-semibold text-slate-800 group-hover:text-primary-700 transition-colors truncate">
+                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-primary-700 transition-colors truncate">
                       {act.title}
                     </h4>
                   </div>
@@ -816,11 +807,11 @@ export function Activities() {
 
                 {/* Author Identity Pill */}
                 <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/60 px-2.5 py-1.5 rounded-lg shrink-0">
-                  <div className={`w-7 h-7 rounded-full font-semibold text-[11px] flex items-center justify-center border shrink-0 ${avatarClass}`}>
+                  <div className={`w-7 h-7 rounded-full font-bold text-[11px] flex items-center justify-center shrink-0 ${AVATAR_CLASS}`}>
                     {initials}
                   </div>
                   <div className="flex flex-col min-w-[70px]">
-                    <span className="text-xs font-semibold text-slate-800 leading-tight truncate max-w-[130px]">
+                    <span className="text-xs font-semibold text-slate-900 leading-tight truncate max-w-[130px]">
                       {authorFullName}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate max-w-[130px]">

@@ -37,15 +37,15 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary-50 text-primary-700">
               <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Revise Due Date</h3>
+              <h3 className="text-base font-semibold text-slate-900">Revise Due Date</h3>
               <p className="text-[11px] text-slate-500 truncate max-w-[260px]">{task.taskTitle}</p>
             </div>
           </div>
@@ -76,7 +76,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
               required
-              className="w-full h-10 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -90,7 +90,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
               onChange={(e) => setReason(e.target.value)}
               placeholder="Provide context for schedule revision..."
               required
-              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500 resize-none"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -98,7 +98,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-slate-100 text-slate-600 px-4 py-2 text-sm"
             >
               Cancel
             </button>
@@ -138,15 +138,15 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600">
+            <div className="p-2 rounded-lg bg-warning-500/10 text-warning-600">
               <Clock className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Set Task Reminder</h3>
+              <h3 className="text-base font-semibold text-slate-900">Set Task Reminder</h3>
               <p className="text-[11px] text-slate-500 truncate max-w-[260px]">{task.taskTitle}</p>
             </div>
           </div>
@@ -168,7 +168,7 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full h-10 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -181,7 +181,7 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Check progress before noon meeting"
-              className="w-full h-10 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -189,7 +189,7 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-slate-100 text-slate-600 px-4 py-2 text-sm"
             >
               Cancel
             </button>
@@ -236,15 +236,15 @@ export function FollowUpModal({ isOpen, onClose, task, onAddFollowUp }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+            <div className="p-2 rounded-lg bg-success-500/10 text-success-600">
               <PhoneCall className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Log Follow-Up</h3>
+              <h3 className="text-base font-semibold text-slate-900">Log Follow-Up</h3>
               <p className="text-[11px] text-slate-500 truncate max-w-[260px]">{task.taskTitle}</p>
             </div>
           </div>
@@ -294,7 +294,7 @@ export function FollowUpModal({ isOpen, onClose, task, onAddFollowUp }) {
               onChange={(e) => setNotes(e.target.value)}
               placeholder="What was discussed? Status update received..."
               required
-              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500 resize-none"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -302,7 +302,7 @@ export function FollowUpModal({ isOpen, onClose, task, onAddFollowUp }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-slate-100 text-slate-600 px-4 py-2 text-sm"
             >
               Cancel
             </button>
@@ -340,15 +340,15 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-emerald-50/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-success-50/50">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+            <div className="p-2 rounded-lg bg-success-500/10 text-success-600">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Verify & Complete Task</h3>
+              <h3 className="text-base font-semibold text-slate-900">Verify & Complete Task</h3>
               <p className="text-[11px] text-slate-500 truncate max-w-[260px]">{task.taskTitle}</p>
             </div>
           </div>
@@ -364,7 +364,7 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
           <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-500">Assignee:</span>
-              <span className="font-bold text-slate-800">{task.doerFirstName} {task.doerLastName}</span>
+              <span className="font-bold text-slate-900">{task.doerFirstName} {task.doerLastName}</span>
             </div>
             {task.evidenceUrl && (
               <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200">
@@ -395,7 +395,7 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Audit documents inspected and approved with zero discrepancies."
-              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -403,14 +403,14 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-slate-100 text-slate-600 px-4 py-2 text-sm"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2"
             >
               {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
               Confirm Verification

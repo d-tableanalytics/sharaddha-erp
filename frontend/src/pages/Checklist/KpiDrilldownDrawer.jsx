@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Loader2,
 } from 'lucide-react';
+import { Badge } from '../../components/ui/Badge';
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -29,15 +30,16 @@ const fmtDate = (d) => {
 const KPI_META = {
   total:        { label: 'Total Tasks',    icon: ClipboardList, bg: 'bg-slate-100', text: 'text-slate-700' },
   pendingToday: { label: 'Pending Today',  icon: Clock,         bg: 'bg-primary-50',   text: 'text-primary-600' },
-  overdue:      { label: 'Overdue Tasks',  icon: AlertTriangle, bg: 'bg-red-50',    text: 'text-red-600' },
-  completed:    { label: 'Completed',      icon: CheckCircle2,  bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  overdue:      { label: 'Overdue Tasks',  icon: AlertTriangle, bg: 'bg-error-50',    text: 'text-error-600' },
+  completed:    { label: 'Completed',      icon: CheckCircle2,  bg: 'bg-success-50', text: 'text-success-600' },
 };
 
-const STATUS_STYLES = {
-  completed:        'bg-emerald-50 text-emerald-600 border-emerald-200',
-  pending:          'bg-slate-50 text-slate-600 border-slate-200',
-  overdue:          'bg-red-50 text-red-600 border-red-200',
-  'non-functional': 'bg-amber-50 text-amber-600 border-amber-200',
+// Badge's own variant names - `danger` is the red one; "error" is the palette.
+const STATUS_VARIANTS = {
+  completed:        'success',
+  pending:          'neutral',
+  overdue:          'danger',
+  'non-functional': 'warning',
 };
 
 export function KpiDrilldownDrawer({ isOpen, onClose, kpi, site, onShowInList }) {
@@ -73,7 +75,7 @@ export function KpiDrilldownDrawer({ isOpen, onClose, kpi, site, onShowInList })
           <button
             type="button"
             onClick={() => { onShowInList(kpi); onClose(); }}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-primary-700 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-primary-700 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-enterprise"
           >
             <span>Show in list</span>
             <ArrowRight size={12} />
@@ -95,16 +97,19 @@ export function KpiDrilldownDrawer({ isOpen, onClose, kpi, site, onShowInList })
             {tasks.map((task) => (
               <div
                 key={task._id}
-                className="p-3.5 rounded-lg bg-white border border-slate-200 hover:border-primary-600 hover:shadow-xs transition-all shadow-xs"
+                className="p-3.5 rounded-xl bg-white border border-slate-200 hover:border-primary-600 hover:shadow-enterprise transition-all shadow-enterprise"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-slate-800 truncate">{task.taskName}</p>
+                    <p className="text-sm font-bold text-slate-900 truncate">{task.taskName}</p>
                     <p className="text-[11px] font-mono font-semibold text-slate-400 mt-0.5">{task.taskCode}</p>
                   </div>
-                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${STATUS_STYLES[task.status] || STATUS_STYLES.pending}`}>
+                  <Badge
+                    variant={STATUS_VARIANTS[task.status] || STATUS_VARIANTS.pending}
+                    className="shrink-0"
+                  >
                     {task.status}
-                  </span>
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-3 mt-2 text-[11px] font-semibold text-slate-500 pt-1 border-t border-slate-100">
                   <span>{task.doerFirstName} {task.doerLastName}</span>
