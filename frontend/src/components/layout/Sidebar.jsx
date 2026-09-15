@@ -1,10 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
 import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
-import { canOpenUserManagement, canManageRoles, canUseO2d } from "../../utils/permissions";
+import {
+  canOpenUserManagement, canManageRoles, canUseO2d, hasPermission, PERMISSIONS,
+} from "../../utils/permissions";
+import { o2dRoute } from "@shared/constants/o2d.js";
 import {
   visibleHrmsNavItems,
   groupHrmsNavItems,
@@ -116,38 +119,80 @@ export const Sidebar = () => {
       : [];
 
   /**
-   * FMS — Fulfilment Management System (§1).
+   * FMS — Fulfilment Management System (§1) — and O2D inside it.
    *
-   * The group the user reads is FMS; the screens under it are O2D's, which is
-   * why every path is `/fms/o2d/...` rather than `/fms/...`. FMS is the section,
-   * O2D is its first workflow, and a second one later slots in beside these
-   * without moving them.
+   * ─────────────────────────────────────────────────────────────────────────
+   * THE NESTING IS REAL, NOT A PREFIX
+   * ─────────────────────────────────────────────────────────────────────────
    *
-   * The permission is still `view_o2d`, and the item ids are still `o2d:*`.
-   * Neither is a naming oversight: the permission is written into live role
-   * rows in the shared database, and the ids are what the nav-order preference
-   * is keyed by. §1 renames a section, which is a label and a URL — it is not a
-   * licence to invalidate stored data.
+   * These links used to sit flat under an FMS heading, each labelled "O2D —
+   * My Tasks", "O2D — Order Tracker" and so on. That reads as one module whose
+   * every screen happens to start with the same four characters, and it puts
+   * the module name in the part of the row the eye scans LAST — so six links
+   * differ only in their tails.
    *
-   * One permission decides the whole group. What each role can DO inside it
-   * varies enormously - Imports reads, Billing works eight stages - but that is
-   * decided per screen and per stage by the server, not by which links are
-   * visible. Gating individual links on `work_o2d_stage` would hide My Tasks
-   * from Management, who need to see the queue they are accountable for even
-   * though they close nothing in it.
+   * FMS is the system; O2D is a workflow within it. The rail now says that:
+   * an FMS group, an O2D section inside it, and the screens named for what
+   * they are. When a second workflow arrives it becomes a second section
+   * beside this one, and none of these links move.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * THE IDS DO NOT CHANGE
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * Still `o2d:*`, and the permission is still `view_o2d`. Neither is an
+   * oversight: the permission is written into live role rows in the shared
+   * database, and the ids are what each user's stored nav-order preference is
+   * keyed by. Renaming a section is a label and a URL — it is not a licence to
+   * invalidate saved data or re-grant permissions.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * ONE PERMISSION OPENS THE SECTION; ANALYTICS IS THE EXCEPTION
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * What each role can DO inside O2D varies enormously — Imports reads, Billing
+   * works eight stages — but that is decided per screen and per stage by the
+   * server, not by which links are visible. Gating individual links on
+   * `work_o2d_stage` would hide My Tasks from Management, who need to see the
+   * queue they are accountable for even though they close nothing in it.
+   *
+   * Analytics is genuinely separate: seeing the orders you work is a different
+   * thing from seeing how fast each team closes them, and the server refuses
+   * that endpoint on its own key. The link is hidden to match, so nobody clicks
+   * into a 403.
    */
-  const o2dGroups = canUseO2d(user)
+  const o2dSections = canUseO2d(user)
     ? [{
-      key: "o2d",
-      label: "Order to Dispatch",
-      icon: Truck,
-      items: [
-        { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: "/o2d/tasks", icon: ListChecks },
-        { id: "o2d:orders", key: "orders", label: "Order Tracker", path: "/o2d/orders", icon: Truck },
-        { id: "o2d:exits", key: "exits", label: "Exit Register", path: "/o2d/exits", icon: Ban },
-      ],
-    }]
+        key: "o2d",
+        label: "O2D",
+        items: [
+          { id: "o2d:tasks", key: "tasks", label: "My Tasks", path: o2dRoute("tasks"), icon: ListChecks },
+          { id: "o2d:orders", key: "orders", label: "Order Tracker", path: o2dRoute("orders"), icon: Truck },
+          { id: "o2d:stages", key: "stages", label: "Stages", path: o2dRoute("stages"), icon: LayoutGrid },
+          { id: "o2d:history", key: "history", label: "Order History", path: o2dRoute("history"), icon: History },
+          { id: "o2d:exits", key: "exits", label: "Exit Register", path: o2dRoute("exits"), icon: Ban },
+          ...(hasPermission(user, PERMISSIONS.VIEW_O2D_ANALYTICS)
+            ? [{ id: "o2d:analytics", key: "analytics", label: "Analytics", path: o2dRoute("analytics"), icon: BarChart3 }]
+            : []),
+        ],
+      }]
     : [];
+
+  const o2dGroups =
+    o2dSections.length > 0
+      ? [{
+          key: "o2d",
+          label: "FMS",
+          icon: Truck,
+          // Without this a single-section group collapses into one row and the
+          // FMS heading disappears — which is the structure this exists to show.
+          alwaysGrouped: true,
+          sections: o2dSections,
+          // Flattened for the active-item match and the collapsed rail, the
+          // same shape the HRMS group uses.
+          items: o2dSections.flatMap((sec) => sec.items),
+        }]
+      : [];
 
 
   /*

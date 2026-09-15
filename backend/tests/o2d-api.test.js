@@ -507,3 +507,64 @@ describe('raising an invoice over HTTP', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+
+describe('the role that must upload a stage document may actually upload it', () => {
+  /**
+   * A live 403 came from here.
+   *
+   * Stage 2 will not close without the PO copy and stage 12 will not close
+   * without the AWB/LR copy — both stages closed by Billing. The upload route
+   * required CREATE_O2D_ORDER, which Billing does not hold, so the only role
+   * permitted to complete those stages was refused the upload they need first.
+   *
+   * The two halves of the rule were each defensible and together made a stage
+   * impossible to complete, which is the kind of gap no single test of either
+   * half would have caught.
+   */
+  test('Billing is not refused the upload endpoint', async () => {
+    await withServer(app(), async (url) => {
+      const orderId = await seedOrder(url);
+      const billing = await accountFor('Billing');
+
+      const res = await fetch(`${url}${P}/orders/${orderId}/documents`, {
+        method: 'POST',
+        headers: billing.auth.headers,
+      });
+
+      // Not 403. A 400 is the RIGHT answer here — no multipart body was sent —
+      // and asserting "not forbidden" rather than "200" keeps this about the
+      // permission without needing a real file upload.
+      assert.notEqual(res.status, 403, 'Billing must be able to attach a stage document');
+    });
+  });
+
+  test('Sales keeps the intake upload it always had', async () => {
+    await withServer(app(), async (url) => {
+      const orderId = await seedOrder(url);
+      const sales = await accountFor('Sales');
+
+      const res = await fetch(`${url}${P}/orders/${orderId}/documents`, {
+        method: 'POST',
+        headers: sales.auth.headers,
+      });
+      assert.notEqual(res.status, 403);
+    });
+  });
+
+  test('a role with neither key is still refused', async () => {
+    await withServer(app(), async (url) => {
+      const orderId = await seedOrder(url);
+      // Import Team is read-only from stage 6 (§20) and works no stage.
+      const imports = await accountFor('Import Team');
+
+      const res = await fetch(`${url}${P}/orders/${orderId}/documents`, {
+        method: 'POST',
+        headers: imports.auth.headers,
+      });
+      // Widening the guard must not have opened it to everyone.
+      assert.equal(res.status, 403);
+    });
+  });
+});
