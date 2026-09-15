@@ -276,10 +276,13 @@ describe('the advance decision (§8-9)', () => {
     const five = await O2dOrderStage.findOne({ order: order._id, stageNumber: STAGES.RECEIVE_ADVANCE });
     assert.equal(five.status, STAGE_STATUS.PENDING);
     // 7 CALENDAR days, not working days — a customer's bank keeps its own hours.
-    assert.equal(
-      new Date(five.plannedCompletion).toISOString().slice(0, 10),
-      '2026-09-21',
-    );
+    //
+    // Derived from NOW rather than hardcoded. This read '2026-09-21', which was
+    // correct only while the fixture's PO date was pinned to 2026-09-14; once
+    // the dates became relative the expectation silently stopped matching and
+    // failed on the day the calendar caught up.
+    const expected = new Date(NOW.getTime() + 7 * DAY).toISOString().slice(0, 10);
+    assert.equal(new Date(five.plannedCompletion).toISOString().slice(0, 10), expected);
   });
 
   test('a refused stage-4 completion leaves no decision on the header', async () => {

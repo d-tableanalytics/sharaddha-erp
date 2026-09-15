@@ -19,6 +19,7 @@ import * as exits from './exit.service.js';
 import { dispatch, listForUser, markRead } from './notification.service.js';
 import AuditLog from '../../models/AuditLog.js';
 import { stageHistory } from './stageHistory.service.js';
+import { visibleStagesFor } from './stageVisibility.service.js';
 import * as analytics from './analytics.service.js';
 import * as exporter from './export.service.js';
 import * as invoicing from './invoicing.service.js';
@@ -578,10 +579,31 @@ export const history = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Order not found.' });
     }
 
+    /*
+     * The history is per-STAGE, so it has to obey the same stage scope.
+     *
+     * `getOrder` above already refused an order the viewer may not open, but
+     * that is a different question: a Billing user may open the order and still
+     * not be entitled to the stage-7 timeline. Returning the full history here
+     * would hand back exactly what the order payload withheld.
+     */
+    const allowed = await visibleStagesFor(req.user);
+
+    if (req.params.stageNumber != null && allowed !== null
+      && !allowed.includes(Number(req.params.stageNumber))) {
+      // 404, not 403 — refusing confirms the stage exists on this order.
+      return res.status(404).json({ success: false, message: 'Not found.' });
+    }
+
     const rows = await stageHistory(req.params.id, {
       stageNumber: req.params.stageNumber ?? null,
     });
-    return res.status(200).json({ success: true, data: rows });
+
+    const scoped = allowed === null
+      ? rows
+      : rows.filter((r) => allowed.includes(Number(r.stageNumber)));
+
+    return res.status(200).json({ success: true, data: scoped });
   } catch (error) {
     return next(error);
   }

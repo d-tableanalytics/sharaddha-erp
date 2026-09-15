@@ -119,6 +119,8 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const order = payload?.order ?? null;
   const stages = payload?.stages ?? [];
   const items = payload?.items ?? [];
+  /** Whether the server withheld stages this role may not see. */
+  const visibility = payload?.stageVisibility ?? null;
   const activeHold = (order?.holds ?? []).find((h) => !h.resumedAt) ?? null;
 
   /**
@@ -388,6 +390,24 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
 
           {tab === "progress" && (
             <Section title="Progress">
+              {/*
+                The view is PARTIAL for anyone but Admin, and it says so.
+
+                Non-admin roles see only the stages their role is attached to.
+                Showing three stages of twelve with no indication the rest exist
+                would read as "this workflow has three stages" — the reader
+                would not know to ask. The count is all that is shown: enough to
+                know the view is scoped, nothing about what is in it.
+              */}
+              {visibility?.scoped && visibility.hiddenStageCount > 0 && (
+                <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                  Showing the {stages.length} stage{stages.length === 1 ? "" : "s"} your role
+                  works. {visibility.hiddenStageCount} other stage
+                  {visibility.hiddenStageCount === 1 ? " is" : "s are"} handled by another team
+                  and {visibility.hiddenStageCount === 1 ? "is" : "are"} not shown.
+                </p>
+              )}
+
               <StageTimeline
                 stages={stages}
                 currentStage={order.currentStage}

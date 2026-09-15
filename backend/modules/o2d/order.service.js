@@ -24,6 +24,7 @@ import { O2dOrder, o2dKey } from '../../models/o2d/O2dOrder.js';
 import { O2dOrderStage } from '../../models/o2d/O2dOrderStage.js';
 import { O2dOrderItem } from '../../models/o2d/O2dOrderItem.js';
 import { O2dStageMaster } from '../../models/o2d/O2dStageMaster.js';
+import { visibleStagesFor, applyStageVisibility } from './stageVisibility.service.js';
 // Imported for its SIDE EFFECT as well as nothing else: `getOrder` populates
 // `customer` and `salesPerson`, which are refs to 'User'. Mongoose resolves a
 // ref by name at query time, so the model must have been registered by SOMEBODY
@@ -605,6 +606,20 @@ export async function listOrders(query = {}, viewer = null) {
    */
   let stageStatusByOrder = null;
   if (stageReached) {
+    /*
+     * A stage the viewer may not see is not a stage they may filter by.
+     *
+     * Without this, "show me every order that has reached stage 7" is a way to
+     * read the progress of stages the order payload deliberately withholds —
+     * the restriction would hold on one endpoint and leak on another.
+     *
+     * Empty rather than 403, matching how the Imports floor answers: refusing
+     * confirms the stage exists and that somebody is at it.
+     */
+    const allowed = await visibleStagesFor(viewer);
+    if (allowed !== null && !allowed.includes(Number(stageReached))) {
+      return { data: [], total: 0, page, pageSize };
+    }
     const reached = await O2dOrderStage.find({
       stageNumber: Number(stageReached),
       status: { $ne: STAGE_STATUS.LOCKED },
@@ -697,12 +712,32 @@ export async function getOrder(orderId, viewer = null) {
     throw new O2dWorkflowError('That order no longer exists.', { status: 404 });
   }
 
-  const [stages, items] = await Promise.all([
+  const [allStages, items, visible] = await Promise.all([
     O2dOrderStage.find({ order: orderId }).sort({ stageNumber: 1 }).lean(),
     listItems(orderId),
+    visibleStagesFor(viewer),
   ]);
 
-  return { order, stages, items };
+  /**
+   * Stage visibility is applied HERE, not in the controller.
+   *
+   * This is the one function every screen reads an order through, so scoping it
+   * at the source means a new caller inherits the rule rather than having to
+   * remember it. A filter in the controller would leave `getOrder` returning
+   * the full workflow to anything that called it directly — which the exit
+   * service, the notification renderer and the picklist all do.
+   */
+  const { stages, hiddenStageCount, scoped } = applyStageVisibility(allStages, visible);
+
+  return {
+    order,
+    stages,
+    items,
+    // So the screen can say the view is partial. A viewer shown four stages of
+    // twelve, with nothing indicating the rest exist, would reasonably read
+    // that as the whole workflow.
+    stageVisibility: { scoped, hiddenStageCount, totalStages: allStages.length },
+  };
 }
 
 /**

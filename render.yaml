@@ -1,0 +1,178 @@
+# =============================================================================
+# Render blueprint — Employee Portal (HRMS + FMS) backend
+# =============================================================================
+#
+# Deploy from the repository root. `rootDir` points Render at backend/, so the
+# build and start commands run there and the frontend is ignored entirely.
+#
+# -----------------------------------------------------------------------------
+# WHAT THIS FILE DOES NOT CONTAIN
+# -----------------------------------------------------------------------------
+#
+# No secret values. Every sensitive variable below is declared `sync: false`,
+# which tells Render "this exists, ask the operator for it" — the blueprint
+# records the SHAPE of the environment, and the dashboard holds the values.
+# A secret committed here would be in the git history forever.
+#
+# -----------------------------------------------------------------------------
+# BEFORE THE FIRST DEPLOY — THREE VALUES MUST MATCH THE CUSTOMER PORTAL
+# -----------------------------------------------------------------------------
+#
+#   MONGODB_URI                 the same database, by design
+#   JWT_SECRET                  a token minted by either portal must verify in
+#                               the other, or crossing between them signs the
+#                               user out
+#   HRMS_BLIND_INDEX_KEY        existing employee PII is indexed with it; a new
+#   HRMS_LOCAL_ENCRYPTION_KEY   value does not error, it silently makes the
+#                               data unreadable
+#
+# See backend/.env.example, which explains every variable in full.
+# =============================================================================
+
+services:
+  - type: web
+    name: shraddha-employee-portal-api
+    runtime: node
+    plan: starter
+    region: singapore          # closest to the business; move both halves together
+    rootDir: backend
+    branch: main
+
+    buildCommand: npm ci
+    startCommand: npm start
+
+    # Liveness only — it touches no collection, so a slow Mongo cannot make
+    # Render kill a healthy process. If you want readiness instead, that is a
+    # different endpoint and should be added deliberately.
+    healthCheckPath: /health
+
+    # ⚠ ONE INSTANCE, DELIBERATELY.
+    #
+    # The FMS escalation sweep, daily summary and invoice retry run IN-PROCESS
+    # via node-cron. A second instance runs them too: every escalation fires
+    # twice and the daily summary is mailed twice. Before scaling up, set
+    # O2D_CRON to anything but `enabled` and move the jobs to a Render Cron Job
+    # or an external scheduler.
+    numInstances: 1
+
+    envVars:
+      # ── Runtime ────────────────────────────────────────────────────────
+      # PORT is injected by Render. Do NOT declare it: a fixed value here means
+      # the app listens somewhere the health check is not probing.
+      - key: NODE_ENV
+        value: production
+      - key: PORTAL
+        value: employee          # decides the whole module set; see config/portal.js
+
+      # ── Origins ────────────────────────────────────────────────────────
+      # The Vercel deployment's URL, no trailing slash.
+      - key: FRONTEND_URL
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: EMPLOYEE_PORTAL_URL
+        sync: false
+      # Comma-separated extras: a custom domain, or Vercel preview URLs.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ⚠ Required for a Vercel + Render split, and only then.
+      #
+      # These are different registrable domains, so the refresh cookie must be
+      # SameSite=None;Secure or the browser never sends it — which presents as
+      # users being signed out every access-token lifetime, not as an error.
+      # If you later serve both from one domain, delete this.
+      - key: CROSS_SITE_COOKIES
+        value: "true"
+
+      # ── Shared with the Customer Portal — must match byte for byte ──────
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: HRMS_BLIND_INDEX_KEY     # production REFUSES to start without it
+        sync: false
+      - key: HRMS_LOCAL_ENCRYPTION_KEY
+        sync: false
+
+      - key: JWT_EXPIRES_IN
+        sync: false
+      - key: JWT_ACCESS_EXPIRES_IN
+        sync: false
+      - key: JWT_REFRESH_EXPIRES_IN
+        sync: false
+
+      # ── File storage ───────────────────────────────────────────────────
+      #
+      # ⚠ S3 IS NOT OPTIONAL HERE. Render's filesystem is ephemeral: it is
+      # wiped on every deploy and every restart, so the `local` driver would
+      # lose every uploaded document, payslip and résumé without reporting an
+      # error. The driver already refuses to run in production for this reason.
+      - key: STORAGE_DRIVER
+        value: s3
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_S3_BUCKET
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: HRMS_S3_KMS_KEY_ID       # SSE-KMS required; the driver refuses SSE-S3
+        sync: false
+
+      # ── Email ──────────────────────────────────────────────────────────
+      # Without SMTP_HOST the mailer LOGS instead of sending. That is the right
+      # default for a first deploy, and the wrong one to leave in place.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+      # ── FMS scheduled jobs ─────────────────────────────────────────────
+      #
+      # Only the exact string "enabled" starts them. Tied to numInstances: 1
+      # above — read that note before changing either.
+      #
+      # ⚠ On a plan that spins down when idle, these do not fire while the
+      # service sleeps, and overdue escalations are simply missed. `starter`
+      # above does not spin down; `free` does.
+      - key: O2D_CRON
+        value: enabled
+      - key: O2D_CRON_TIMEZONE
+        value: Asia/Kolkata
+
+      # ── Zoho (FMS invoicing) ───────────────────────────────────────────
+      # Set O2D_ZOHO_MODE=log to run the workflow without reaching Zoho.
+      - key: O2D_ZOHO_MODE
+        sync: false
+      - key: ZOHO_CLIENT_ID
+        sync: false
+      - key: ZOHO_CLIENT_SECRET
+        sync: false
+      - key: ZOHO_REFRESH_TOKEN
+        sync: false
+      - key: ZOHO_ORG_ID
+        sync: false
+      # Without this the webhook refuses every request — by design, not a bug.
+      - key: ZOHO_WEBHOOK_SECRET
+        sync: false
+
+      # ── Retention sweep ────────────────────────────────────────────────
+      #
+      # ⚠ LEAVE UNSET UNTIL THE CUSTOMER PORTAL STOPS RUNNING IT.
+      #
+      # This job DELETES audit rows, attendance selfies and documents past
+      # their window. Both portals point at one database and the Customer
+      # Portal still schedules it. Enabling it here first means two deleters.
+      # Order: deploy unset → remove it there → only then set "enabled".
+      - key: HRMS_RETENTION_CRON
+        sync: false

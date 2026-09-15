@@ -30,14 +30,60 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(helmet());
 
-const allowedOrigins = process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : ['http://localhost:5174'];
+/**
+ * Origins allowed to call this API with credentials.
+ *
+ * ---------------------------------------------------------------------------
+ * A LIST, NOT ONE VALUE
+ * ---------------------------------------------------------------------------
+ *
+ * `FRONTEND_URL` is still the canonical origin — it is what mail templates
+ * build links from, and it must stay a single URL for that. But a deployment
+ * legitimately answers more than one origin: a Vercel project serves the
+ * production domain AND a per-branch preview URL, and a custom domain usually
+ * runs alongside the `*.vercel.app` one for a while after cutover.
+ *
+ * So `CORS_ORIGINS` carries the full comma-separated list when it is needed,
+ * and `FRONTEND_URL` is folded in so the common single-origin case needs no
+ * second variable. Trailing slashes are stripped: `Origin` headers never carry
+ * one, and a pasted `https://app.example.com/` would otherwise match nothing
+ * and be maddening to debug.
+ */
+const allowedOrigins = [
+  ...String(process.env.CORS_ORIGINS ?? '').split(','),
+  process.env.FRONTEND_URL ?? '',
+]
+  .map((value) => value.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+// Development default, applied only when nothing was configured at all — so a
+// deployment that sets CORS_ORIGINS does not silently also trust localhost.
+if (allowedOrigins.length === 0) allowedOrigins.push('http://localhost:5174');
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    // No Origin header: same-origin navigations, curl, server-to-server and
+    // health checks. Not a browser cross-origin request, so there is nothing
+    // for CORS to decide.
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin.replace(/\/+$/, ''))) return callback(null, true);
+
+    /*
+     * REFUSED BY OMITTING THE HEADER, not by throwing.
+     *
+     * Passing an Error here hands it to the global error handler, which turns a
+     * routine cross-origin probe into a 500 — noise in the logs that looks like
+     * the API is broken, and a misleading status for the caller. Answering
+     * `false` sends the response without `Access-Control-Allow-Origin`, which
+     * is exactly what a browser needs to see to block the read.
+     *
+     * Logged once per request because a rejected origin in production is nearly
+     * always a misconfigured CORS_ORIGINS, and the fix is impossible to find
+     * without knowing which origin was turned away.
+     */
+    console.warn(`[CORS] refused origin: ${origin}`);
+    return callback(null, false);
   },
   credentials: true
 }));
