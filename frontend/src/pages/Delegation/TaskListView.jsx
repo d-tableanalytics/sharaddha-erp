@@ -74,7 +74,7 @@ export function TaskListView({
     return (
       <div className="flex flex-col items-center justify-center py-24">
         <div className="w-12 h-12 border-4 border-[#1E4C92] border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-bold text-slate-600">Loading Tasks...</p>
+        <p className="text-sm font-semibold text-slate-600">Loading Tasks...</p>
       </div>
     );
   }
@@ -85,13 +85,13 @@ export function TaskListView({
         <div className="w-16 h-16 rounded-2xl bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center mb-4">
           <CheckSquare className="w-8 h-8" />
         </div>
-        <h3 className="text-lg font-bold text-slate-800 mb-1">No Tasks Found</h3>
+        <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks Found</h3>
         <p className="text-sm font-medium text-slate-500 max-w-md mb-6">
           There are no delegated tasks matching the current filters or date range.
         </p>
         <button
           onClick={onClearFilters}
-          className="px-5 py-2.5 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-bold rounded-xl shadow-sm transition-all active:scale-95"
+          className="px-5 py-2.5 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-semibold rounded-xl shadow-sm transition-all active:scale-95"
         >
           Clear Filters
         </button>
@@ -104,7 +104,7 @@ export function TaskListView({
   return (
     <div className="space-y-3">
       {/* Select All Bar (if tasks exist) */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/70 backdrop-blur-xs border border-slate-200/80 rounded-xl text-xs font-bold text-slate-600">
+      <div className="flex items-center justify-between px-4 py-2 bg-white/70 backdrop-blur-xs border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-600">
         <div className="flex items-center gap-3">
           <input
             type="checkbox"
@@ -115,7 +115,7 @@ export function TaskListView({
           <span>Select All ({tasks.length})</span>
         </div>
         {selectedIds.length > 0 && (
-          <span className="text-xs font-bold text-[#1E4C92] bg-[#1E4C92]/10 px-2.5 py-0.5 rounded-full">
+          <span className="text-xs font-semibold text-[#1E4C92] bg-[#1E4C92]/10 px-2.5 py-0.5 rounded-full">
             {selectedIds.length} Selected
           </span>
         )}
@@ -196,7 +196,7 @@ export function TaskListView({
                 <span className="text-xs font-black text-slate-800 truncate">
                   {task.doerFirstName} {task.doerLastName}
                 </span>
-                <span className="text-[11px] font-bold text-slate-400 truncate">
+                <span className="text-[11px] font-semibold text-slate-400 truncate">
                   {task.assigneeHierarchy || 'Team Member'}
                 </span>
               </div>
@@ -206,7 +206,7 @@ export function TaskListView({
                 <h4 className="text-sm font-black text-slate-800 line-clamp-1 group-hover:text-[#1E4C92] transition-colors">
                   {task.taskTitle}
                 </h4>
-                <div className="sm:hidden text-[10px] font-bold text-slate-400">
+                <div className="sm:hidden text-[10px] font-semibold text-slate-400">
                   {task.doerFirstName} {task.doerLastName}
                 </div>
               </div>
@@ -220,7 +220,7 @@ export function TaskListView({
 
               {/* Recurrence Badge */}
               <span
-                className={`hidden md:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                className={`hidden md:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg border ${
                   isRecurring
                     ? 'bg-purple-50 text-purple-600 border-purple-200'
                     : 'bg-slate-50 text-slate-400 border-slate-200'
@@ -239,7 +239,7 @@ export function TaskListView({
               </div>
 
               {/* Relative Timestamp */}
-              <span className="hidden xl:inline-block text-[11px] font-bold text-slate-400 shrink-0 min-w-[50px] text-right">
+              <span className="hidden xl:inline-block text-[11px] font-semibold text-slate-400 shrink-0 min-w-[50px] text-right">
                 {formatRelativeTime(task.updatedAt || task.createdAt)}
               </span>
 
@@ -283,7 +283,7 @@ export function TaskListView({
             {isExpanded && (
               <div className="px-6 pb-5 pt-1 border-t border-slate-100 bg-slate-50/40 rounded-b-xl animate-in slide-in-from-top-2 duration-200">
                 {/* Metadata Pills */}
-                <div className="flex flex-wrap items-center gap-4 py-3 text-xs font-bold text-slate-600">
+                <div className="flex flex-wrap items-center gap-4 py-3 text-xs font-semibold text-slate-600">
                   <div className="flex items-center gap-1.5">
                     <Clock className={`w-3.5 h-3.5 ${overdue ? 'text-red-500' : 'text-slate-400'}`} />
                     <span className={overdue ? 'text-red-600' : 'text-slate-600'}>
@@ -323,7 +323,7 @@ export function TaskListView({
                     {task.tags.map((tg, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border"
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border"
                         style={{
                           backgroundColor: `${tg.color || '#1E4C92'}15`,
                           borderColor: `${tg.color || '#1E4C92'}40`,
@@ -342,14 +342,14 @@ export function TaskListView({
                   <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 text-slate-500 font-semibold">
                       <span>Subtasks:</span>
-                      <span className="font-bold text-slate-800">
+                      <span className="font-semibold text-slate-800">
                         {task.subtasks.filter((s) => s.completed).length} of {task.subtasks.length} done
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => onOpenDetails(task)}
-                      className="text-[#1E4C92] hover:underline font-bold text-xs"
+                      className="text-[#1E4C92] hover:underline font-semibold text-xs"
                     >
                       Open Full View →
                     </button>
