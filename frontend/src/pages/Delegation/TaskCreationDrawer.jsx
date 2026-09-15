@@ -204,7 +204,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
 
   const priorities = [
     { label: 'Low', color: 'border-slate-300 text-slate-600' },
-    { label: 'Medium', color: 'border-blue-400 text-blue-600' },
+    { label: 'Medium', color: 'border-primary-400 text-primary-600' },
     { label: 'High', color: 'border-orange-400 text-orange-600' },
     { label: 'Urgent', color: 'border-red-500 text-red-600' },
   ];
@@ -215,7 +215,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
         {/* Drawer Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/70">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-[#1E4C92] text-white">
+            <div className="p-2 rounded-lg bg-primary-600 text-white">
               <CheckSquare className="w-5 h-5" />
             </div>
             <div>
@@ -246,7 +246,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               onChange={(e) => setTaskTitle(e.target.value)}
               placeholder="e.g. Quarterly Tax Filing Audit & Reconciliation"
               required
-              className="w-full h-11 px-3.5 text-sm font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20"
+              className="w-full h-11 px-3.5 text-sm font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20"
             />
           </div>
 
@@ -260,7 +260,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detailed guidelines, objectives, or instructions for the doer..."
-              className="w-full p-3.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 resize-none"
+              className="w-full p-3.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 resize-none"
             />
           </div>
 
@@ -274,7 +274,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 value={doerId}
                 onChange={(e) => setDoerId(e.target.value)}
                 required
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
+                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
               >
                 {internalMembers.length === 0 ? (
                   <option value="" disabled>No internal members available</option>
@@ -306,14 +306,14 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                     setCategory(e.target.value);
                   }
                 }}
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
+                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
               >
                 {availableCategories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
                 ))}
-                <option value="__new__" className="font-bold text-[#1E4C92]">
+                <option value="__new__" className="font-bold text-primary-700">
                  + New Category
                 </option>
               </select>
@@ -335,19 +335,19 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                       }
                     }}
                     placeholder="Enter custom category name..."
-                    className="flex-1 h-9 px-3 text-xs font-semibold text-slate-800 bg-white border border-blue-300 rounded-xl outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20"
+                    className="flex-1 h-9 px-3 text-xs font-semibold text-slate-800 bg-white border border-primary-300 rounded-lg outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20"
                   />
                   <button
                     type="button"
                     onClick={handleAddNewCategory}
-                    className="h-8 px-3 text-xs font-bold text-white bg-[#1E4C92] hover:bg-[#15386b] rounded-md transition-colors shrink-0 flex items-center gap-1 shadow-xs"
+                    className="h-8 px-3 text-xs font-bold text-white bg-primary-600 hover:bg-primary-800 rounded-md transition-colors shrink-0 flex items-center gap-1 shadow-xs"
                   >
                     Add
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelNewCategory}
-                    className="h-9 px-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors shrink-0"
+                    className="h-9 px-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors shrink-0"
                     title="Cancel"
                   >
                     <X className="w-4 h-4" />
@@ -362,7 +362,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
             <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
               In-Loop Stakeholders (Cc)
             </label>
-            <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl min-h-[44px]">
+            <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg min-h-[44px]">
               {internalMembers
                 .filter((u) => u._id !== doerId)
                 .map((u) => {
@@ -379,7 +379,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                         }
                       }}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${selected
-                        ? 'bg-[#1E4C92] text-white shadow-xs'
+                        ? 'bg-primary-600 text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                         }`}
                     >
@@ -406,8 +406,8 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                     key={p.label}
                     type="button"
                     onClick={() => setPriority(p.label)}
-                    className={`py-2 px-1 text-center rounded-xl border text-xs font-black transition-all ${active
-                      ? 'bg-[#1E4C92] text-white border-[#1E4C92] shadow-sm'
+                    className={`py-2 px-1 text-center rounded-lg border text-xs font-black transition-all ${active
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
                       : `${p.color} bg-white hover:bg-slate-50`
                       }`}
                   >
@@ -428,7 +428,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
+                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
               />
             </div>
 
@@ -441,7 +441,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 required
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
+                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
               />
             </div>
 
@@ -452,7 +452,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               <select
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value)}
-                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
+                className="w-full h-11 px-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
               >
                 <option value="none">One Time</option>
                 <option value="Daily">Daily</option>
@@ -477,7 +477,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
                 placeholder="Type tag and press Enter..."
-                className="w-full h-10 px-3 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92]"
+                className="w-full h-10 px-3 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
               />
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -511,7 +511,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
               <button
                 type="button"
                 onClick={handleAddSubtask}
-                className="text-xs font-bold text-[#1E4C92] hover:underline flex items-center gap-1"
+                className="text-xs font-bold text-primary-700 hover:underline flex items-center gap-1"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Item</span>
@@ -526,7 +526,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                     value={st}
                     onChange={(e) => handleSubtaskChange(index, e.target.value)}
                     placeholder={`Step ${index + 1}...`}
-                    className="flex-1 h-9 px-3 text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92]"
+                    className="flex-1 h-9 px-3 text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
                   />
                   {subtasks.length > 1 && (
                     <button
@@ -543,10 +543,10 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
           </div>
 
           {/* Verification & Evidence Toggles */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
             <label className="flex items-center justify-between cursor-pointer">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#1E4C92]" />
+                <ShieldCheck className="w-4 h-4 text-primary-700" />
                 <div>
                   <span className="text-xs font-black text-slate-800 block">
                     Delegator Verification Required
@@ -560,7 +560,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                 type="checkbox"
                 checked={verificationRequired}
                 onChange={(e) => setVerificationRequired(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
               />
             </label>
 
@@ -581,7 +581,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
                   type="checkbox"
                   checked={evidenceRequired}
                   onChange={(e) => setEvidenceRequired(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                  className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
                 />
               </label>
             </div>
@@ -593,14 +593,14 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors"
+            className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || !taskTitle.trim() || !dueDate}
-            className="px-6 py-2.5 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-black rounded-xl shadow-sm flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-black rounded-lg shadow-sm flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
           >
             {submitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

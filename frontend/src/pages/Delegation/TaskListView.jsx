@@ -73,7 +73,7 @@ export function TaskListView({
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
-        <div className="w-12 h-12 border-4 border-[#1E4C92] border-t-transparent rounded-full animate-spin mb-4" />
+        <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-sm font-semibold text-slate-600">Loading Tasks...</p>
       </div>
     );
@@ -82,7 +82,7 @@ export function TaskListView({
   if (tasks.length === 0) {
     return (
       <div className="bg-white/60 border-2 border-dashed border-slate-300 rounded-3xl p-16 text-center flex flex-col items-center justify-center">
-        <div className="w-16 h-16 rounded-2xl bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center mb-4">
           <CheckSquare className="w-8 h-8" />
         </div>
         <h3 className="text-lg font-semibold text-slate-800 mb-1">No Tasks Found</h3>
@@ -91,7 +91,7 @@ export function TaskListView({
         </p>
         <button
           onClick={onClearFilters}
-          className="px-5 py-2.5 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-semibold rounded-xl shadow-sm transition-all active:scale-95"
+          className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-95"
         >
           Clear Filters
         </button>
@@ -104,18 +104,18 @@ export function TaskListView({
   return (
     <div className="space-y-3">
       {/* Select All Bar (if tasks exist) */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/70 backdrop-blur-xs border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-600">
+      <div className="flex items-center justify-between px-4 py-2 bg-white/70 backdrop-blur-xs border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-600">
         <div className="flex items-center gap-3">
           <input
             type="checkbox"
             checked={allSelected}
             onChange={onSelectAll}
-            className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+            className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
           />
           <span>Select All ({tasks.length})</span>
         </div>
         {selectedIds.length > 0 && (
-          <span className="text-xs font-semibold text-[#1E4C92] bg-[#1E4C92]/10 px-2.5 py-0.5 rounded-full">
+          <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full">
             {selectedIds.length} Selected
           </span>
         )}
@@ -136,7 +136,7 @@ export function TaskListView({
         if (task.status === 'Completed') {
           statusBadge = { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Completed' };
         } else if (isAwaitingVerification) {
-          statusBadge = { bg: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Awaiting Verification' };
+          statusBadge = { bg: 'bg-primary-50 text-primary-700 border-primary-200', label: 'Awaiting Verification' };
         } else if (task.status === 'In Progress') {
           statusBadge = { bg: 'bg-orange-50 text-orange-700 border-orange-200', label: 'In Progress' };
         } else if (overdue) {
@@ -147,14 +147,14 @@ export function TaskListView({
         const priorityColors = {
           Urgent: 'text-red-500',
           High: 'text-orange-500',
-          Medium: 'text-blue-500',
+          Medium: 'text-primary-500',
           Low: 'text-slate-400',
         };
 
         const priorityDot = {
           Urgent: 'bg-red-500',
           High: 'bg-orange-500',
-          Medium: 'bg-blue-500',
+          Medium: 'bg-primary-500',
           Low: 'bg-slate-400',
         };
 
@@ -163,9 +163,9 @@ export function TaskListView({
         return (
           <div
             key={task._id}
-            className={`group bg-white rounded-xl border transition-all duration-200 ${
+            className={`group bg-white rounded-lg border transition-all duration-200 ${
               isAwaitingVerification
-                ? 'ring-2 ring-blue-500/20 border-blue-300 bg-blue-50/10 shadow-xs hover:shadow-md'
+                ? 'ring-2 ring-primary-500/20 border-primary-300 bg-primary-50/10 shadow-xs hover:shadow-md'
                 : 'border-slate-200 hover:border-slate-300 shadow-xs hover:shadow-md'
             }`}
           >
@@ -180,12 +180,12 @@ export function TaskListView({
                 checked={isSelected}
                 onClick={(e) => e.stopPropagation()}
                 onChange={() => onToggleSelect(task._id)}
-                className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
               />
 
               {/* Assignee Avatar */}
               <div
-                className="w-10 h-10 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-xs flex items-center justify-center border border-[#1E4C92]/20 shrink-0 shadow-xs"
+                className="w-10 h-10 rounded-full bg-primary-50 text-primary-700 font-black text-xs flex items-center justify-center border border-primary-200 shrink-0 shadow-xs"
                 title={`${task.doerFirstName} ${task.doerLastName}`}
               >
                 {getInitials(task.doerFirstName, task.doerLastName)}
@@ -203,7 +203,7 @@ export function TaskListView({
 
               {/* Task Title */}
               <div className="flex-1 min-w-[180px]">
-                <h4 className="text-sm font-black text-slate-800 line-clamp-1 group-hover:text-[#1E4C92] transition-colors">
+                <h4 className="text-sm font-black text-slate-800 line-clamp-1 group-hover:text-primary-700 transition-colors">
                   {task.taskTitle}
                 </h4>
                 <div className="sm:hidden text-[10px] font-semibold text-slate-400">
@@ -249,7 +249,7 @@ export function TaskListView({
                   type="button"
                   onClick={(e) => handleQuickVerify(e, task)}
                   disabled={verifyingId === task._id}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-1.5 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer"
                 >
                   {verifyingId === task._id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -309,7 +309,7 @@ export function TaskListView({
 
                 {/* Description Snippet */}
                 {task.description && (
-                  <div className="border-l-2 border-[#1E4C92]/40 pl-3 py-1 mb-3">
+                  <div className="border-l-2 border-primary-300 pl-3 py-1 mb-3">
                     <div
                       className="text-xs font-medium text-slate-600 line-clamp-2"
                       dangerouslySetInnerHTML={{ __html: task.description }}
@@ -325,9 +325,9 @@ export function TaskListView({
                         key={idx}
                         className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border"
                         style={{
-                          backgroundColor: `${tg.color || '#1E4C92'}15`,
-                          borderColor: `${tg.color || '#1E4C92'}40`,
-                          color: tg.color || '#1E4C92',
+                          backgroundColor: `${tg.color || '#2563eb'}15`,
+                          borderColor: `${tg.color || '#2563eb'}40`,
+                          color: tg.color || '#2563eb',
                         }}
                       >
                         <Tag className="w-2.5 h-2.5" />
@@ -349,7 +349,7 @@ export function TaskListView({
                     <button
                       type="button"
                       onClick={() => onOpenDetails(task)}
-                      className="text-[#1E4C92] hover:underline font-semibold text-xs"
+                      className="text-primary-700 hover:underline font-semibold text-xs"
                     >
                       Open Full View →
                     </button>

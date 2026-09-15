@@ -1,10 +1,12 @@
 import axios from 'axios';
 
-const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const cleanApiUrl = rawApiUrl.replace(/\/+$/, '');
+// Resolved in one place for every service that talks to the API — see
+// apiBase.js for why an EMPTY VITE_API_URL must mean "same origin" rather than
+// "unset", and what a baked-in origin costs at cutover.
+import { API_BASE_URL } from './apiBase';
 
 export const api = axios.create({
-  baseURL: `${cleanApiUrl}/api/v1`,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

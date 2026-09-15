@@ -29,9 +29,9 @@ const signIn = (role, permissions) =>
     user: { _id: "u1", user: "A Person", role, permissions, status: "Active" },
   });
 
-const draw = () =>
+const draw = (path = "/") =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <Sidebar />
     </MemoryRouter>,
   );
@@ -110,5 +110,90 @@ describe("an account without O2D sees no FMS group", () => {
     signIn("Customer", []);
     draw();
     expect(screen.queryByRole("button", { name: /FMS/ })).toBeNull();
+  });
+});
+
+describe("sub-modules are dropdowns", () => {
+  /*
+   * O2D used to render as a <p>: a heading that looked like a control, sat
+   * above a list it did not govern, and could not be closed. With six links
+   * under it and eight under Work Queue, the rail scrolls and there was no way
+   * to put a sub-module away.
+   */
+  test("the section heading is a real control, expanded by default", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw();
+
+    const heading = screen.getByRole("button", { name: /O2D/ });
+    // Absent from the collapsed list means expanded — the right default, since
+    // a sub-module that hides itself on first load is one nobody finds.
+    expect(heading.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "My Tasks" })).toBeTruthy();
+  });
+
+  test("collapsing it hides its links but keeps the heading", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    // Namespaced by group: a bare "o2d" would collide with the FMS GROUP key
+    // and close the whole rail instead of one heading.
+    useUIStore.setState({ sidebarOpen: true, collapsedNavGroups: ["o2d:o2d"] });
+    draw();
+
+    expect(screen.getByRole("button", { name: /O2D/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "My Tasks" })).toBeNull();
+  });
+
+  test("the section key does not collide with its group key", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    // Collapsing the GROUP hides everything including the section heading...
+    useUIStore.setState({ sidebarOpen: true, collapsedNavGroups: ["o2d"] });
+    draw();
+
+    expect(screen.getByRole("button", { name: /FMS/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /O2D/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: "My Tasks" })).toBeNull();
+  });
+});
+
+/** Class names as a list, so assertions compare tokens not substrings. */
+const classList = (el) => String(el.className).split(/\s+/).filter(Boolean);
+
+describe("the active item is unmistakable", () => {
+  test("it gets a solid white background, not a translucent tint", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw("/fms/o2d/stages");
+
+    const classes = classList(screen.getByRole("link", { name: "Stages" }));
+
+    // A SOLID pill. `bg-white/10` on a dark gradient sat about as far from the
+    // hover state (`white/[0.07]`) as a rounding error, so the rail could not
+    // answer "which page am I on" at a glance.
+    expect(classes).toContain("bg-white");
+    expect(classes).not.toContain("bg-white/10");
+    // Dark text, or the label vanishes into its own pill.
+    expect(classes).toContain("text-primary-900");
+  });
+
+  test("only ONE row is active, and it is the most specific match", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw("/fms/o2d/stages");
+
+    // Keyed on `nav-active`, not on the white background: the LOGO is also a
+    // link with a white background, and counting by colour would call it a
+    // second active row.
+    const activeRows = screen
+      .getAllByRole("link")
+      .filter((el) => classList(el).includes("nav-active"));
+
+    expect(activeRows).toHaveLength(1);
+    expect(activeRows[0].textContent).toContain("Stages");
+  });
+
+  test("an inactive row carries no white background", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw("/fms/o2d/stages");
+
+    const classes = classList(screen.getByRole("link", { name: "My Tasks" }));
+    expect(classes).not.toContain("bg-white");
+    expect(classes).not.toContain("nav-active");
   });
 });

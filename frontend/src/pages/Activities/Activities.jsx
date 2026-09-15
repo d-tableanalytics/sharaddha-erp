@@ -25,6 +25,8 @@ import { useUserStore } from '../../store/userStore';
 import activityService from '../../services/activity';
 import delegationService from '../../services/delegation';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
+import { PageHeader } from '../../components/common/PageHeader';
+import { Button } from '../../components/ui/Button';
 
 // Helper: Extract Initials
 function getInitials(user) {
@@ -58,7 +60,7 @@ function formatActivityDate(dateInput) {
 
 // Enterprise Avatar Color Palette
 const AVATAR_COLOR_PALETTE = [
-  'bg-[#1E4C92]/10 text-[#1E4C92] border-[#1E4C92]/20',
+  'bg-primary-50 text-primary-700 border-primary-200',
   'bg-indigo-50 text-indigo-700 border-indigo-200/60',
   'bg-emerald-50 text-emerald-700 border-emerald-200/60',
   'bg-sky-50 text-sky-700 border-sky-200/60',
@@ -83,8 +85,8 @@ function getActivityConfig(type) {
       return {
         label: 'Task Created',
         icon: PlusCircle,
-        iconBox: 'bg-blue-50 text-[#1E4C92] border-blue-200/60',
-        badge: 'bg-blue-50 text-[#1E4C92] border-blue-200/60',
+        iconBox: 'bg-primary-50 text-primary-700 border-primary-200/60',
+        badge: 'bg-primary-50 text-primary-700 border-primary-200/60',
       };
     case 'subtask_created':
       return {
@@ -482,7 +484,7 @@ export function Activities() {
           </p>
           <button
             onClick={() => navigate('/work-queue')}
-            className="w-full py-3 px-4 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+            className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer active:scale-95"
           >
             Return to My Work
           </button>
@@ -492,39 +494,40 @@ export function Activities() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & REFRESH ACTION ─────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
-            <Activity className="w-5 h-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-800 leading-none">Activities</h1>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
-                Audit Log
-              </span>
-            </div>
-            <p className="text-xs font-bold text-slate-400 mt-1">
-              Centralized administrative timeline, task mutations & forensic accountability ledger
-            </p>
-          </div>
-        </div>
+      {/*
+        The shared PageHeader, as O2D and every HRMS page already use it.
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
+        The hand-rolled header this replaces differed from the rest of the app
+        in every measurable way: `text-2xl font-bold text-slate-800` against the
+        system's `text-xl font-black text-slate-900`, a `text-xs font-bold
+        text-slate-400` subtitle against `text-sm font-medium text-slate-500`,
+        and no bottom rule at all - so a WorkQueue page announced itself in a
+        different voice from the page the user had just left.
+
+        The "Audit Log" chip becomes the `eyebrow`, the slot that exists for
+        exactly this. The 40px icon tile is dropped: no other page in the portal
+        puts an icon beside its title, and keeping it is part of what made these
+        screens read as a different product.
+      */}
+      <PageHeader
+        eyebrow="Audit Log"
+        title="Activities"
+        subtitle="Centralized administrative timeline, task mutations & forensic accountability ledger"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => fetchActivities()}
             disabled={loading || refreshing}
             title="Refresh activities"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
           >
-            <RotateCcw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
+            <RotateCcw className={`w-3.5 h-3.5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        }
+      />
 
       {/* ── 2. TOP CONTRIBUTORS RIBBON ─────────────────────────────────── */}
       {sortedStats.length > 0 && (
@@ -540,7 +543,7 @@ export function Activities() {
               <button
                 type="button"
                 onClick={() => setUpdatedBy('All')}
-                className="text-[11px] font-bold text-[#1E4C92] hover:underline cursor-pointer"
+                className="text-[11px] font-bold text-primary-700 hover:underline cursor-pointer"
               >
                 Clear contributor filter
               </button>
@@ -563,10 +566,10 @@ export function Activities() {
                   key={uid || i}
                   onClick={() => setUpdatedBy(isSelected ? 'All' : uid)}
                   title={`Filter by ${displayName}`}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-3 group ${
+                  className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center gap-3 group ${
                     isSelected
-                      ? 'border-[#1E4C92] ring-2 ring-[#1E4C92]/20 bg-white'
-                      : 'border-slate-200 bg-white hover:border-[#1E4C92]'
+                      ? 'border-primary-600 ring-2 ring-primary-500/20 bg-white'
+                      : 'border-slate-200 bg-white hover:border-primary-600'
                   }`}
                 >
                   <div className="relative shrink-0">
@@ -579,7 +582,7 @@ export function Activities() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-slate-800 truncate group-hover:text-[#1E4C92] transition-colors block">
+                    <span className="text-xs font-semibold text-slate-800 truncate group-hover:text-primary-700 transition-colors block">
                       {displayName}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 truncate block">
@@ -614,7 +617,7 @@ export function Activities() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search activities, titles, authors..."
-            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
+            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-bold outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
           />
           {search && (
             <button
@@ -632,7 +635,7 @@ export function Activities() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
           >
             <option value="This Month">This Month</option>
             <option value="Today">Today</option>
@@ -651,7 +654,7 @@ export function Activities() {
         {/* Custom Start & End Dates */}
         {dateRange === 'Custom' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -661,7 +664,7 @@ export function Activities() {
               />
             </div>
             <span className="text-slate-400 text-xs font-bold">to</span>
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -678,7 +681,7 @@ export function Activities() {
           <select
             value={activityType}
             onChange={(e) => setActivityType(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
           >
             {ACTIVITY_TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -697,7 +700,7 @@ export function Activities() {
           <select
             value={updatedBy}
             onChange={(e) => setUpdatedBy(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
           >
             <option value="All">All Authors</option>
             {usersList.map((u) => {
@@ -720,7 +723,7 @@ export function Activities() {
           <button
             type="button"
             onClick={handleClearAllFilters}
-            className="h-11 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+            className="h-11 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
           >
             <X size={14} />
             <span>Reset</span>
@@ -736,7 +739,7 @@ export function Activities() {
       {/* ── 4. CHRONOLOGICAL AUDIT LEDGER / FEED ─────────────────────────── */}
       {loading ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-3 shadow-xs">
-          <div className="w-9 h-9 border-3 border-[#1E4C92] border-t-transparent rounded-full animate-spin" />
+          <div className="w-9 h-9 border-3 border-primary-600 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Loading audit timeline...
           </span>
@@ -754,7 +757,7 @@ export function Activities() {
             <button
               type="button"
               onClick={handleClearAllFilters}
-              className="mt-4 px-4 py-2 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+              className="mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
             >
               Clear Filters
             </button>
@@ -776,10 +779,10 @@ export function Activities() {
               <div
                 key={act.id || act._id || index}
                 onClick={() => handleOpenTaskDetails(act.relatedId)}
-                className="bg-white rounded-xl border border-slate-200 hover:border-[#1E4C92]/50 hover:shadow-md p-4 transition-all cursor-pointer group flex flex-col md:flex-row md:items-center gap-3.5 sm:gap-4"
+                className="bg-white rounded-lg border border-slate-200 hover:border-primary-300 hover:shadow-md p-4 transition-all cursor-pointer group flex flex-col md:flex-row md:items-center gap-3.5 sm:gap-4"
               >
                 {/* Activity Type Icon Indicator */}
-                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-xs ${cfg.iconBox}`}>
+                <div className={`w-10 h-10 rounded-lg border flex items-center justify-center shrink-0 shadow-xs ${cfg.iconBox}`}>
                   <IconComponent size={18} strokeWidth={2.5} />
                 </div>
 
@@ -789,7 +792,7 @@ export function Activities() {
                     <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md border shrink-0 ${cfg.badge}`}>
                       {cfg.label}
                     </span>
-                    <h4 className="text-sm font-semibold text-slate-800 group-hover:text-[#1E4C92] transition-colors truncate">
+                    <h4 className="text-sm font-semibold text-slate-800 group-hover:text-primary-700 transition-colors truncate">
                       {act.title}
                     </h4>
                   </div>
@@ -805,14 +808,14 @@ export function Activities() {
                     {flowBadge.dest && (
                       <>
                         <ArrowRight size={12} className="text-slate-400" />
-                        <span className="text-[#1E4C92]">{flowBadge.dest}</span>
+                        <span className="text-primary-700">{flowBadge.dest}</span>
                       </>
                     )}
                   </div>
                 )}
 
                 {/* Author Identity Pill */}
-                <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/60 px-2.5 py-1.5 rounded-xl shrink-0">
+                <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/60 px-2.5 py-1.5 rounded-lg shrink-0">
                   <div className={`w-7 h-7 rounded-full font-semibold text-[11px] flex items-center justify-center border shrink-0 ${avatarClass}`}>
                     {initials}
                   </div>
@@ -844,7 +847,7 @@ export function Activities() {
                     handleOpenTaskDetails(act.relatedId);
                   }}
                   title="Open task details drawer"
-                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-[#1E4C92] hover:bg-[#1E4C92]/10 border border-transparent hover:border-[#1E4C92]/20 flex items-center justify-center transition-all shrink-0 cursor-pointer"
+                  className="w-9 h-9 rounded-lg text-slate-400 hover:text-primary-700 hover:bg-primary-50 border border-transparent hover:border-primary-200 flex items-center justify-center transition-all shrink-0 cursor-pointer"
                 >
                   <ExternalLink size={16} />
                 </button>

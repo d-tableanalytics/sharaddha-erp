@@ -132,7 +132,7 @@ export function TaskDetailsDrawer({
           {/* Header */}
           <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="px-2.5 py-1 rounded-md text-xs font-black uppercase bg-[#1E4C92]/10 text-[#1E4C92] border border-[#1E4C92]/20">
+              <span className="px-2.5 py-1 rounded-md text-xs font-black uppercase bg-primary-50 text-primary-700 border border-primary-200">
                 {task.category || 'Operations'}
               </span>
               <span className="text-xs font-bold text-slate-400">
@@ -170,7 +170,7 @@ export function TaskDetailsDrawer({
                 <h2 className="text-lg font-black text-slate-900 leading-tight">
                   {task.taskTitle}
                 </h2>
-                <span className="px-2.5 py-1 text-xs font-black rounded-lg border uppercase shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                <span className="px-2.5 py-1 text-xs font-black rounded-lg border uppercase shrink-0 bg-primary-50 text-primary-700 border-primary-200">
                   {task.priority || 'Medium'}
                 </span>
               </div>
@@ -178,7 +178,7 @@ export function TaskDetailsDrawer({
               {/* Assignee & Assigner Row */}
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 font-semibold pt-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-[#1E4C92]/10 text-[#1E4C92] font-black text-[10px] flex items-center justify-center border border-sky-400">
+                  <div className="w-7 h-7 rounded-full bg-primary-50 text-primary-700 font-black text-[10px] flex items-center justify-center border border-sky-400">
                     {getInitials(task.doerFirstName, task.doerLastName)}
                   </div>
                   <span>
@@ -196,7 +196,7 @@ export function TaskDetailsDrawer({
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
               <div className="flex items-center justify-between text-xs font-black text-slate-700 uppercase tracking-wider">
                 <span>Task Lifecycle</span>
-                <span className="text-[#1E4C92]">{task.status}</span>
+                <span className="text-primary-700">{task.status}</span>
               </div>
 
               <div className="grid grid-cols-4 gap-2">
@@ -209,15 +209,15 @@ export function TaskDetailsDrawer({
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${
                           isDone
-                            ? 'bg-[#1E4C92] text-white shadow-xs'
+                            ? 'bg-primary-600 text-white shadow-xs'
                             : 'bg-slate-200 text-slate-500'
-                        } ${isCurrent ? 'ring-4 ring-[#1E4C92]/20' : ''}`}
+                        } ${isCurrent ? 'ring-4 ring-primary-500/20' : ''}`}
                       >
                         {isDone ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
                       </div>
                       <span
                         className={`text-[10px] font-bold uppercase tracking-wider ${
-                          isCurrent ? 'text-[#1E4C92] font-black' : 'text-slate-500'
+                          isCurrent ? 'text-primary-700 font-black' : 'text-slate-500'
                         }`}
                       >
                         {step.label}
@@ -233,7 +233,7 @@ export function TaskDetailsDrawer({
                   <button
                     type="button"
                     onClick={() => setIsVerifyOpen(true)}
-                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition-all active:scale-98"
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition-all active:scale-98"
                   >
                     <ShieldCheck className="w-4 h-4" />
                     <span>Review & Verify Completion</span>
@@ -266,10 +266,10 @@ export function TaskDetailsDrawer({
               <button
                 type="button"
                 onClick={() => setIsReviseDateOpen(true)}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex flex-col gap-1 transition-all"
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-left flex flex-col gap-1 transition-all"
               >
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <Calendar className="w-3.5 h-3.5 text-[#1E4C92]" />
+                  <Calendar className="w-3.5 h-3.5 text-primary-700" />
                   <span>Revise Due Date</span>
                 </div>
                 <span className="text-[11px] font-medium text-slate-400">
@@ -282,7 +282,7 @@ export function TaskDetailsDrawer({
               <button
                 type="button"
                 onClick={() => setIsReminderOpen(true)}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex flex-col gap-1 transition-all"
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-left flex flex-col gap-1 transition-all"
               >
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                   <Clock className="w-3.5 h-3.5 text-orange-500" />
@@ -296,7 +296,7 @@ export function TaskDetailsDrawer({
               <button
                 type="button"
                 onClick={() => setIsFollowUpOpen(true)}
-                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left flex flex-col gap-1 transition-all"
+                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-left flex flex-col gap-1 transition-all"
               >
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                   <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
@@ -315,7 +315,7 @@ export function TaskDetailsDrawer({
                   Task Instructions & Details
                 </h4>
                 <div
-                  className="p-4 rounded-xl bg-slate-50/60 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed"
+                  className="p-4 rounded-lg bg-slate-50/60 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed"
                   dangerouslySetInnerHTML={{ __html: task.description }}
                 />
               </div>
@@ -323,23 +323,23 @@ export function TaskDetailsDrawer({
 
             {/* Evidence & Proof Section */}
             {task.evidenceRequired && (
-              <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40 space-y-2">
+              <div className="p-4 rounded-lg border border-primary-200 bg-primary-50/40 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-blue-900 flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-blue-600" />
+                  <span className="font-bold text-primary-900 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-primary-600" />
                     Required Evidence Proof
                   </span>
-                  <span className="text-[11px] font-black uppercase text-blue-700">
+                  <span className="text-[11px] font-black uppercase text-primary-700">
                     {task.evidenceUrl ? 'Uploaded' : 'Pending Upload'}
                   </span>
                 </div>
                 {task.evidenceUrl ? (
-                  <div className="pt-2 border-t border-blue-200/60 text-xs">
+                  <div className="pt-2 border-t border-primary-200/60 text-xs">
                     <a
                       href={task.evidenceUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-blue-600 font-bold hover:underline flex items-center gap-1"
+                      className="text-primary-600 font-bold hover:underline flex items-center gap-1"
                     >
                       <span>{task.evidenceUrl}</span>
                       <ExternalLink className="w-3 h-3" />
@@ -349,7 +349,7 @@ export function TaskDetailsDrawer({
                     )}
                   </div>
                 ) : (
-                  <p className="text-xs text-blue-800/80">
+                  <p className="text-xs text-primary-800/80">
                     The assignee must attach proof before submitting for verification.
                   </p>
                 )}
@@ -367,13 +367,13 @@ export function TaskDetailsDrawer({
                     ({completedSubtasks}/{totalSubtasks})
                   </span>
                 </div>
-                <span className="text-xs font-black text-[#1E4C92]">{progressPercent}%</span>
+                <span className="text-xs font-black text-primary-700">{progressPercent}%</span>
               </div>
 
               {/* Progress bar */}
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
                 <div
-                  className="h-full bg-[#1E4C92] transition-all duration-300"
+                  className="h-full bg-primary-600 transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -389,7 +389,7 @@ export function TaskDetailsDrawer({
                       type="checkbox"
                       checked={st.completed}
                       onChange={() => onToggleSubtask(task._id, st._id, !st.completed)}
-                      className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                      className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
                     />
                     <span
                       className={`text-xs font-medium ${
@@ -409,7 +409,7 @@ export function TaskDetailsDrawer({
                   value={newSubtaskTitle}
                   onChange={(e) => setNewSubtaskTitle(e.target.value)}
                   placeholder="Add a new checklist step..."
-                  className="flex-1 h-9 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92]"
+                  className="flex-1 h-9 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600"
                 />
                 <button
                   type="submit"
@@ -451,7 +451,7 @@ export function TaskDetailsDrawer({
             {/* Remarks & Activity Feed */}
             <div className="space-y-3 pt-2">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-[#1E4C92]" />
+                <MessageSquare className="w-4 h-4 text-primary-700" />
                 <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">
                   Activity & Remarks ({task.remarks?.length || 0})
                 </h4>
@@ -465,7 +465,7 @@ export function TaskDetailsDrawer({
                   task.remarks?.map((rem) => (
                     <div
                       key={rem._id}
-                      className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 text-xs space-y-1"
+                      className="p-3 rounded-lg bg-slate-50/80 border border-slate-200 text-xs space-y-1"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-800">{rem.byName || 'Team Member'}</span>
@@ -491,13 +491,13 @@ export function TaskDetailsDrawer({
                   value={remarkText}
                   onChange={(e) => setRemarkText(e.target.value)}
                   placeholder="Post an update, comment, or note..."
-                  className="w-full p-3 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#1E4C92] resize-none"
+                  className="w-full p-3 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 resize-none"
                 />
                 <div className="flex justify-end">
                   <button
                     type="submit"
                     disabled={submittingRemark || !remarkText.trim()}
-                    className="px-4 py-2 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                   >
                     {submittingRemark && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     <span>Post Remark</span>
@@ -508,7 +508,7 @@ export function TaskDetailsDrawer({
 
             {/* Danger Zone / Delete Task */}
             <div className="pt-4 border-t border-slate-200">
-              <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/70 flex items-center justify-between gap-4">
+              <div className="p-3.5 rounded-lg bg-rose-50/60 border border-rose-200/70 flex items-center justify-between gap-4">
                 <div>
                   <h5 className="text-xs font-bold text-rose-900">Delete Task</h5>
                   <p className="text-[11px] text-rose-700/80 mt-0.5">
@@ -570,7 +570,7 @@ export function TaskDetailsDrawer({
           >
             {/* Header */}
             <div className="flex items-start gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
@@ -584,7 +584,7 @@ export function TaskDetailsDrawer({
             </div>
 
             {/* Task Preview Card */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 space-y-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
                 Task to delete
               </span>
@@ -610,7 +610,7 @@ export function TaskDetailsDrawer({
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -618,7 +618,7 @@ export function TaskDetailsDrawer({
                 type="button"
                 disabled={isDeleting}
                 onClick={handleDeleteConfirm}
-                className="flex items-center gap-2 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
               >
                 {isDeleting ? (
                   <>

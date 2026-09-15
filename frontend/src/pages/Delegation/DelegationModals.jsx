@@ -41,7 +41,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-enterprise border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-[#1E4C92]/10 text-[#1E4C92]">
+            <div className="p-2 rounded-lg bg-primary-50 text-primary-700">
               <Calendar className="w-4 h-4" />
             </div>
             <div>
@@ -76,7 +76,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
               required
-              className="w-full h-10 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+              className="w-full h-10 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -90,7 +90,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
               onChange={(e) => setReason(e.target.value)}
               placeholder="Provide context for schedule revision..."
               required
-              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92] resize-none"
+              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -105,7 +105,7 @@ export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
             <button
               type="submit"
               disabled={submitting || !newDate || !reason.trim()}
-              className="px-5 py-2 text-xs font-bold text-white bg-[#1E4C92] hover:bg-[#163a6a] rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+              className="px-5 py-2 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
             >
               {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               Save Revision
@@ -168,7 +168,7 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full h-10 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+              className="w-full h-10 px-3 text-xs font-semibold bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -181,7 +181,7 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Check progress before noon meeting"
-              className="w-full h-10 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+              className="w-full h-10 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -196,7 +196,7 @@ export function TaskReminderModal({ isOpen, onClose, task, onAddReminder }) {
             <button
               type="submit"
               disabled={submitting || !date}
-              className="px-5 py-2 text-xs font-bold text-white bg-[#1E4C92] hover:bg-[#163a6a] rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+              className="px-5 py-2 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
             >
               {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               Set Reminder
@@ -272,7 +272,7 @@ export function FollowUpModal({ isOpen, onClose, task, onAddFollowUp }) {
                     onClick={() => setContactedVia(m.label)}
                     className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border text-xs font-bold transition-all ${
                       active
-                        ? 'border-[#1E4C92] bg-[#1E4C92]/10 text-[#1E4C92]'
+                        ? 'border-primary-600 bg-primary-50 text-primary-700'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -294,7 +294,7 @@ export function FollowUpModal({ isOpen, onClose, task, onAddFollowUp }) {
               onChange={(e) => setNotes(e.target.value)}
               placeholder="What was discussed? Status update received..."
               required
-              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92] resize-none"
+              className="w-full p-3 text-xs font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -309,7 +309,7 @@ export function FollowUpModal({ isOpen, onClose, task, onAddFollowUp }) {
             <button
               type="submit"
               disabled={submitting || !notes.trim()}
-              className="px-5 py-2 text-xs font-bold text-white bg-[#1E4C92] hover:bg-[#163a6a] rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+              className="px-5 py-2 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm flex items-center gap-1.5 disabled:opacity-50"
             >
               {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               Save Follow-Up
@@ -361,7 +361,7 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-500">Assignee:</span>
               <span className="font-bold text-slate-800">{task.doerFirstName} {task.doerLastName}</span>
@@ -373,7 +373,7 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
                   href={task.evidenceUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="font-bold text-blue-600 hover:underline truncate max-w-[180px]"
+                  className="font-bold text-primary-600 hover:underline truncate max-w-[180px]"
                 >
                   View Attachment ↗
                 </a>

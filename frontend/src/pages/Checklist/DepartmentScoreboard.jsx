@@ -42,7 +42,7 @@ function SummaryCard({ label, value, color }) {
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between">
+    <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between">
       <div className="flex items-center justify-between gap-1 mb-1.5">
         <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">{label}</span>
         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dots[color] || 'bg-slate-400'}`} />
@@ -124,7 +124,7 @@ function DepartmentRow({ dept, rank, onViewTasks }) {
             <button
               type="button"
               onClick={() => onViewTasks(dept._id)}
-              className="text-[11px] font-bold text-[#1E4C92] hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+              className="text-[11px] font-bold text-primary-700 hover:underline flex items-center gap-1 transition-colors cursor-pointer"
             >
               View tasks <ArrowRight size={12} />
             </button>
@@ -166,7 +166,7 @@ export function DepartmentScoreboard({ data, loading, onViewTasks }) {
   if (!data || !data.departments?.length) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs flex flex-col items-center justify-center">
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center mb-3">
+        <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-700 border border-primary-200/60 flex items-center justify-center mb-3">
           <Building2 size={28} />
         </div>
         <h3 className="text-base font-black text-slate-800 mb-1">No Department Data</h3>

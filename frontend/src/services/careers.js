@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { API_ORIGIN } from "./apiBase";
+
 /**
  * The public careers API.
  *
@@ -23,11 +25,10 @@ import axios from "axios";
  * behaviour. That absence IS the feature.
  */
 
-const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const cleanApiUrl = rawApiUrl.replace(/\/+$/, "");
-
+// Same resolution as services/api.js, through the one helper — so the public
+// careers site and the portal cannot disagree about where the API is.
 const client = axios.create({
-  baseURL: `${cleanApiUrl}/api/v1/hrms/careers`,
+  baseURL: `${API_ORIGIN}/api/v1/hrms/careers`,
   headers: { "Content-Type": "application/json" },
   // No cookies. An anonymous visitor has no session and must not be given one.
   withCredentials: false,

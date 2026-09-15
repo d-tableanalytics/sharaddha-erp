@@ -32,7 +32,7 @@ import { refreshCookieOptions, clearRefreshCookieOptions } from '../utils/tokens
 // The refresh cookie
 // ---------------------------------------------------------------------------
 
-const ENV_KEYS = ['NODE_ENV', 'CROSS_SITE_COOKIES'];
+const ENV_KEYS = ['NODE_ENV', 'CROSS_SITE_COOKIES', 'COOKIE_SECURE'];
 const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 
 afterEach(() => {
@@ -107,6 +107,34 @@ describe('refresh cookie across deployment shapes', () => {
     // A cookie is removed only by a Set-Cookie whose attributes match. If
     // sameSite/secure/path drift apart, logout leaves the cookie in place.
     assert.deepEqual(clearRefreshCookieOptions(), set);
+  });
+
+  test('COOKIE_SECURE=false relaxes Secure for an IP-only box', () => {
+    // The one case that cannot satisfy Secure: no certificate authority issues
+    // for a bare IP, and the box is being verified over http before DNS lands.
+    withEnv({ NODE_ENV: 'production', COOKIE_SECURE: 'false' });
+    assert.equal(refreshCookieOptions().secure, false);
+  });
+
+  test('only the exact string "false" relaxes it', () => {
+    for (const value of ['0', 'no', 'FALSE', '']) {
+      withEnv({ NODE_ENV: 'production', COOKIE_SECURE: value });
+      assert.equal(
+        refreshCookieOptions().secure, true,
+        `COOKIE_SECURE=${JSON.stringify(value)} must not disable Secure`,
+      );
+    }
+  });
+
+  test('cross-site IGNORES the override — None without Secure is no cookie at all', () => {
+    withEnv({ NODE_ENV: 'production', CROSS_SITE_COOKIES: 'true', COOKIE_SECURE: 'false' });
+    const options = refreshCookieOptions();
+
+    assert.equal(options.sameSite, 'none');
+    assert.equal(
+      options.secure, true,
+      'honouring the override here would break login rather than relax it',
+    );
   });
 });
 

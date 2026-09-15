@@ -148,11 +148,22 @@ html.dark .shadow-xl {
 html.dark aside .bg-white { background-color: #ffffff; }
 html.dark aside .hover\:bg-white:hover { background-color: #ffffff; }
 
-/* In dark mode the ACTIVE menu item is a soft, on-brand blue highlight (a touch
-   of the dark theme — not stark white, not too dark) with light text/icon.
-   Placed after the .bg-white rule so it wins on the active link. */
-html.dark aside .nav-active { background-color: rgba(96, 165, 250, 0.16); color: #eaf1fd; }
-html.dark aside .nav-active .bg-white { background-color: #bfdbfe; } /* left indicator bar */
+/* The ACTIVE menu item is a SOLID WHITE PILL, in both themes.
+
+   It used to be a soft blue wash here (rgba(96,165,250,.16)) on the reasoning
+   that stark white is too loud for a dark theme. That reasoning does not apply
+   to this sidebar: per the rule above, the rail keeps its blue gradient in dark
+   mode rather than going dark, so it is the SAME surface in both themes — and a
+   16% wash on it was as hard to pick out as the 10% one the light theme used.
+
+   So dark mode no longer overrides the active pill at all; the `bg-white` rule
+   above already paints it. Only the TEXT needs stating, because Tailwind's
+   `text-primary-900` is what makes it legible on white and nothing else here
+   sets it.
+
+   The old `.nav-active .bg-white` rule is gone with the left indicator bar it
+   tinted — the white pill replaced that marker, so the rule matched nothing. */
+html.dark aside .nav-active { color: #1e3a5f; }
 
 /* ---- Accent tints: the very light -50 / -100 pastel fills (icon chips, KPI
    tiles, badges) look garish on dark surfaces. Replace them with low-opacity

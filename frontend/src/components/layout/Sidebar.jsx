@@ -262,11 +262,53 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
 
   const activeGroupKey = groups.find((g) => g.items.some((i) => i.id === activeItemId))?.key;
 
+  /**
+   * Collapse keys for a SUB-MODULE, namespaced by its group.
+   *
+   * `o2d:o2d` rather than `o2d`, because the group and its section may share a
+   * key — FMS→O2D does exactly that — and a bare section key would toggle the
+   * group instead, closing the whole rail when you meant to close one heading.
+   *
+   * The store keeps a flat list of strings in localStorage and does not care
+   * what they mean, so sections reuse `toggleNavGroup` unchanged. Absent from
+   * the list means EXPANDED, which is the right default: a sub-module that
+   * hides itself on first load is a sub-module nobody finds.
+   */
+  const sectionKeyOf = (groupKey, sectionKey) => `${groupKey}:${sectionKey}`;
+
+  const activeSectionKey = (() => {
+    for (const group of groups) {
+      if (!group.sections) continue;
+      const section = group.sections.find((s) => s.items.some((i) => i.id === activeItemId));
+      if (section) return sectionKeyOf(group.key, section.key);
+    }
+    return null;
+  })();
+
   const iconFor = (icon) => icon || Circle;
 
+  /**
+   * WHERE YOU ARE, stated in solid white.
+   *
+   * The previous active state was `bg-white/10` — a 10% overlay on a dark
+   * gradient, which sits about as far from the hover state (`white/[0.07]`) as
+   * a rounding error. On the deep end of the gradient it was effectively
+   * invisible, so the rail could not answer "which page am I on" at a glance.
+   *
+   * A SOLID white pill with dark text inverts the row instead of tinting it.
+   * That is unmistakable at any point of the gradient, and it is the one
+   * treatment nothing else in the sidebar uses, so it cannot be confused with
+   * hover or focus.
+   *
+   * The left accent bar that used to ride inside the active row is gone with
+   * it: a 3px primary sliver on a white pill is both redundant and clipped by
+   * the row's own rounded corner. It survives where it still earns its place —
+   * on a COLLAPSED group or section header, which is the only case where the
+   * active row is hidden and the rail must still say where you are.
+   */
   const linkClass = (isActive) =>
     `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${isActive
-      ? "nav-active bg-white/10 text-white font-semibold"
+      ? "nav-active bg-white text-primary-900 font-semibold shadow-sm"
       : "text-primary-100/90 font-medium hover:bg-white/[0.07] hover:text-white"
     }`;
 
@@ -283,14 +325,6 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
       >
         {() => (
           <>
-            {/* The accent sits INSIDE the row's left edge, so it reads as a
-                border on the item rather than a marker floating in the gutter. */}
-            {isActive && (
-              <span
-                aria-hidden="true"
-                className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary-300"
-              />
-            )}
             <Icon size={18} className="shrink-0" />
             {sidebarOpen && <span className="flex-1 truncate">{item.label}</span>}
           </>
@@ -381,16 +415,66 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
 
               {!collapsed &&
                 (group.sections
-                  ? group.sections.map((section) => (
-                    <div key={section.key} className="space-y-0.5 pt-2 first:pt-0.5">
-                      {section.label && (
-                        <p className="px-3 pt-1 pb-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-primary-200/55">
-                          {section.label}
-                        </p>
-                      )}
-                      {section.items.map((item) => renderItem(item))}
-                    </div>
-                  ))
+                  ? group.sections.map((section) => {
+                    /*
+                      A SUB-MODULE, and now an actual disclosure rather than a
+                      caption.
+
+                      It used to render as a <p> — a heading that looked like a
+                      control, sat above a list it did not govern, and could not
+                      be closed. With FMS→O2D at six items and Work Queue at
+                      eight, the rail scrolls and there was no way to put a
+                      sub-module away.
+
+                      An UNLABELLED section gets no control, because there is
+                      nothing to put one on and a nameless toggle tells the user
+                      nothing about what it hides.
+                    */
+                    if (!section.label) {
+                      return (
+                        <div key={section.key} className="space-y-0.5">
+                          {section.items.map((item) => renderItem(item))}
+                        </div>
+                      );
+                    }
+
+                    const sectionKey = sectionKeyOf(group.key, section.key);
+                    const sectionCollapsed = collapsedNavGroups.includes(sectionKey);
+                    const sectionHoldsActive = sectionKey === activeSectionKey;
+
+                    return (
+                      <div key={section.key} className="space-y-0.5 pt-2 first:pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleNavGroup(sectionKey)}
+                          aria-expanded={!sectionCollapsed}
+                          className={`relative w-full flex items-center gap-2 px-3 pt-1 pb-1 rounded-lg text-[10.5px] font-bold uppercase tracking-[0.08em] transition-colors duration-150 focus:outline-none ${
+                            sectionHoldsActive
+                              ? "text-primary-100"
+                              : "text-primary-200/55 hover:text-primary-100"
+                          } hover:bg-white/5`}
+                        >
+                          {/* Shut, but this is where you are — the same promise
+                              the group header makes, at sub-module depth. */}
+                          {sectionHoldsActive && sectionCollapsed && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute left-0 top-1/2 -translate-y-1/2 h-3.5 w-[3px] rounded-r-full bg-primary-300"
+                            />
+                          )}
+                          <span className="flex-1 truncate text-left">{section.label}</span>
+                          <ChevronDown
+                            size={12}
+                            className={`shrink-0 opacity-70 transition-transform duration-200 ${
+                              sectionCollapsed ? "-rotate-90" : ""
+                            }`}
+                          />
+                        </button>
+
+                        {!sectionCollapsed && section.items.map((item) => renderItem(item))}
+                      </div>
+                    );
+                  })
                   : (
                     <div className="space-y-0.5">
                       {group.items.map((item) => renderItem(item))}

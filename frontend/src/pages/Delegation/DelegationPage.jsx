@@ -28,7 +28,7 @@ const STATUS_TABS = [
   { key: 'Overdue', label: 'Overdue', dot: 'bg-red-500' },
   { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent' },
   { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500' },
-  { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-blue-500' },
+  { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500' },
   { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500' },
 ];
 
@@ -461,21 +461,21 @@ export function DelegationPage() {
     { key: 'Overdue', label: 'Overdue', dot: 'bg-red-500', textColor: 'text-red-600' },
     { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent', textColor: 'text-slate-700' },
     { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500', textColor: 'text-orange-500' },
-    { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-blue-500', textColor: 'text-blue-600' },
+    { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500', textColor: 'text-primary-600' },
     { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500', textColor: 'text-emerald-600' },
   ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & PRIMARY ACTIONS ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
+          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center shadow-enterprise-md shrink-0">
             <CheckSquare className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 leading-none">Delegation</h1>
-            <p className="text-xs font-bold text-slate-400 mt-1">
+            <h1 className="text-xl font-black text-slate-900">Delegation</h1>
+            <p className="text-sm text-slate-500 font-medium mt-1 max-w-2xl leading-relaxed">
               Delegate, track, and verify assigned tasks across your team
             </p>
           </div>
@@ -483,7 +483,7 @@ export function DelegationPage() {
 
         <div className="flex items-center gap-2.5">
           <button type="button" onClick={() => setIsCreationDrawerOpen(true)}
-            className="flex items-center justify-center gap-2 px-5 h-10 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-semibold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0">
+            className="flex items-center justify-center gap-2 px-5 h-10 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0">
             <CheckSquare className="w-4 h-4" strokeWidth={2.5} />
             <span>Assign Task</span>
           </button>
@@ -499,13 +499,13 @@ export function DelegationPage() {
             <div
               key={card.key}
               onClick={() => setActiveTab(card.key)}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${isActive
-                  ? 'border-[#1E4C92] ring-2 ring-[#1E4C92]/20 bg-white'
-                  : 'border-slate-200 bg-white hover:border-[#1E4C92]'
+              className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${isActive
+                  ? 'border-primary-600 ring-2 ring-primary-500/20 bg-white'
+                  : 'border-slate-200 bg-white hover:border-primary-600'
                 }`}
             >
               <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
                   {card.label}
                 </span>
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${card.dot}`} />
@@ -514,7 +514,7 @@ export function DelegationPage() {
                 <span className={`text-2xl font-semibold ${card.textColor}`}>
                   {count}
                 </span>
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-primary-700 group-hover:underline">
                   Filter →
                 </span>
               </div>
@@ -530,7 +530,7 @@ export function DelegationPage() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-semibold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-3.5 pr-8 text-xs font-semibold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 transition-all"
           >
             <option value="All Time">All Time</option>
             <option value="Today">Today</option>
@@ -548,7 +548,7 @@ export function DelegationPage() {
         {/* Custom Start & End Dates */}
         {dateRange === 'Custom' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -558,7 +558,7 @@ export function DelegationPage() {
               />
             </div>
             <span className="text-slate-400 text-xs font-semibold">to</span>
-            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
+            <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-lg px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
@@ -575,15 +575,15 @@ export function DelegationPage() {
           <button
             type="button"
             onClick={() => setIsFilterFlyoutOpen((prev) => !prev)}
-            className={`h-11 px-4 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${isFilterFlyoutOpen || activeSecondaryFilterCount > 0
-                ? 'bg-[#1E4C92]/10 border border-[#1E4C92]/30 text-[#1E4C92]'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#1E4C92]'
+            className={`h-11 px-4 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${isFilterFlyoutOpen || activeSecondaryFilterCount > 0
+                ? 'bg-primary-50 border border-primary-200 text-primary-700'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary-700'
               }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filters</span>
             {activeSecondaryFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#1E4C92] text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
+              <span className="w-5 h-5 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center font-semibold ml-0.5">
                 {activeSecondaryFilterCount}
               </span>
             )}
@@ -605,7 +605,7 @@ export function DelegationPage() {
                     setTagFilter('All');
                     setVerificationFilter('All');
                   }}
-                  className="text-[11px] font-semibold text-[#1E4C92] hover:underline cursor-pointer"
+                  className="text-[11px] font-semibold text-primary-700 hover:underline cursor-pointer"
                 >
                   Clear All
                 </button>
@@ -620,7 +620,7 @@ export function DelegationPage() {
                   <select
                     value={assignedToFilter}
                     onChange={(e) => setAssignedToFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-semibold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Members</option>
                     {users.map((u) => (
@@ -639,7 +639,7 @@ export function DelegationPage() {
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-semibold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Priorities</option>
                     <option value="Urgent">Urgent</option>
@@ -657,7 +657,7 @@ export function DelegationPage() {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-semibold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Categories</option>
                     {categories.map((c, i) => {
@@ -679,7 +679,7 @@ export function DelegationPage() {
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-semibold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tags</option>
                     {uniqueTags.map((tg, i) => (
@@ -698,7 +698,7 @@ export function DelegationPage() {
                   <select
                     value={verificationFilter}
                     onChange={(e) => setVerificationFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-lg px-2.5 font-semibold text-slate-700 outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-500"
                   >
                     <option value="All">All Tasks</option>
                     <option value="Verification Required">Verification Required</option>
@@ -718,7 +718,7 @@ export function DelegationPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search delegated tasks..."
-            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs transition-all"
+            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs transition-all"
           />
         </div>
 
@@ -727,7 +727,7 @@ export function DelegationPage() {
           type="button"
           onClick={handleClearAllFilters}
           title="Reset All Filters"
-          className="h-11 w-11 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+          className="h-11 w-11 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-primary-700 rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -737,20 +737,20 @@ export function DelegationPage() {
           type="button"
           onClick={handleExport}
           title="Export CSV"
-          className="h-11 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-[#1E4C92] rounded-xl font-semibold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          className="h-11 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-primary-700 rounded-lg font-semibold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
         >
           <FileUp className="w-4 h-4" />
           <span>Export</span>
         </button>
 
         {/* View Mode Switcher */}
-        <div className="h-11 bg-slate-100 rounded-xl p-1 border border-slate-200 flex items-center gap-1 shadow-xs ml-auto shrink-0">
+        <div className="h-11 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs ml-auto shrink-0">
           <button
             type="button"
             onClick={() => setViewMode('list')}
             title="List View"
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'list'
-                ? 'bg-[#1E4C92] text-white shadow-xs'
+                ? 'bg-primary-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
@@ -762,7 +762,7 @@ export function DelegationPage() {
             onClick={() => setViewMode('kanban')}
             title="Kanban Board View"
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'kanban'
-                ? 'bg-[#1E4C92] text-white shadow-xs'
+                ? 'bg-primary-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
@@ -774,7 +774,7 @@ export function DelegationPage() {
             onClick={() => setViewMode('calendar')}
             title="Calendar Schedule View"
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'calendar'
-                ? 'bg-[#1E4C92] text-white shadow-xs'
+                ? 'bg-primary-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
           >
@@ -806,7 +806,7 @@ export function DelegationPage() {
                 )}
                 <span>{tab.label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${isActive ? 'bg-[#1E4C92] text-white' : 'bg-slate-100 text-slate-500'
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${isActive ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-500'
                     }`}
                 >
                   {count}
@@ -814,7 +814,7 @@ export function DelegationPage() {
 
                 {/* Active Underline Pill */}
                 {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1E4C92] rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full" />
                 )}
               </button>
             );
@@ -826,68 +826,68 @@ export function DelegationPage() {
       {activeSecondaryFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {priorityFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Priority: {priorityFilter}</span>
               <button
                 type="button"
                 onClick={() => setPriorityFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
 
           {categoryFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Category: {categoryFilter}</span>
               <button
                 type="button"
                 onClick={() => setCategoryFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
 
           {assignedToFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>
                 Assigned To: {users.find((u) => u._id === assignedToFilter)?.user || users.find((u) => u._id === assignedToFilter)?.name || 'Member'}
               </span>
               <button
                 type="button"
                 onClick={() => setAssignedToFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
 
           {tagFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Tag: {tagFilter}</span>
               <button
                 type="button"
                 onClick={() => setTagFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
 
           {verificationFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-primary-700 border border-primary-300 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Verification: {verificationFilter}</span>
               <button
                 type="button"
                 onClick={() => setVerificationFilter('All')}
-                className="w-4 h-4 rounded-full hover:bg-blue-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-4 h-4 rounded-full hover:bg-primary-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-3 h-3 text-[#1E4C92]" />
+                <X className="w-3 h-3 text-primary-700" />
               </button>
             </span>
           )}
@@ -910,7 +910,7 @@ export function DelegationPage() {
 
       {/* ── BULK ACTION BAR ─────────────────────────────────────────────── */}
       {selectedIds.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-[#1E4C92] text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-primary-600 text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-semibold">{selectedIds.length} tasks selected</span>
@@ -923,13 +923,13 @@ export function DelegationPage() {
                 type="button"
                 disabled={isBulkUpdating}
                 onClick={() => setBulkStatusOpen(!bulkStatusOpen)}
-                className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <span>Change Status</span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {bulkStatusOpen && (
-                <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-1.5 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
                   {['Pending', 'In Progress', 'Awaiting Verification', 'Completed'].map((st) => (
                     <button
                       key={st}
@@ -949,7 +949,7 @@ export function DelegationPage() {
               type="button"
               disabled={isBulkDeleting}
               onClick={handleBulkDelete}
-              className="px-3.5 py-1.5 rounded-xl bg-red-500/80 hover:bg-red-600 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-3.5 py-1.5 rounded-lg bg-red-500/80 hover:bg-red-600 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Delete ({selectedIds.length})</span>
@@ -959,7 +959,7 @@ export function DelegationPage() {
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-xs transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-semibold text-xs transition-colors cursor-pointer"
             >
               Clear
             </button>

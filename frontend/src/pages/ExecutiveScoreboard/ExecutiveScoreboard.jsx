@@ -19,7 +19,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 
 // Enterprise Avatar Color Palette (consistent with application standard)
 const AVATAR_COLOR_PALETTE = [
-  'bg-[#1E4C92]/10 text-[#1E4C92] border-[#1E4C92]/20',
+  'bg-primary-50 text-primary-700 border-primary-200',
   'bg-indigo-50 text-indigo-700 border-indigo-200/60',
   'bg-emerald-50 text-emerald-700 border-emerald-200/60',
   'bg-sky-50 text-sky-700 border-sky-200/60',
@@ -140,12 +140,12 @@ function EditableNum({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={`${width} h-7 px-2 py-0.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-800 text-xs font-semibold tabular-nums text-center focus:outline-none focus:ring-2 focus:ring-[#1E4C92]/20 focus:border-[#1E4C92] shadow-xs transition-all`}
+        className={`${width} h-7 px-2 py-0.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-800 text-xs font-semibold tabular-nums text-center focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-600 shadow-xs transition-all`}
       />
       {isSaving && (
         <Loader2
           size={12}
-          className="animate-spin text-[#1E4C92] absolute -right-3.5 top-1/2 -translate-y-1/2"
+          className="animate-spin text-primary-700 absolute -right-3.5 top-1/2 -translate-y-1/2"
         />
       )}
     </div>
@@ -226,7 +226,7 @@ function PodiumCard({ row, rankIdx }) {
       </div>
 
       <div
-        className={`text-2xl font-semibold tabular-nums px-3 py-1.5 rounded-xl ${rankTheme.scoreGlow}`}
+        className={`text-2xl font-semibold tabular-nums px-3 py-1.5 rounded-lg ${rankTheme.scoreGlow}`}
       >
         {row.finalScore ?? '—'}
       </div>
@@ -418,19 +418,19 @@ export function ExecutiveScoreboard() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & GLOBAL CONTROLS ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-[#1E4C92] rounded-xl flex items-center justify-center shadow-lg shadow-[#1E4C92]/30 shrink-0">
+          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center shadow-enterprise-md shrink-0">
             <Trophy className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-800 leading-none">
+              <h1 className="text-xl font-black text-slate-900">
                 Executive Scoreboard
               </h1>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1E4C92] bg-[#1E4C92]/10 border border-[#1E4C92]/20 px-2.5 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-700 bg-primary-50 border border-primary-200 px-2.5 py-0.5 rounded-full">
                 Leadership
               </span>
             </div>
@@ -457,7 +457,7 @@ export function ExecutiveScoreboard() {
         {/* Global Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Period Selector Pill Group */}
-          <div className="h-10 bg-slate-100 rounded-xl p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
+          <div className="h-10 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
             {['week', 'month', 'year'].map((p) => (
               <button
                 key={p}
@@ -465,7 +465,7 @@ export function ExecutiveScoreboard() {
                 onClick={() => setPeriod(p)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
                   period === p
-                    ? 'bg-[#1E4C92] text-white shadow-xs'
+                    ? 'bg-primary-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
@@ -475,7 +475,7 @@ export function ExecutiveScoreboard() {
           </div>
 
           {/* Scope Selector Pill Group */}
-          <div className="h-10 bg-slate-100 rounded-xl p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
+          <div className="h-10 bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-xs shrink-0">
             <Building2 size={14} className="ml-2 mr-0.5 text-slate-400 shrink-0" />
             {[
               { id: 'all', label: 'Overall' },
@@ -488,7 +488,7 @@ export function ExecutiveScoreboard() {
                 onClick={() => setScope(s.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   scope === s.id
-                    ? 'bg-[#1E4C92] text-white shadow-xs'
+                    ? 'bg-primary-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
@@ -502,7 +502,7 @@ export function ExecutiveScoreboard() {
           <button
             type="button"
             onClick={exportToExcel}
-            className="h-10 px-4 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-semibold text-xs flex items-center gap-2 shadow-sm shadow-[#1E4C92]/20 transition-all active:scale-95 cursor-pointer shrink-0"
+            className="h-10 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-xs flex items-center gap-2 shadow-enterprise transition-all active:scale-95 cursor-pointer shrink-0"
           >
             <Download size={14} strokeWidth={2.5} />
             <span>Export</span>
@@ -541,7 +541,7 @@ export function ExecutiveScoreboard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by doer name..."
-            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
+            className="w-full h-11 pl-10 pr-9 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 shadow-xs text-slate-700 placeholder:text-slate-400 transition-all"
           />
           {search && (
             <button
@@ -557,14 +557,14 @@ export function ExecutiveScoreboard() {
         {/* Advisory Banner */}
         <div className="shrink-0">
           {canEdit ? (
-            <div className="text-[11px] font-semibold text-[#1E4C92] inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#1E4C92]/5 border border-[#1E4C92]/20 shadow-xs">
-              <Target size={14} className="text-[#1E4C92] shrink-0" />
+            <div className="text-[11px] font-semibold text-primary-700 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-primary-50 border border-primary-200 shadow-xs">
+              <Target size={14} className="text-primary-700 shrink-0" />
               <span>
                 Set the <strong>{nextLabel}</strong> score goal & MD adjustment inline — rankings recalculate instantly.
               </span>
             </div>
           ) : (
-            <div className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 shadow-xs">
+            <div className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-200 shadow-xs">
               <Info size={14} className="text-slate-400 shrink-0" />
               <span>Score goals and leadership adjustments are set by the CEO/MD.</span>
             </div>
@@ -608,13 +608,13 @@ export function ExecutiveScoreboard() {
                 <th className="px-3.5 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center min-w-[100px]">
                   {nextLabel} Planned
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[120px] bg-[#1E4C92]/5 text-[#1E4C92] border-l border-slate-200">
+                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[120px] bg-primary-50 text-primary-700 border-l border-slate-200">
                   {nextLabel} Score Goal
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[115px] bg-[#1E4C92]/5 text-[#1E4C92] border-l border-slate-200">
+                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[115px] bg-primary-50 text-primary-700 border-l border-slate-200">
                   MD Adjustment
                 </th>
-                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[105px] bg-[#1E4C92]/10 text-[#1E4C92] border-l border-slate-200">
+                <th className="px-3.5 py-3 text-[10px] font-semibold uppercase tracking-wider text-center min-w-[105px] bg-primary-50 text-primary-700 border-l border-slate-200">
                   Final Score
                 </th>
               </tr>
@@ -625,7 +625,7 @@ export function ExecutiveScoreboard() {
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
                     <td colSpan={13} className="px-4 py-3">
-                      <div className="h-10 bg-slate-100 rounded-xl" />
+                      <div className="h-10 bg-slate-100 rounded-lg" />
                     </td>
                   </tr>
                 ))
@@ -695,7 +695,7 @@ export function ExecutiveScoreboard() {
                                 {initials}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-semibold text-xs text-slate-800 hover:text-[#1E4C92] transition-colors truncate">
+                                <div className="font-semibold text-xs text-slate-800 hover:text-primary-700 transition-colors truncate">
                                   {r.doer}
                                 </div>
                                 {!r.hasWork ? (
@@ -769,7 +769,7 @@ export function ExecutiveScoreboard() {
                         {isFirstKra && (
                           <td
                             rowSpan={2}
-                            className="px-2.5 py-2.5 text-center align-middle bg-[#1E4C92]/[0.02] border-l border-slate-100"
+                            className="px-2.5 py-2.5 text-center align-middle bg-primary-600/[0.02] border-l border-slate-100"
                           >
                             <EditableNum
                               value={r.nextGoal}
@@ -786,7 +786,7 @@ export function ExecutiveScoreboard() {
                         {isFirstKra && (
                           <td
                             rowSpan={2}
-                            className="px-2.5 py-2.5 text-center align-middle bg-[#1E4C92]/[0.02] border-l border-slate-100"
+                            className="px-2.5 py-2.5 text-center align-middle bg-primary-600/[0.02] border-l border-slate-100"
                           >
                             <EditableNum
                               value={r.mdAdjustment}
@@ -804,7 +804,7 @@ export function ExecutiveScoreboard() {
                         {isFirstKra && (
                           <td
                             rowSpan={2}
-                            className={`px-3.5 py-2.5 text-center align-middle bg-[#1E4C92]/[0.04] text-base font-semibold tabular-nums border-l border-slate-100 ${band(
+                            className={`px-3.5 py-2.5 text-center align-middle bg-primary-600/[0.04] text-base font-semibold tabular-nums border-l border-slate-100 ${band(
                               r.finalScore
                             )}`}
                           >
@@ -824,7 +824,7 @@ export function ExecutiveScoreboard() {
       {/* ── 5. FOOTNOTE & CALCULATION METHODOLOGY ─────────────────────────── */}
       <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs text-slate-600 text-xs space-y-3 leading-relaxed">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-[#1E4C92]/10 text-[#1E4C92] flex items-center justify-center shrink-0">
+          <div className="w-6 h-6 rounded-lg bg-primary-50 text-primary-700 flex items-center justify-center shrink-0">
             <Info size={14} strokeWidth={2.5} />
           </div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-800">
@@ -835,7 +835,7 @@ export function ExecutiveScoreboard() {
           Both Key Result Areas (KRAs) evaluate operational misses against an absolute benchmark of{' '}
           <strong className="text-slate-700">0%</strong>. Lower miss percentages indicate superior velocity and discipline. Baseline individual score is mathematically calculated as:
         </p>
-        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 w-fit text-xs font-mono font-semibold text-slate-700 shadow-xs">
+        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 w-fit text-xs font-mono font-semibold text-slate-700 shadow-xs">
           Baseline Score = Mean( (100 - % Work Not Done) + (100 - % Work Not Done On Time) )
         </div>
         <p className="text-xs font-medium text-slate-500">

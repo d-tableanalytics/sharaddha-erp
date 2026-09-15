@@ -22,7 +22,7 @@ import {
 // ── Shared field styles ─────────────────────────────────────────────────────
 
 const fieldClass =
-  'w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E4C92]/30 focus:border-[#1E4C92] transition-all';
+  'w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-600 transition-all';
 
 const labelClass = 'block text-xs font-bold text-slate-600 mb-1.5';
 
@@ -57,8 +57,8 @@ export function CompleteChecklistModal({ isOpen, onClose, task, onSuccess }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Complete Task" size="sm">
       <div className="space-y-4">
-        <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100">
-          <p className="text-sm font-bold text-[#1E4C92]">{task?.taskName}</p>
+        <div className="p-3.5 rounded-lg bg-primary-50/70 border border-primary-100">
+          <p className="text-sm font-bold text-primary-700">{task?.taskName}</p>
           <p className="text-xs text-slate-500 font-mono mt-0.5">{task?.taskCode}</p>
         </div>
 
@@ -79,13 +79,13 @@ export function CompleteChecklistModal({ isOpen, onClose, task, onSuccess }) {
         )}
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-[#1E4C92] hover:!bg-[#173a70] !text-white rounded-xl font-bold text-xs shadow-sm"
+            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
           >
             Mark Complete
           </Button>
@@ -120,7 +120,7 @@ export function NonFunctionalModal({ isOpen, onClose, task, onSuccess }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Mark Non-Functional" size="sm">
       <div className="space-y-4">
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
           <p className="text-sm font-semibold text-amber-800">{task?.taskName}</p>
           <p className="text-xs text-amber-600 font-mono mt-0.5">{task?.taskCode}</p>
         </div>
@@ -137,13 +137,13 @@ export function NonFunctionalModal({ isOpen, onClose, task, onSuccess }) {
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-amber-500 hover:!bg-amber-600 !text-white rounded-xl font-bold text-xs shadow-sm"
+            className="flex-1 !bg-amber-500 hover:!bg-amber-600 !text-white rounded-lg font-bold text-xs shadow-sm"
           >
             Mark Non-Functional
           </Button>
@@ -183,7 +183,7 @@ export function ReassignChecklistModal({ isOpen, onClose, task, users, onSuccess
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Reassign Task" size="sm">
       <div className="space-y-4">
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
           <p className="text-sm font-semibold text-slate-800">{task?.taskName}</p>
           <p className="text-xs text-slate-500 mt-0.5">
             Currently assigned to: {task?.doerFirstName} {task?.doerLastName}
@@ -203,13 +203,13 @@ export function ReassignChecklistModal({ isOpen, onClose, task, users, onSuccess
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-[#1E4C92] hover:!bg-[#173a70] !text-white rounded-xl font-bold text-xs shadow-sm"
+            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
           >
             Reassign
           </Button>
@@ -265,13 +265,13 @@ export function RemarkModal({ isOpen, onClose, taskIds, onSuccess }) {
         </div>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl font-bold text-xs">
+          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">
             Cancel
           </Button>
           <Button
             loading={loading}
             onClick={handleSubmit}
-            className="flex-1 !bg-[#1E4C92] hover:!bg-[#173a70] !text-white rounded-xl font-bold text-xs shadow-sm"
+            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
           >
             Add Remark
           </Button>
@@ -375,14 +375,14 @@ export function EditChecklistModal({ isOpen, onClose, routine, users, onSuccess 
             type="checkbox"
             checked={form.proofRequired || false}
             onChange={(e) => set('proofRequired', e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] focus:ring-[#1E4C92]"
+            className="w-4 h-4 rounded border-slate-300 accent-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm font-semibold text-slate-700">Proof required</span>
         </label>
 
         <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl font-bold text-xs">Cancel</Button>
-          <Button loading={loading} onClick={handleSubmit} className="flex-1 !bg-[#1E4C92] hover:!bg-[#173a70] !text-white rounded-xl font-bold text-xs shadow-sm">
+          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">Cancel</Button>
+          <Button loading={loading} onClick={handleSubmit} className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm">
             Save Changes
           </Button>
         </div>
@@ -583,10 +583,10 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
 
         {/* Occurrence Preview Helper Banner */}
         {form.startDate && (
-          <div className={`flex items-center gap-2.5 p-3 rounded-xl text-xs font-semibold ${
+          <div className={`flex items-center gap-2.5 p-3 rounded-lg text-xs font-semibold ${
             isInvalidDateRange
               ? 'bg-amber-50 text-amber-800 border border-amber-200'
-              : 'bg-blue-50 text-[#1E4C92] border border-blue-100'
+              : 'bg-primary-50 text-primary-700 border border-primary-100'
           }`}>
             {isInvalidDateRange ? (
               <>
@@ -595,7 +595,7 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
               </>
             ) : (
               <>
-                <Calendar className="w-4 h-4 shrink-0 text-[#1E4C92]" />
+                <Calendar className="w-4 h-4 shrink-0 text-primary-700" />
                 <span>
                   {form.frequency === 'once'
                     ? 'This will create 1 single checklist task.'
@@ -624,18 +624,18 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
             type="checkbox"
             checked={form.proofRequired}
             onChange={(e) => set('proofRequired', e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] focus:ring-[#1E4C92]"
+            className="w-4 h-4 rounded border-slate-300 accent-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm font-semibold text-slate-700">Proof required for completion</span>
         </label>
 
         <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
-          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl font-bold text-xs">Cancel</Button>
+          <Button variant="ghost" onClick={onClose} className="flex-1 rounded-lg font-bold text-xs">Cancel</Button>
           <Button
             loading={loading}
             disabled={loading || isInvalidDateRange}
             onClick={handleSubmit}
-            className="flex-1 !bg-[#1E4C92] hover:!bg-[#173a70] !text-white rounded-xl font-bold text-xs shadow-sm"
+            className="flex-1 !bg-primary-600 hover:!bg-primary-700 !text-white rounded-lg font-bold text-xs shadow-sm"
           >
             {form.frequency === 'once'
               ? 'Create Task'

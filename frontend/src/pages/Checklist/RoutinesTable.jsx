@@ -30,7 +30,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
   if (!routines?.length) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs flex flex-col items-center justify-center">
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center mb-3">
+        <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-700 border border-primary-200/60 flex items-center justify-center mb-3">
           <ClipboardList size={28} />
         </div>
         <h3 className="text-base font-black text-slate-800 mb-1">No Routines Yet</h3>
@@ -64,7 +64,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                 <tr key={routine._id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-colors duration-150">
                   {/* Routine name */}
                   <td className="px-4 py-3 max-w-[260px]">
-                    <p className="text-sm font-bold text-slate-800 hover:text-[#1E4C92] transition-colors truncate">{routine.taskName}</p>
+                    <p className="text-sm font-bold text-slate-800 hover:text-primary-700 transition-colors truncate">{routine.taskName}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[11px] font-mono font-semibold text-slate-400">{routine.taskCode}</span>
                       {!routine.isActive && (
@@ -119,7 +119,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                       <button
                         type="button"
                         onClick={() => onEdit(routine)}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-[#1E4C92] font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-primary-700 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
                       >
                         <Edit3 size={12} /> Edit
                       </button>
@@ -127,7 +127,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                         <button
                           type="button"
                           onClick={() => onStop(routine)}
-                          className="px-3 py-1.5 rounded-xl border border-amber-200 hover:border-amber-300 bg-white hover:bg-amber-50 text-amber-600 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg border border-amber-200 hover:border-amber-300 bg-white hover:bg-amber-50 text-amber-600 font-bold text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer"
                         >
                           <StopCircle size={12} /> Stop
                         </button>

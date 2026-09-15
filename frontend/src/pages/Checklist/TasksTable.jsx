@@ -75,7 +75,7 @@ function ActionMenu({ task, isAdmin, onRemark, onReassign, onNonFunctional }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-200 z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-xl border border-slate-200 z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"
               onClick={() => { setOpen(false); onRemark(task); }}
@@ -138,7 +138,7 @@ export function TasksTable({
   if (!tasks?.length) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs flex flex-col items-center justify-center">
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#1E4C92] border border-blue-200/60 flex items-center justify-center mb-3">
+        <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary-700 border border-primary-200/60 flex items-center justify-center mb-3">
           <ClipboardList size={28} />
         </div>
         <h3 className="text-base font-black text-slate-800 mb-1">No Checklist Tasks</h3>
@@ -149,7 +149,7 @@ export function TasksTable({
           <button
             type="button"
             onClick={onClearFilters}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
           >
             Clear Filters
           </button>
@@ -157,7 +157,7 @@ export function TasksTable({
           <button
             type="button"
             onClick={onCreateNew}
-            className="px-4 py-2 bg-[#1E4C92] hover:bg-[#163a6a] text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
           >
             + Create the first one
           </button>
@@ -181,7 +181,7 @@ export function TasksTable({
                     type="checkbox"
                     checked={allOpenSelected}
                     onChange={() => onToggleSelectAll(openTasks.map((t) => t._id))}
-                    className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
                   />
                 </th>
               )}
@@ -211,14 +211,14 @@ export function TasksTable({
                         checked={isSelected}
                         disabled={isCompleted}
                         onChange={() => onToggleSelect(task._id)}
-                        className="w-4 h-4 rounded border-slate-300 accent-[#1E4C92] cursor-pointer disabled:opacity-30"
+                        className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer disabled:opacity-30"
                       />
                     </td>
                   )}
 
                   {/* Task */}
                   <td className="px-4 py-3 max-w-[240px]">
-                    <p className="text-sm font-bold text-slate-800 hover:text-[#1E4C92] transition-colors truncate">{task.taskName}</p>
+                    <p className="text-sm font-bold text-slate-800 hover:text-primary-700 transition-colors truncate">{task.taskName}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[11px] font-mono font-semibold text-slate-400">{task.taskCode}</span>
                       {task.remarks?.length > 0 && (
@@ -239,7 +239,7 @@ export function TasksTable({
                     <p className="text-xs font-bold text-slate-800">{task.doerFirstName} {task.doerLastName}</p>
                     <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
                       {task.department && <>{task.department} · </>}
-                      <span className="font-bold text-[#1E4C92]">{task.site}</span>
+                      <span className="font-bold text-primary-700">{task.site}</span>
                     </p>
                   </td>
 
@@ -271,7 +271,7 @@ export function TasksTable({
                         href={task.proofUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-bold text-[#1E4C92] hover:underline"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-primary-700 hover:underline"
                       >
                         <Paperclip size={12} /> View
                       </a>
@@ -291,7 +291,7 @@ export function TasksTable({
                         <button
                           type="button"
                           onClick={() => onComplete(task)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
                         >
                           <CheckCircle2 size={13} /> Complete
                         </button>

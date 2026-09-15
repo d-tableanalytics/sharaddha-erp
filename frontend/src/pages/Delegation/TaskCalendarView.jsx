@@ -114,14 +114,14 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
         </div>
 
         {/* Day / Week / Month Pill Selector */}
-        <div className="flex items-center bg-slate-200/70 p-1 rounded-xl gap-1">
+        <div className="flex items-center bg-slate-200/70 p-1 rounded-lg gap-1">
           {['Day', 'Week', 'Month'].map((mode) => (
             <button
               key={mode}
               onClick={() => setCalendarMode(mode)}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
                 calendarMode === mode
-                  ? 'bg-white text-[#1E4C92] shadow-xs'
+                  ? 'bg-white text-primary-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -146,13 +146,13 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                   <div
                     key={i}
                     className={`p-3 border-r border-slate-200/60 flex flex-col items-center ${
-                      isToday ? 'bg-[#1E4C92]/10 text-[#1E4C92]' : 'text-slate-700'
+                      isToday ? 'bg-primary-50 text-primary-700' : 'text-slate-700'
                     }`}
                   >
                     <span className="text-[10px] uppercase font-black text-slate-400">
                       {d.toLocaleDateString('en-US', { weekday: 'short' })}
                     </span>
-                    <span className={`text-sm font-black mt-0.5 ${isToday ? 'text-[#1E4C92]' : ''}`}>
+                    <span className={`text-sm font-black mt-0.5 ${isToday ? 'text-primary-700' : ''}`}>
                       {d.getDate()}
                     </span>
                   </div>
@@ -185,7 +185,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                       <div
                         key={dIdx}
                         className={`p-1 border-r border-slate-100 hover:bg-slate-50/50 transition-colors relative flex flex-col gap-1 ${
-                          isToday ? 'bg-blue-50/20' : ''
+                          isToday ? 'bg-primary-50/20' : ''
                         }`}
                       >
                         {/* Only render on first few hours to avoid repeating, or match hour if time stored */}
@@ -194,7 +194,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                             <div
                               key={t._id}
                               onClick={() => onTaskClick(t)}
-                              className="px-2 py-1 rounded-md bg-[#1E4C92] text-white text-[10px] font-bold shadow-xs hover:bg-[#163a6a] cursor-pointer truncate transition-all active:scale-95"
+                              className="px-2 py-1 rounded-md bg-primary-600 text-white text-[10px] font-bold shadow-xs hover:bg-primary-700 cursor-pointer truncate transition-all active:scale-95"
                               title={`${t.taskTitle} (${t.doerFirstName})`}
                             >
                               <span className="font-black">[{t.priority}]</span> {t.taskTitle}
@@ -229,7 +229,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                 <div
                   key={t._id}
                   onClick={() => onTaskClick(t)}
-                  className="p-4 rounded-xl border border-slate-200 bg-white hover:border-[#1E4C92] hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
+                  className="p-4 rounded-lg border border-slate-200 bg-white hover:border-primary-600 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
                 >
                   <div>
                     <h5 className="text-sm font-black text-slate-800">{t.taskTitle}</h5>
@@ -237,7 +237,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
                       Assignee: {t.doerFirstName} {t.doerLastName} · Status: {t.status}
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#1E4C92]/10 text-[#1E4C92]">
+                  <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-50 text-primary-700">
                     {t.priority}
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export function TaskCalendarView({ tasks = [], onTaskClick }) {
               <div
                 key={t._id}
                 onClick={() => onTaskClick(t)}
-                className="p-3 rounded-xl border border-slate-200 bg-white text-left hover:border-[#1E4C92] cursor-pointer hover:shadow-xs"
+                className="p-3 rounded-lg border border-slate-200 bg-white text-left hover:border-primary-600 cursor-pointer hover:shadow-xs"
               >
                 <div className="text-[10px] font-bold text-slate-400">
                   {t.dueDate
