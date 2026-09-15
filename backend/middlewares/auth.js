@@ -3,6 +3,13 @@ import User from '../models/User.js';
 
 export const protect = async (req, res, next) => {
   try {
+    if (req.user) {
+      if (req.user.status && req.user.status !== 'Active') {
+        return res.status(401).json({ success: false, message: 'User account is inactive or suspended.' });
+      }
+      return next();
+    }
+
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {

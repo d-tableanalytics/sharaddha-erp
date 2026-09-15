@@ -12,6 +12,7 @@ import {
   X,
   SlidersHorizontal,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -45,6 +46,9 @@ export function DelegationPage() {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban' | 'calendar'
   const [activeTab, setActiveTab] = useState('All');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [isFilterFlyoutOpen, setIsFilterFlyoutOpen] = useState(false);
   const filterPanelRef = useRef(null);
 
@@ -276,6 +280,42 @@ export function DelegationPage() {
       setSelectedIds([]);
     } else {
       setSelectedIds(filteredTasks.map((t) => t._id));
+    }
+  };
+
+  // ── Bulk Actions Handlers ────────────────────────────────────────────────
+  const handleBulkStatusUpdate = async (newStatus) => {
+    if (selectedIds.length === 0) return;
+    setIsBulkUpdating(true);
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Updating ${count} task(s) to "${newStatus}"...`);
+    try {
+      await delegationService.bulkUpdateStatus(selectedIds, newStatus);
+      toast.success(`Successfully updated ${count} task(s) to "${newStatus}"`, { id: toastId });
+      setSelectedIds([]);
+      setBulkStatusOpen(false);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update selected tasks', { id: toastId });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkDeleting(true);
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Moving ${count} task(s) to Trash...`);
+    try {
+      await delegationService.bulkDelete(selectedIds);
+      toast.success(`Successfully moved ${count} task(s) to Trash Bin`, { id: toastId });
+      setSelectedIds([]);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete selected tasks', { id: toastId });
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -886,6 +926,65 @@ const KPI_CARDS = [
           >
             Clear all
           </button>
+        </div>
+      )}
+
+      {/* ── BULK ACTION BAR ─────────────────────────────────────────────── */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-[#1E4C92] text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-bold">{selectedIds.length} tasks selected</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Bulk status dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                disabled={isBulkUpdating}
+                onClick={() => setBulkStatusOpen(!bulkStatusOpen)}
+                className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <span>Change Status</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {bulkStatusOpen && (
+                <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                  {['Pending', 'In Progress', 'Awaiting Verification', 'Completed'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => handleBulkStatusUpdate(st)}
+                      className="w-full px-3.5 py-2 text-left text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-between"
+                    >
+                      <span>{st}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bulk Delete */}
+            <button
+              type="button"
+              disabled={isBulkDeleting}
+              onClick={handleBulkDelete}
+              className="px-3.5 py-1.5 rounded-xl bg-red-500/80 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete ({selectedIds.length})</span>
+            </button>
+
+            {/* Clear Selection */}
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
 

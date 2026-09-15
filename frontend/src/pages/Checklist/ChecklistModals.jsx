@@ -35,11 +35,14 @@ export function CompleteChecklistModal({ isOpen, onClose, task, onSuccess }) {
   const [proofUrl, setProofUrl] = useState('');
 
   const handleSubmit = async () => {
+    if (task?.proofRequired && !proofUrl?.trim()) {
+      return toast.error('Proof document URL is required to complete this task');
+    }
     setLoading(true);
     try {
       await checklistApi.completeTask(task._id, {
-        proofUrl: proofUrl || undefined,
-        proofFileName: proofUrl ? 'proof-document' : undefined,
+        proofUrl: proofUrl.trim() || undefined,
+        proofFileName: proofUrl.trim() ? 'proof-document' : undefined,
       });
       toast.success('Task marked as completed');
       onSuccess?.();
