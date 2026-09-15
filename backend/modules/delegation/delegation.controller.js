@@ -97,10 +97,12 @@ export async function getDelegations(req, res, next) {
       filter.$and = conditions;
     }
 
+    const now = new Date();
+
     // Status filter
     if (status) {
       if (status === 'Overdue') {
-        filter.dueDate = { $lt: new Date() };
+        filter.dueDate = { $lt: startOfDay(now) };
         filter.status = { $nin: ['Completed', 'Awaiting Verification'] };
       } else {
         filter.status = status;
@@ -137,7 +139,6 @@ export async function getDelegations(req, res, next) {
     }
 
     // Date range filter
-    const now = new Date();
     if (dateRange === 'Today') {
       filter.dueDate = { $gte: startOfDay(now), $lte: endOfDay(now) };
     } else if (dateRange === 'Yesterday') {
@@ -146,12 +147,26 @@ export async function getDelegations(req, res, next) {
     } else if (dateRange === 'This Week') {
       const day = now.getDay();
       const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(now.setDate(diff));
+      const monday = new Date(new Date(now).setDate(diff));
+      const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+      filter.dueDate = { $gte: startOfDay(monday), $lte: endOfDay(sunday) };
+    } else if (dateRange === 'Last Week') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1) - 7;
+      const monday = new Date(new Date(now).setDate(diff));
       const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
       filter.dueDate = { $gte: startOfDay(monday), $lte: endOfDay(sunday) };
     } else if (dateRange === 'This Month') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      filter.dueDate = { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) };
+    } else if (dateRange === 'Last Month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      filter.dueDate = { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) };
+    } else if (dateRange === 'This Year') {
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      const lastDay = new Date(now.getFullYear(), 11, 31);
       filter.dueDate = { $gte: startOfDay(firstDay), $lte: endOfDay(lastDay) };
     } else if (dateRange === 'Custom' && customStartDate && customEndDate) {
       filter.dueDate = {
@@ -718,7 +733,7 @@ export async function getDeletedDelegations(req, res, next) {
     if (status && status !== 'All') {
       if (status === 'OverDue' || status === 'Overdue') {
         conditions.push({
-          dueDate: { $lt: new Date() },
+          dueDate: { $lt: startOfDay(now) },
           status: { $nin: ['Completed', 'Awaiting Verification'] },
         });
       } else {
@@ -944,7 +959,7 @@ export async function bulkUpdateStatus(req, res, next) {
     // Asynchronously log activities for each task
     for (const id of ids) {
       logActivity({
-        type: 'status_changed',
+        type: 'status_change',
         title: 'Status Updated',
         description: `Status changed to ${status} via bulk update`,
         userId: req.user._id,

@@ -12,6 +12,7 @@ import {
   X,
   SlidersHorizontal,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -45,6 +46,9 @@ export function DelegationPage() {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban' | 'calendar'
   const [activeTab, setActiveTab] = useState('All');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [isFilterFlyoutOpen, setIsFilterFlyoutOpen] = useState(false);
   const filterPanelRef = useRef(null);
 
@@ -279,6 +283,42 @@ export function DelegationPage() {
     }
   };
 
+  // ── Bulk Actions Handlers ────────────────────────────────────────────────
+  const handleBulkStatusUpdate = async (newStatus) => {
+    if (selectedIds.length === 0) return;
+    setIsBulkUpdating(true);
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Updating ${count} task(s) to "${newStatus}"...`);
+    try {
+      await delegationService.bulkUpdateStatus(selectedIds, newStatus);
+      toast.success(`Successfully updated ${count} task(s) to "${newStatus}"`, { id: toastId });
+      setSelectedIds([]);
+      setBulkStatusOpen(false);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update selected tasks', { id: toastId });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkDeleting(true);
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Moving ${count} task(s) to Trash...`);
+    try {
+      await delegationService.bulkDelete(selectedIds);
+      toast.success(`Successfully moved ${count} task(s) to Trash Bin`, { id: toastId });
+      setSelectedIds([]);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete selected tasks', { id: toastId });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   // ── Quick Verify & Complete ──────────────────────────────────────────────
   const handleQuickVerify = async (taskId) => {
     try {
@@ -416,14 +456,14 @@ export function DelegationPage() {
     toast.success('Export downloaded successfully!');
   };
 
-const KPI_CARDS = [
-  { key: 'All', label: 'Total', dot: 'bg-slate-400', textColor: 'text-slate-800' },
-  { key: 'Overdue', label: 'Overdue', dot: 'bg-red-500', textColor: 'text-red-600' },
-  { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent', textColor: 'text-slate-700' },
-  { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500', textColor: 'text-orange-500' },
-  { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-blue-500', textColor: 'text-blue-600' },
-  { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500', textColor: 'text-emerald-600' },
-];
+  const KPI_CARDS = [
+    { key: 'All', label: 'Total', dot: 'bg-slate-400', textColor: 'text-slate-800' },
+    { key: 'Overdue', label: 'Overdue', dot: 'bg-red-500', textColor: 'text-red-600' },
+    { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent', textColor: 'text-slate-700' },
+    { key: 'In Progress', label: 'In Progress', dot: 'bg-orange-500', textColor: 'text-orange-500' },
+    { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-blue-500', textColor: 'text-blue-600' },
+    { key: 'Completed', label: 'Completed', dot: 'bg-emerald-500', textColor: 'text-emerald-600' },
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -442,22 +482,8 @@ const KPI_CARDS = [
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={fetchData}
-            disabled={loading}
-            title="Refresh delegated tasks"
-            className="h-10 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#1E4C92]' : 'text-slate-500'}`} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsCreationDrawerOpen(true)}
-            className="flex items-center justify-center gap-2 px-5 h-10 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0"
-          >
+          <button type="button" onClick={() => setIsCreationDrawerOpen(true)}
+            className="flex items-center justify-center gap-2 px-5 h-10 bg-[#1E4C92] hover:bg-[#163a6a] text-white rounded-xl font-semibold text-xs transition-all active:scale-95 shadow-sm cursor-pointer shrink-0">
             <CheckSquare className="w-4 h-4" strokeWidth={2.5} />
             <span>Assign Task</span>
           </button>
@@ -473,11 +499,10 @@ const KPI_CARDS = [
             <div
               key={card.key}
               onClick={() => setActiveTab(card.key)}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${
-                isActive
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${isActive
                   ? 'border-[#1E4C92] ring-2 ring-[#1E4C92]/20 bg-white'
                   : 'border-slate-200 bg-white hover:border-[#1E4C92]'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between gap-1 mb-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-[#1E4C92] transition-colors truncate">
@@ -489,7 +514,7 @@ const KPI_CARDS = [
                 <span className={`text-2xl font-semibold ${card.textColor}`}>
                   {count}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
+                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-[#1E4C92] group-hover:underline">
                   Filter →
                 </span>
               </div>
@@ -505,7 +530,7 @@ const KPI_CARDS = [
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-bold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
+            className="h-11 bg-white border border-slate-200 hover:border-slate-300 rounded-xl pl-3.5 pr-8 text-xs font-semibold text-slate-700 shadow-xs appearance-none outline-none cursor-pointer focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 transition-all"
           >
             <option value="All Time">All Time</option>
             <option value="Today">Today</option>
@@ -529,17 +554,17 @@ const KPI_CARDS = [
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="text-xs font-bold text-slate-700 outline-none w-full bg-transparent cursor-pointer"
+                className="text-xs font-semibold text-slate-700 outline-none w-full bg-transparent cursor-pointer"
               />
             </div>
-            <span className="text-slate-400 text-xs font-bold">to</span>
+            <span className="text-slate-400 text-xs font-semibold">to</span>
             <div className="h-11 border border-slate-200 hover:border-slate-300 rounded-xl px-3 flex items-center gap-2 bg-white min-w-[135px] shadow-xs focus-within:border-[#1E4C92] focus-within:ring-2 focus-within:ring-[#1E4C92]/20 transition-all">
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="text-xs font-bold text-slate-700 outline-none w-full bg-transparent cursor-pointer"
+                className="text-xs font-semibold text-slate-700 outline-none w-full bg-transparent cursor-pointer"
               />
             </div>
           </div>
@@ -550,11 +575,10 @@ const KPI_CARDS = [
           <button
             type="button"
             onClick={() => setIsFilterFlyoutOpen((prev) => !prev)}
-            className={`h-11 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
-              isFilterFlyoutOpen || activeSecondaryFilterCount > 0
+            className={`h-11 px-4 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs ${isFilterFlyoutOpen || activeSecondaryFilterCount > 0
                 ? 'bg-[#1E4C92]/10 border border-[#1E4C92]/30 text-[#1E4C92]'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#1E4C92]'
-            }`}
+              }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filters</span>
@@ -581,7 +605,7 @@ const KPI_CARDS = [
                     setTagFilter('All');
                     setVerificationFilter('All');
                   }}
-                  className="text-[11px] font-bold text-[#1E4C92] hover:underline cursor-pointer"
+                  className="text-[11px] font-semibold text-[#1E4C92] hover:underline cursor-pointer"
                 >
                   Clear All
                 </button>
@@ -596,7 +620,7 @@ const KPI_CARDS = [
                   <select
                     value={assignedToFilter}
                     onChange={(e) => setAssignedToFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
                   >
                     <option value="All">All Members</option>
                     {users.map((u) => (
@@ -615,7 +639,7 @@ const KPI_CARDS = [
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
                   >
                     <option value="All">All Priorities</option>
                     <option value="Urgent">Urgent</option>
@@ -633,7 +657,7 @@ const KPI_CARDS = [
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
                   >
                     <option value="All">All Categories</option>
                     {categories.map((c, i) => {
@@ -655,7 +679,7 @@ const KPI_CARDS = [
                   <select
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
                   >
                     <option value="All">All Tags</option>
                     {uniqueTags.map((tg, i) => (
@@ -674,7 +698,7 @@ const KPI_CARDS = [
                   <select
                     value={verificationFilter}
                     onChange={(e) => setVerificationFilter(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-bold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 font-semibold text-slate-700 outline-none focus:border-[#1E4C92] focus:ring-1 focus:ring-[#1E4C92]"
                   >
                     <option value="All">All Tasks</option>
                     <option value="Verification Required">Verification Required</option>
@@ -694,7 +718,7 @@ const KPI_CARDS = [
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search delegated tasks..."
-            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs transition-all"
+            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1E4C92] focus:ring-2 focus:ring-[#1E4C92]/20 shadow-xs transition-all"
           />
         </div>
 
@@ -713,7 +737,7 @@ const KPI_CARDS = [
           type="button"
           onClick={handleExport}
           title="Export CSV"
-          className="h-11 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-[#1E4C92] rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          className="h-11 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-[#1E4C92] rounded-xl font-semibold text-xs flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
         >
           <FileUp className="w-4 h-4" />
           <span>Export</span>
@@ -725,11 +749,10 @@ const KPI_CARDS = [
             type="button"
             onClick={() => setViewMode('list')}
             title="List View"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              viewMode === 'list'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'list'
                 ? 'bg-[#1E4C92] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            }`}
+              }`}
           >
             <List className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">List</span>
@@ -738,11 +761,10 @@ const KPI_CARDS = [
             type="button"
             onClick={() => setViewMode('kanban')}
             title="Kanban Board View"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              viewMode === 'kanban'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'kanban'
                 ? 'bg-[#1E4C92] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            }`}
+              }`}
           >
             <Layout className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Kanban</span>
@@ -751,11 +773,10 @@ const KPI_CARDS = [
             type="button"
             onClick={() => setViewMode('calendar')}
             title="Calendar Schedule View"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              viewMode === 'calendar'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'calendar'
                 ? 'bg-[#1E4C92] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            }`}
+              }`}
           >
             <Calendar className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Calendar</span>
@@ -775,20 +796,18 @@ const KPI_CARDS = [
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${
-                  isActive
+                className={`relative pb-3 flex items-center gap-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${isActive
                     ? 'text-slate-900 font-semibold'
-                    : 'text-slate-500 font-bold hover:text-slate-800'
-                }`}
+                    : 'text-slate-500 font-semibold hover:text-slate-800'
+                  }`}
               >
                 {tab.key !== 'All' && (
                   <span className={`w-2 h-2 rounded-full ${tab.dot}`} />
                 )}
                 <span>{tab.label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${
-                    isActive ? 'bg-[#1E4C92] text-white' : 'bg-slate-100 text-slate-500'
-                  }`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${isActive ? 'bg-[#1E4C92] text-white' : 'bg-slate-100 text-slate-500'
+                    }`}
                 >
                   {count}
                 </span>
@@ -807,7 +826,7 @@ const KPI_CARDS = [
       {activeSecondaryFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {priorityFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Priority: {priorityFilter}</span>
               <button
                 type="button"
@@ -820,7 +839,7 @@ const KPI_CARDS = [
           )}
 
           {categoryFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Category: {categoryFilter}</span>
               <button
                 type="button"
@@ -833,7 +852,7 @@ const KPI_CARDS = [
           )}
 
           {assignedToFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>
                 Assigned To: {users.find((u) => u._id === assignedToFilter)?.user || users.find((u) => u._id === assignedToFilter)?.name || 'Member'}
               </span>
@@ -848,7 +867,7 @@ const KPI_CARDS = [
           )}
 
           {tagFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Tag: {tagFilter}</span>
               <button
                 type="button"
@@ -861,7 +880,7 @@ const KPI_CARDS = [
           )}
 
           {verificationFilter !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-bold shadow-xs">
+            <span className="inline-flex items-center gap-1.5 bg-white text-[#1E4C92] border border-[#1E4C92]/40 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-semibold shadow-xs">
               <span>Verification: {verificationFilter}</span>
               <button
                 type="button"
@@ -882,10 +901,69 @@ const KPI_CARDS = [
               setTagFilter('All');
               setVerificationFilter('All');
             }}
-            className="text-[11px] font-bold text-slate-500 hover:text-red-600 underline cursor-pointer ml-1"
+            className="text-[11px] font-semibold text-slate-500 hover:text-red-600 underline cursor-pointer ml-1"
           >
             Clear all
           </button>
+        </div>
+      )}
+
+      {/* ── BULK ACTION BAR ─────────────────────────────────────────────── */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-[#1E4C92] text-white rounded-2xl shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-semibold">{selectedIds.length} tasks selected</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Bulk status dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                disabled={isBulkUpdating}
+                onClick={() => setBulkStatusOpen(!bulkStatusOpen)}
+                className="px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <span>Change Status</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {bulkStatusOpen && (
+                <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                  {['Pending', 'In Progress', 'Awaiting Verification', 'Completed'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => handleBulkStatusUpdate(st)}
+                      className="w-full px-3.5 py-2 text-left text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-between"
+                    >
+                      <span>{st}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bulk Delete */}
+            <button
+              type="button"
+              disabled={isBulkDeleting}
+              onClick={handleBulkDelete}
+              className="px-3.5 py-1.5 rounded-xl bg-red-500/80 hover:bg-red-600 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete ({selectedIds.length})</span>
+            </button>
+
+            {/* Clear Selection */}
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-xs transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
 

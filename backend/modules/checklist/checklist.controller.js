@@ -44,7 +44,7 @@ function generateDates(startDate, endDate, frequency) {
   const current = new Date(startDate);
   const end = new Date(endDate || startDate);
 
-  while (current <= end) {
+  while (current <= end && dates.length < 1000) {
     dates.push(new Date(current));
     switch (frequency) {
       case 'daily':       current.setDate(current.getDate() + 1); break;
@@ -86,8 +86,10 @@ function buildOccurrenceFilter(query, user) {
   // Status
   const now = new Date();
   if (query.status === 'overdue') {
-    filter.status = 'pending';
-    filter.plannedDate = { $lt: startOfDay(now) };
+    filter.$or = [
+      { status: 'overdue' },
+      { status: 'pending', plannedDate: { $lt: startOfDay(now) } },
+    ];
   } else if (query.status === 'pending') {
     filter.status = 'pending';
     filter.plannedDate = { $gte: startOfDay(now) };
@@ -179,9 +181,9 @@ export async function getSummary(req, res, next) {
     const [total, pendingToday, overdue, completed, pendingCarriedOver] = await Promise.all([
       ChecklistOccurrence.countDocuments(baseFilter),
       ChecklistOccurrence.countDocuments({ ...baseFilter, status: 'pending', plannedDate: { $gte: todayStart, $lte: todayEnd } }),
-      ChecklistOccurrence.countDocuments({ ...baseFilter, status: 'pending', plannedDate: { $lt: todayStart } }),
+      ChecklistOccurrence.countDocuments({ ...baseFilter, $or: [{ status: 'overdue' }, { status: 'pending', plannedDate: { $lt: todayStart } }] }),
       ChecklistOccurrence.countDocuments({ ...baseFilter, status: 'completed' }),
-      ChecklistOccurrence.countDocuments({ ...baseFilter, status: 'pending', plannedDate: { $lt: todayStart } }),
+      ChecklistOccurrence.countDocuments({ ...baseFilter, $or: [{ status: 'overdue' }, { status: 'pending', plannedDate: { $lt: todayStart } }] }),
     ]);
 
     const complianceRate = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -208,6 +210,10 @@ export async function getSummary(req, res, next) {
  */
 export async function getRoutines(req, res, next) {
   try {
+    if (!isManager(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only managers can view the routine catalogue.' });
+    }
+
     const filter = {};
     if (req.query.site) filter.site = req.query.site;
     if (req.query.search) {
@@ -252,6 +258,10 @@ export async function getRoutines(req, res, next) {
  */
 export async function getDepartmentReport(req, res, next) {
   try {
+    if (!isManager(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only managers can view department scoreboards.' });
+    }
+
     const matchFilter = {};
     if (req.query.site) matchFilter.site = req.query.site;
 
@@ -342,6 +352,14 @@ export async function createRoutine(req, res, next) {
   try {
     const { taskName, taskCode, frequency, doer, department, site, startDate, endDate, proofRequired } = req.body;
 
+    if (!taskName || !taskCode || !doer || !startDate) {
+      return res.status(400).json({ success: false, message: 'Task name, task code, assignee, and start date are required.' });
+    }
+
+    if (!isManager(req.user) && String(doer) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Non-managers can only create checklist tasks for themselves.' });
+    }
+
     // Look up the doer's name
     const doerUser = await User.findById(doer).select('user email').lean();
     const nameParts = (doerUser?.user || doerUser?.email || '').split(' ');
@@ -401,6 +419,10 @@ export async function createRoutine(req, res, next) {
  */
 export async function updateRoutine(req, res, next) {
   try {
+    if (!isManager(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only managers can update routines.' });
+    }
+
     const routine = await ChecklistRoutine.findById(req.params.id);
     if (!routine) return res.status(404).json({ success: false, message: 'Routine not found.' });
 
@@ -430,6 +452,10 @@ export async function updateRoutine(req, res, next) {
  */
 export async function stopRoutine(req, res, next) {
   try {
+    if (!isManager(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only managers can stop routines.' });
+    }
+
     const routine = await ChecklistRoutine.findByIdAndUpdate(
       req.params.id,
       { isActive: false },
@@ -450,7 +476,16 @@ export async function completeTask(req, res, next) {
   try {
     const task = await ChecklistOccurrence.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
+
+    if (!isManager(req.user) && String(task.doer) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to complete this task.' });
+    }
+
     if (task.status === 'completed') return res.status(400).json({ success: false, message: 'Task already completed.' });
+
+    if (task.proofRequired && !req.body.proofUrl) {
+      return res.status(400).json({ success: false, message: 'Proof document URL is required to complete this task.' });
+    }
 
     task.status = 'completed';
     task.completedDate = new Date();
@@ -475,6 +510,10 @@ export async function markNonFunctional(req, res, next) {
     const task = await ChecklistOccurrence.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
 
+    if (!isManager(req.user) && String(task.doer) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this task.' });
+    }
+
     task.status = 'non-functional';
     task.nonFunctionalReason = req.body.reason || '';
     await task.save();
@@ -491,6 +530,10 @@ export async function markNonFunctional(req, res, next) {
  */
 export async function reassignTask(req, res, next) {
   try {
+    if (!isManager(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only managers can reassign tasks.' });
+    }
+
     const task = await ChecklistOccurrence.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
 
@@ -565,8 +608,10 @@ export async function drilldown(req, res, next) {
         filter.plannedDate = { $gte: todayStart, $lte: todayEnd };
         break;
       case 'overdue':
-        filter.status = 'pending';
-        filter.plannedDate = { $lt: todayStart };
+        filter.$or = [
+          { status: 'overdue' },
+          { status: 'pending', plannedDate: { $lt: todayStart } },
+        ];
         break;
       case 'completed':
         filter.status = 'completed';
