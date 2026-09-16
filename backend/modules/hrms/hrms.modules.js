@@ -48,6 +48,9 @@ export const IMPLEMENTED_HRMS_MODULES = Object.freeze([
   // Templates, checklists with per-task assignment, and the offer letter a new
   // hire signs in the portal.
   M.ONBOARDING,
+  // SI Academy: the learner's My Learning surface, the course player, and the
+  // admin catalogue, assignment rules, progress tracking and certificates.
+  M.ACADEMY,
   // Goals, review cycles and calibration, the review queue, continuous
   // feedback and 1:1s all have screens and endpoints behind them.
   M.PERFORMANCE,

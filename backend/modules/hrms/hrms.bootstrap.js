@@ -42,6 +42,8 @@ import {
 } from './documents/document.service.js';
 import { documentRetentionHandler } from './documents/documentRetention.handler.js';
 import { resolveOfferLetterAccess } from './onboarding/offerLetter.service.js';
+import { resolveContentAccess } from './academy/content.service.js';
+import { resolveCertificateAccess } from './academy/certificate.service.js';
 import { RETENTION_CATEGORIES, STORAGE_CATEGORIES, AUDIT_ACTIONS } from '../../shared/constants/hrms.js';
 
 /**
@@ -196,6 +198,32 @@ export function bootstrapHrms() {
     RETENTION_CATEGORIES.EMPLOYEE_DOCUMENTS,
     documentRetentionHandler,
   );
+
+  /**
+   * SI Academy content and certificates.
+   *
+   * TWO rules, because the two categories answer different questions and
+   * `registerFileAccessRule` is a Map.set - registering one category twice
+   * would silently replace the first rule, which is the trap the offer-letter
+   * comment above records.
+   *
+   * CONTENT has no owner: a training video is company material, and the real
+   * question is "is this person entitled to study it", which only the lesson
+   * knows. So the rule admits any academy learner and the ASSIGNMENT check
+   * happens where the URL is issued. See resolveContentAccess for why that is
+   * the right split rather than a gap.
+   *
+   * A CERTIFICATE does have an owner - it names a person - so its rule resolves
+   * one and the ordinary self/team/org scopes decide.
+   */
+  registerFileAccessRule(STORAGE_CATEGORIES.ACADEMY_CONTENT, {
+    resolve: resolveContentAccess,
+    auditAction: AUDIT_ACTIONS.ACADEMY_CONTENT_VIEWED,
+  });
+  registerFileAccessRule(STORAGE_CATEGORIES.ACADEMY_CERTIFICATE, {
+    resolve: resolveCertificateAccess,
+    auditAction: AUDIT_ACTIONS.ACADEMY_CERTIFICATE_VIEWED,
+  });
 
   /**
    * Inbox notifications. Phase 0 declared this category with `days: null` -

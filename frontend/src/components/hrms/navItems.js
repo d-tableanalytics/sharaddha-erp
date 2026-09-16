@@ -19,6 +19,7 @@ import {
   BarChart3,
   ScrollText,
   Settings,
+  GraduationCap,
 } from "lucide-react";
 
 import { HRMS_MODULES as M, HRMS_ACTIONS as A, SCOPES as S } from "@shared/permissions/constants.js";
@@ -198,6 +199,33 @@ export const HRMS_NAV_ITEMS = Object.freeze([
     group: HRMS_NAV_GROUPS.MY_WORK,
     module: M.HELPDESK,
     requires: [req(M.HELPDESK, A.VIEW, S.SELF)],
+  },
+
+  {
+    key: "hrms-academy",
+    label: "SI Academy",
+    path: p("/academy"),
+    icon: GraduationCap,
+    group: HRMS_NAV_GROUPS.MY_WORK,
+    module: M.ACADEMY,
+    /**
+     * Three ways in, following the Onboarding and Exits precedent above.
+     *
+     * EVERY employee gets "My Learning" — which is the module's DEFAULT tab and
+     * the grant that matters most here — a manager sees their reports'
+     * progress, and HR gets the catalogue and the admin tabs. Gating on the
+     * admin grant alone would hide a built page from the very people the module
+     * exists for, which this file's header calls a bug.
+     *
+     * In MY_WORK rather than PEOPLE_ORG because for all but a handful of HR
+     * users this is a self-service screen: the training assigned to me, beside
+     * my leave and my expenses. The admin half lives in its tabs.
+     */
+    requires: [
+      req(M.ACADEMY, A.VIEW, S.SELF),
+      req(M.ACADEMY, A.VIEW, S.TEAM),
+      req(M.ACADEMY, A.VIEW, S.ORG),
+    ],
   },
 
   // ---- People & Org -----------------------------------------------------

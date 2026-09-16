@@ -176,3 +176,24 @@ export { inboxApi } from "./inbox";
  * `./dashboard` directly, as every module since Payroll has.
  */
 export { dashboardApi } from "./dashboard";
+/**
+ * SI Academy.
+ *
+ * The APIs only. Its `formatDay`, `formatInstant`, `formatFileSize` and
+ * duration formatter are NOT re-exported here — Leave already exports a
+ * `formatDay`, Expenses a `formatInstant` and Documents a `formatFileSize`
+ * from this barrel, and two same-named exports would collide. Academy screens
+ * import theirs from `./academy` directly, as every module since Payroll has.
+ */
+export {
+  myLearningApi,
+  assignmentsApi,
+  certificatesApi,
+  pathsApi,
+  coursesApi,
+  contentApi,
+  academyAssessmentsApi,
+  rulesApi,
+  academyReportsApi,
+  uploadContent as uploadAcademyContent,
+} from "./academy";

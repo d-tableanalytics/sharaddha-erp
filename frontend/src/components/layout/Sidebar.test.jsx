@@ -197,3 +197,121 @@ describe("the active item is unmistakable", () => {
     expect(classes).not.toContain("nav-active");
   });
 });
+
+// ===========================================================================
+// The tree
+// ===========================================================================
+
+/** Every element carrying the tree rail — the indented well children sit in. */
+const branchesIn = (container) =>
+  Array.from(container.querySelectorAll("div")).filter((el) =>
+    classList(el).includes("border-l"),
+  );
+
+/** How many rails a node is nested inside. Depth 0 is the top level. */
+const depthOf = (el) => {
+  let depth = 0;
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (node.tagName === "DIV" && classList(node).includes("border-l")) depth += 1;
+  }
+  return depth;
+};
+
+describe("the menu is a tree, not a flat list", () => {
+  test("a group's links are nested INSIDE a branch, not siblings of the header", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    const { container } = draw("/fms/o2d/stages");
+
+    const branches = branchesIn(container);
+    expect(branches.length).toBeGreaterThan(0);
+
+    // The structural claim: the link is a DESCENDANT of a rail, which is what
+    // "nested underneath its parent" has to mean in the DOM. A flat list with
+    // padding on each row would pass a visual check and fail this one.
+    const stages = screen.getByRole("link", { name: "Stages" });
+    expect(branches.some((b) => b.contains(stages))).toBe(true);
+  });
+
+  test("a sub-module's screens sit one level DEEPER than the group's own", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw("/fms/o2d/stages");
+
+    // FMS > O2D > Stages. Two rails between the screen and the top level, which
+    // is what makes the third level legible as a third level.
+    expect(depthOf(screen.getByRole("link", { name: "Stages" }))).toBe(2);
+  });
+
+  test("the rail brightens for the branch holding the current page", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    const { container } = draw("/fms/o2d/stages");
+
+    const holding = branchesIn(container).filter((b) =>
+      b.contains(screen.getByRole("link", { name: "Stages" })),
+    );
+    // Every rail on the path to the active row is lit, so scrolling past the
+    // parent does not lose which section you are in.
+    expect(holding.length).toBe(2);
+    for (const rail of holding) {
+      expect(classList(rail)).toContain("border-primary-400/40");
+    }
+  });
+
+  test("a rail that holds nothing active stays neutral", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    const { container } = draw("/fms/o2d/stages");
+
+    const stages = screen.getByRole("link", { name: "Stages" });
+    const idle = branchesIn(container).filter((b) => !b.contains(stages));
+    for (const rail of idle) {
+      expect(classList(rail)).toContain("border-white/10");
+      expect(classList(rail)).not.toContain("border-primary-400/40");
+    }
+  });
+
+  test("collapsing a parent takes its whole branch with it", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    const { container } = draw("/fms/o2d/stages");
+
+    const before = branchesIn(container).length;
+    expect(screen.getByRole("link", { name: "Stages" })).toBeTruthy();
+
+    // The group header is the disclosure for everything under it.
+    await userEvent.click(screen.getByRole("button", { name: /FMS/i }));
+
+    expect(screen.queryByRole("link", { name: "Stages" })).toBeNull();
+    // Both rails go, not just the links inside them — a rail with nothing under
+    // it is a line pointing at empty space.
+    expect(branchesIn(container).length).toBeLessThan(before);
+  });
+
+  test("the icon rail has no tree: there is nothing to indent", () => {
+    /*
+      The icon rail is a DESKTOP state, so `sidebarOpen: false` alone does not
+      produce it. Below `lg` the rail is an off-canvas drawer that is ALWAYS
+      expanded — a 256px panel of unlabelled glyphs would be useless — and
+      jsdom's `matchMedia` stub answers `matches: false` to everything, which
+      is the mobile branch.
+      
+      So the component has to be told there is room beside the page. Restored
+      afterwards, or every later test in the file inherits a desktop viewport.
+    */
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = (query) => ({ ...realMatchMedia(query), matches: true });
+
+    try {
+      useUIStore.setState({ sidebarOpen: false });
+      signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+      const { container } = draw("/fms/o2d/stages");
+
+      // Collapsed to icons, a 20px column cannot show depth and a rail beside
+      // an 18px glyph is noise. The items are shown flat instead.
+      expect(branchesIn(container)).toHaveLength(0);
+      // ...and they are still all there, which is the point of showing them
+      // flat rather than hiding them behind a header with no room for a label.
+      expect(screen.getByRole("link", { name: "Stages" })).toBeTruthy();
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
+  });
+});

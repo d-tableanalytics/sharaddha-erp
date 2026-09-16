@@ -84,6 +84,36 @@ either portal writing an `hrms_*` key onto a portal-only account. Remove it from
 the Customer Portal and that portal's user editor becomes a way to give a
 customer payroll access.
 
+### The one deliberate change since the split: `academy`
+
+SI Academy added the module key `academy` to `shared/permissions/constants.js`
+and its grants to `shared/permissions/matrix.js`. Both files were edited
+**identically in both repositories** and both manifests re-recorded, which is
+the procedure this section prescribes.
+
+Two things make that safe, and they are worth knowing before the next such
+change:
+
+1. **It is additive.** No existing key, action, scope or role grant moved. The
+   failure this section warns about is a key being REMOVED, because
+   `Role.grants` is recompiled from `config/moduleRegistry.js` on every role
+   save. Nothing in `shared/permissions/` is ever written back to the `roles`
+   collection.
+
+2. **`config/moduleRegistry.js` needed no edit at all.** The `hrms` block there
+   is grant-only (`path: null`) because HRMS draws its own menu, so the eight
+   `*_hrms` portal permissions already open Academy to the accounts entitled to
+   it. The Customer Portal therefore needs no matching behaviour — it simply
+   never evaluates the key. It carries the same bytes regardless, because
+   identical-or-drifted is the only state `verify:contract` can check.
+
+The manifests were updated **surgically**, for the two changed files only,
+rather than by running `--update`. There was pre-existing drift in
+`middlewares/auth.js` and `utils/tokens.js` at the time; a blanket `--update`
+would have re-recorded those too and silently blessed a divergence nobody had
+propagated. If you are making a contract change and `verify:contract` is
+already reporting drift you did not cause, do the same.
+
 ---
 
 ## 3. How RBAC actually resolves

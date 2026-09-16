@@ -50,6 +50,7 @@ import settingsRoutes from './settings/settings.routes.js';
 import auditRoutes from './audit/audit.routes.js';
 import inboxRoutes from './inbox/inbox.routes.js';
 import dashboardRoutes from './dashboard/dashboard.routes.js';
+import academyRoutes from './academy/academy.routes.js';
 
 const router = express.Router();
 
@@ -164,6 +165,16 @@ router.use('/hiring', hiringRoutes);
 // employee-facing offer letter they sign in the portal. Distinct from Hiring's
 // candidate-facing offer, which is mounted above and keyed on a public token.
 router.use('/onboarding', onboardingRoutes);
+
+/**
+ * SI Academy: learning paths, courses, lessons, assessments, assignments and
+ * certificates.
+ *
+ * Mounted inside the authenticated chain like every other business module.
+ * There is no public surface here and there must not be one - training content
+ * is company material and a certificate names a person.
+ */
+router.use('/academy', academyRoutes);
 
 // Performance: cascading goals, review cycles with a competency template and
 // an enforced phase machine, the review queue, continuous feedback and shared

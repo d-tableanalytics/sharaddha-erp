@@ -7,6 +7,7 @@ import { connectDatabase } from './config/database.js';
 import { describePortal } from './config/portal.js';
 import { bootstrapHrms } from './modules/hrms/hrms.bootstrap.js';
 import { runHrmsRetentionSweep } from './modules/hrms/retention/retention.sweep.js';
+import { runAcademyReminderSweep } from './modules/hrms/academy/reminder.service.js';
 import { seedO2dStages } from './config/seedO2dStages.js';
 import { runEscalationSweep, sendDailySummary } from './modules/o2d/escalation.service.js';
 import { retryFailedInvoices } from './modules/o2d/invoicing.service.js';
@@ -59,6 +60,32 @@ const server = http.createServer(app);
 // per deployment, rather than from remembering which repo was edited when.
 const RETENTION_CRON_ENABLED = process.env.HRMS_RETENTION_CRON === 'enabled';
 const RETENTION_CRON_SCHEDULE = process.env.HRMS_RETENTION_CRON_SCHEDULE || '0 0 * * *';
+
+// ───────────────────────────────────────────────────────────────────────────
+// SI ACADEMY REMINDERS
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Raises the "due soon" and "overdue" training notifications. It SENDS things
+// to people, so it follows the same rule the retention sweep does and defaults
+// to OFF: every scheduled writer needs exactly one owner, and ownership should
+// be answerable from one environment variable per deployment.
+//
+// Unlike retention there is no hand-over to coordinate — SI Academy exists only
+// in this repository, so there is no second process that might already be
+// running it. Set ACADEMY_REMINDER_CRON=enabled on exactly ONE instance; two
+// instances would double every reminder, and a reminder cannot be un-sent.
+//
+// The sweep itself is idempotent by design — it notifies on a CHANGE of due
+// state rather than on the state — so a misconfiguration costs duplicates
+// within a single day rather than a daily repeat forever. That is defence in
+// depth, not the reason the guard exists.
+const ACADEMY_CRON_ENABLED = process.env.ACADEMY_REMINDER_CRON === 'enabled';
+// 08:00, so a reminder lands before the working day rather than during it.
+// The TIMEZONE is pinned for the same reason the O2D summary pins its own:
+// node-cron reads an expression in SERVER LOCAL TIME, and a container
+// defaulting to UTC would fire this at 13:30 IST.
+const ACADEMY_CRON_SCHEDULE = process.env.ACADEMY_REMINDER_SCHEDULE || '0 8 * * *';
+const ACADEMY_CRON_TIMEZONE = process.env.ACADEMY_REMINDER_TIMEZONE || 'Asia/Kolkata';
 
 // ───────────────────────────────────────────────────────────────────────────
 // O2D BACKGROUND WORK
@@ -126,6 +153,42 @@ const startServer = async () => {
     console.log(
       '[Cron] HRMS retention sweep DISABLED (HRMS_RETENTION_CRON is not "enabled"). ' +
         'The Customer Portal is still running it. See the note in server.js.',
+    );
+  }
+
+  if (ACADEMY_CRON_ENABLED) {
+    cron.schedule(
+      ACADEMY_CRON_SCHEDULE,
+      () => {
+        runAcademyReminderSweep()
+          .then((r) => {
+            // Logged only when it did something, for the same reason the O2D
+            // sweep is: a daily line saying "0, 0" is how a log stops being read.
+            if (r.dueSoon || r.overdue) {
+              console.log(
+                `[Academy] Reminders: ${r.dueSoon} due soon, ${r.overdue} overdue `
+                  + `(of ${r.examined} live assignments).`,
+              );
+            }
+            if (r.truncated) {
+              console.warn(
+                '[Academy] Reminder sweep hit its batch ceiling; some assignments were not '
+                  + 'examined this run. They will be picked up tomorrow.',
+              );
+            }
+          })
+          .catch((err) => console.error('[Academy] Reminder sweep failed:', err.message));
+      },
+      { timezone: ACADEMY_CRON_TIMEZONE },
+    );
+    console.log(
+      `[Cron] SI Academy reminders scheduled: ${ACADEMY_CRON_SCHEDULE} (${ACADEMY_CRON_TIMEZONE})`,
+    );
+  } else {
+    console.log(
+      '[Cron] SI Academy reminders DISABLED (ACADEMY_REMINDER_CRON is not "enabled"). '
+        + 'Assignment and completion notifications still work; only the scheduled '
+        + 'due-soon and overdue reminders are off.',
     );
   }
 

@@ -98,6 +98,19 @@ export const STORAGE_CATEGORIES = Object.freeze({
    * VIEW_O2D, in modules/o2d/document.service.js.
    */
   O2D_DOCUMENT: 'o2d-document',
+
+  /**
+   * SI Academy - the learning content library, and the certificates the module
+   * issues.
+   *
+   * TWO categories, not one, because they are authorised differently and that
+   * difference has to survive: a training video is readable by anyone the
+   * material is assigned to, whereas a certificate belongs to one named person.
+   * Collapsing them would mean one access rule deciding both, and the looser of
+   * the two would win.
+   */
+  ACADEMY_CONTENT: 'academy-content',
+  ACADEMY_CERTIFICATE: 'academy-certificate',
 });
 
 export const STORAGE_CATEGORY_LIST = Object.freeze(Object.values(STORAGE_CATEGORIES));
@@ -118,6 +131,8 @@ export const STORAGE_PREFIXES = Object.freeze({
   // Not under `hrms/` — O2D is a different business domain that happens to
   // share the storage plumbing, and the bucket layout should say so.
   [STORAGE_CATEGORIES.O2D_DOCUMENT]: 'o2d/documents',
+  [STORAGE_CATEGORIES.ACADEMY_CONTENT]: 'hrms/academy/content',
+  [STORAGE_CATEGORIES.ACADEMY_CERTIFICATE]: 'hrms/academy/certificates',
 });
 
 /**
@@ -139,6 +154,18 @@ export const MAX_UPLOAD_BYTES = Object.freeze({
   // Server-GENERATED, never uploaded. The ceiling exists so a template bug
   // cannot write an unbounded object.
   [STORAGE_CATEGORIES.OFFER_LETTER]: 1 * 1024 * 1024,
+
+  /**
+   * A training video is the largest object this system accepts.
+   *
+   * The per-TYPE ceilings live in constants/academy.js (a PDF gets 20 MB, not
+   * 100) and the upload middleware applies those; this is the outer bound the
+   * storage layer itself enforces, so a bug in the middleware cannot write an
+   * object larger than the process was ever meant to hold.
+   */
+  [STORAGE_CATEGORIES.ACADEMY_CONTENT]: 100 * 1024 * 1024,
+  // Server-GENERATED, never uploaded - the same reasoning as OFFER_LETTER.
+  [STORAGE_CATEGORIES.ACADEMY_CERTIFICATE]: 1 * 1024 * 1024,
   DEFAULT: 10 * 1024 * 1024,
 });
 
@@ -527,6 +554,51 @@ export const AUDIT_ACTIONS = Object.freeze({
   SETTINGS_LOGO_UPDATED: 'hrms.settings.logo.updated',
   SETTINGS_SSO_UPDATED: 'hrms.settings.sso.updated',
   SETTINGS_INTEGRATION_UPDATED: 'hrms.settings.integration.updated',
+
+  // -------------------------------------------------------------------------
+  // SI Academy
+  // -------------------------------------------------------------------------
+  // Two groups here carry real weight. The CATALOGUE entries record who changed
+  // what somebody is required to know - editing an assessment after people have
+  // sat it changes the meaning of every stored score, so the change is recorded
+  // even though the attempts themselves are never rewritten. The ASSIGNMENT and
+  // CERTIFICATE entries are the compliance trail: "this employee was required
+  // to complete this, and did, on this date" is the claim an audit actually
+  // asks to see, and a certificate that cannot be traced back to a verified
+  // completion is worth nothing.
+  //
+  // Lesson completions are deliberately NOT audited one by one. A single
+  // induction is thirty of them per person, and the completion is already a
+  // durable timestamped record on the assignment - an audit row per lesson
+  // would be a second copy of the progress table, growing faster than it.
+  ACADEMY_CONTENT_UPLOADED: 'hrms.academy.content.uploaded',
+  ACADEMY_CONTENT_UPDATED: 'hrms.academy.content.updated',
+  ACADEMY_CONTENT_DELETED: 'hrms.academy.content.deleted',
+  ACADEMY_CONTENT_VIEWED: 'hrms.academy.content.viewed',
+  ACADEMY_PATH_CREATED: 'hrms.academy.path.created',
+  ACADEMY_PATH_UPDATED: 'hrms.academy.path.updated',
+  ACADEMY_PATH_DELETED: 'hrms.academy.path.deleted',
+  ACADEMY_COURSE_CREATED: 'hrms.academy.course.created',
+  ACADEMY_COURSE_UPDATED: 'hrms.academy.course.updated',
+  ACADEMY_COURSE_DELETED: 'hrms.academy.course.deleted',
+  ACADEMY_COURSE_REORDERED: 'hrms.academy.course.reordered',
+  ACADEMY_LESSON_CREATED: 'hrms.academy.lesson.created',
+  ACADEMY_LESSON_UPDATED: 'hrms.academy.lesson.updated',
+  ACADEMY_LESSON_DELETED: 'hrms.academy.lesson.deleted',
+  ACADEMY_ASSESSMENT_CREATED: 'hrms.academy.assessment.created',
+  ACADEMY_ASSESSMENT_UPDATED: 'hrms.academy.assessment.updated',
+  ACADEMY_ASSESSMENT_DELETED: 'hrms.academy.assessment.deleted',
+  ACADEMY_ATTEMPT_SUBMITTED: 'hrms.academy.attempt.submitted',
+  ACADEMY_ASSIGNED: 'hrms.academy.assignment.created',
+  ACADEMY_ASSIGNMENT_CANCELLED: 'hrms.academy.assignment.cancelled',
+  ACADEMY_PATH_COMPLETED: 'hrms.academy.assignment.completed',
+  ACADEMY_RULE_CREATED: 'hrms.academy.rule.created',
+  ACADEMY_RULE_UPDATED: 'hrms.academy.rule.updated',
+  ACADEMY_RULE_DELETED: 'hrms.academy.rule.deleted',
+  ACADEMY_RULE_RUN: 'hrms.academy.rule.run',
+  ACADEMY_CERTIFICATE_ISSUED: 'hrms.academy.certificate.issued',
+  ACADEMY_CERTIFICATE_VIEWED: 'hrms.academy.certificate.viewed',
+  ACADEMY_CERTIFICATE_REVOKED: 'hrms.academy.certificate.revoked',
 });
 
 /**

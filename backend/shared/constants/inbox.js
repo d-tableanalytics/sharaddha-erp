@@ -87,6 +87,19 @@ export const INBOX_TYPES = Object.freeze({
   ASSET_REQUEST_DECIDED: 'asset.request.decided',
   // Performance
   REVIEW_ASSIGNED: 'review.assigned',
+  // SI Academy
+  //
+  // Five types where one "training" type would have done, for the reason this
+  // file's header gives: the reference overloads `announcement` for eight
+  // unrelated events and the page then renders the raw type string as a label.
+  // A new assignment, a deadline approaching, a deadline missed and a
+  // completion are four different things to the person receiving them, and two
+  // of them are actionable while two are not.
+  ACADEMY_ASSIGNED: 'academy.assigned',
+  ACADEMY_DUE_SOON: 'academy.due_soon',
+  ACADEMY_OVERDUE: 'academy.overdue',
+  ACADEMY_COMPLETED: 'academy.completed',
+  ACADEMY_CERTIFICATE_ISSUED: 'academy.certificate',
 });
 
 export const INBOX_TYPE_LIST = Object.freeze(Object.values(INBOX_TYPES));
@@ -164,6 +177,40 @@ export const INBOX_TYPE_META = Object.freeze({
   },
 
   [T.REVIEW_ASSIGNED]: { label: 'Review', category: C.ACTION, path: '/performance/reviews' },
+
+  /**
+   * Academy. The three that require the learner to do something are ACTION;
+   * finishing a path and receiving a certificate are not - they are the system
+   * telling somebody they are done, which is an UPDATE.
+   *
+   * All five point into the learner's own screens rather than at an admin one:
+   * every recipient of these is the person who owes the training.
+   */
+  [T.ACADEMY_ASSIGNED]: {
+    label: 'Training assigned',
+    category: C.ACTION,
+    path: '/academy/my-learning',
+  },
+  [T.ACADEMY_DUE_SOON]: {
+    label: 'Training due soon',
+    category: C.ACTION,
+    path: '/academy/my-learning',
+  },
+  [T.ACADEMY_OVERDUE]: {
+    label: 'Training overdue',
+    category: C.ACTION,
+    path: '/academy/my-learning',
+  },
+  [T.ACADEMY_COMPLETED]: {
+    label: 'Training completed',
+    category: C.UPDATE,
+    path: '/academy/my-learning',
+  },
+  [T.ACADEMY_CERTIFICATE_ISSUED]: {
+    label: 'Certificate',
+    category: C.UPDATE,
+    path: '/academy/certificates',
+  },
 });
 
 /** A type whose category is ACTION is one somebody has to do something about. */

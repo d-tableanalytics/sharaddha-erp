@@ -26,7 +26,7 @@ import { O2dBell } from "../../pages/O2d/O2dBell";
 export const Navbar = () => {
   const navigate = useNavigate();
   const { user, logout } = useUserStore();
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { sidebarOpen, toggleSidebar, toggleMobileNav } = useUIStore();
 
   const { theme, setTheme } = useThemeStore();
   const isDark =
@@ -57,10 +57,29 @@ export const Navbar = () => {
   return (
     <header className="h-16 bg-white/80 backdrop-blur-md border-b border-primary-100 px-6 flex items-center justify-between sticky top-0 z-20">
       <div className="flex items-center gap-4">
+        {/*
+          MOBILE. Always present below `lg`, where the rail is an off-canvas
+          drawer and this is the only way to reach navigation at all.
+          `min-h`/`min-w` give it a 40px hit area — a 20px icon with 4px of
+          padding is below the size a thumb reliably hits.
+        */}
+        <button
+          onClick={toggleMobileNav}
+          aria-label="Open navigation menu"
+          className="lg:hidden inline-flex items-center justify-center min-h-10 min-w-10 -ml-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        >
+          <Menu size={20} />
+        </button>
+
+        {/*
+          DESKTOP. Unchanged: it appears only when the rail is collapsed to
+          icons, which is the state it expands back out of.
+        */}
         {!sidebarOpen && (
           <button
             onClick={toggleSidebar}
-            className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors focus:outline-none"
+            aria-label="Expand navigation"
+            className="hidden lg:inline-flex p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors focus:outline-none"
           >
             <Menu size={20} />
           </button>

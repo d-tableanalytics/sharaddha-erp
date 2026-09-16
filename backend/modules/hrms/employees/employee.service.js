@@ -528,7 +528,53 @@ export async function createEmployee(dto, actor) {
   });
 
   const [employee] = await hydrate([created]);
-  return { employee, tempPassword };
+
+  /**
+   * ---------------------------------------------------------------------------
+   * SI ACADEMY: automatic learning-path assignment
+   * ---------------------------------------------------------------------------
+   * The new employee's attributes are matched against the Academy assignment
+   * rules, and every rule that matches assigns its learning path. Nothing about
+   * a department or a designation is hardcoded - rules store department IDS and
+   * enum values chosen from the live catalogues, so this works for IT, Sales,
+   * HR and anything created next week without a code change.
+   *
+   * AFTER the transaction, and NEVER able to fail it. `runRulesForEmployee`
+   * catches everything and reports it in its return value, for the same reason
+   * `notifier.service.js` swallows a failed notification: the employee record
+   * is a fact that has already been written and audited, and a training
+   * assignment is a consequence of it. A misconfigured rule must not be why an
+   * HR administrator cannot create an employee - especially since the request
+   * would fail with the employee already created, leaving them to wonder
+   * whether to try again.
+   *
+   * A missing assignment is visible and repairable from the Academy
+   * Assignments screen. A half-created employee is neither.
+   *
+   * Imported lazily so that importing the employee service from a script or a
+   * test does not pull in the whole Academy module - the same reason
+   * hrms.bootstrap.js registers behaviour explicitly rather than as an import
+   * side effect.
+   */
+  let academy = null;
+  try {
+    const { runRulesForEmployee } = await import('../academy/rule.service.js');
+    academy = await runRulesForEmployee(created, {
+      actorUserId: actor.userId ?? null,
+    });
+    if (academy.errors.length > 0) {
+      console.error(
+        '[hrms:academy] assignment rules reported errors for a new employee:',
+        academy.errors,
+      );
+    }
+  } catch (error) {
+    // Belt and braces: runRulesForEmployee already catches, so reaching here
+    // means the module itself failed to load. Still not the employee's problem.
+    console.error('[hrms:academy] rule engine unavailable:', error?.message ?? error);
+  }
+
+  return { employee, tempPassword, academy };
 }
 
 /** The sensitive values present on a payload, without touching the others. */

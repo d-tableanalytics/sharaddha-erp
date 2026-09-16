@@ -54,6 +54,10 @@ const HrmsEmployeeEditPage = lazy(() => import("../pages/Hrms/employees/Employee
 const HrmsHiringPage = lazy(() => import("../pages/Hrms/hiring/HiringPage").then(m => ({ default: m.HiringPage })));
 const HrmsOnboardingPage = lazy(() => import("../pages/Hrms/onboarding/OnboardingPage").then(m => ({ default: m.OnboardingPage })));
 const HrmsPerformancePage = lazy(() => import("../pages/Hrms/performance/PerformancePage").then(m => ({ default: m.PerformancePage })));
+const HrmsAcademyPage = lazy(() => import("../pages/Hrms/academy/AcademyPage").then(m => ({ default: m.AcademyPage })));
+const HrmsLearningPathPage = lazy(() => import("../pages/Hrms/academy/LearningPathPage").then(m => ({ default: m.LearningPathPage })));
+const HrmsLessonPlayerPage = lazy(() => import("../pages/Hrms/academy/LessonPlayerPage").then(m => ({ default: m.LessonPlayerPage })));
+const HrmsPathBuilderPage = lazy(() => import("../pages/Hrms/academy/PathBuilderPage").then(m => ({ default: m.PathBuilderPage })));
 const HrmsEngagePage = lazy(() => import("../pages/Hrms/engage/EngagePage").then(m => ({ default: m.EngagePage })));
 const HrmsPlanningPage = lazy(() => import("../pages/Hrms/planning/PlanningPage").then(m => ({ default: m.PlanningPage })));
 const HrmsReportsPage = lazy(() => import("../pages/Hrms/reports/ReportsPage").then(m => ({ default: m.ReportsPage })));
@@ -339,6 +343,39 @@ export const router = createBrowserRouter([
                 children: [
                   { index: true, element: <HrmsOnboardingPage /> },
                   { path: ":tab", element: <HrmsOnboardingPage /> },
+                ],
+              },
+              {
+                /**
+                 * SI Academy.
+                 *
+                 * Defaults to My Learning rather than to an HR screen, for the
+                 * same reason Onboarding defaults to the new hire's portal:
+                 * almost everybody who opens this module is the learner, not
+                 * the administrator who built the course.
+                 *
+                 * The three DETAIL routes sit beside the tabbed shell rather
+                 * than inside it because they are full-screen destinations
+                 * with their own breadcrumb, not tabs — the same shape
+                 * Employees uses for :id and :id/edit. Putting the lesson
+                 * player behind a tab would mean a video losing its place
+                 * every time the tab strip re-rendered.
+                 */
+                path: "academy",
+                element: <HrmsProtectedRoute module="academy" />,
+                children: [
+                  { index: true, element: <HrmsAcademyPage /> },
+                  // A learner's path detail, and the player inside it.
+                  { path: "learn/:assignmentId", element: <HrmsLearningPathPage /> },
+                  {
+                    path: "learn/:assignmentId/lesson/:lessonId",
+                    element: <HrmsLessonPlayerPage />,
+                  },
+                  // The admin course builder for one path.
+                  { path: "paths/:pathId", element: <HrmsPathBuilderPage /> },
+                  // The tab strip. LAST, so "learn" and "paths" are matched as
+                  // segments rather than swallowed as a tab name.
+                  { path: ":tab", element: <HrmsAcademyPage /> },
                 ],
               },
               {

@@ -14,7 +14,8 @@
     "verify:passwords": "node scripts/hrms/verify-password-hashing.js",
     "verify:sensitive": "node scripts/hrms/verify-no-plaintext-sensitive.js",
     "hrms:import": "node scripts/hrms/import-client-workbook.js",
-    "hrms:migrate-keys": "node scripts/hrms/migrate-encryption-keys.js"
+    "hrms:migrate-keys": "node scripts/hrms/migrate-encryption-keys.js",
+    "academy:seed": "node scripts/hrms/seed-academy-demo.js"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1123.0",

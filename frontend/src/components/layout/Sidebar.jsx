@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -45,10 +46,97 @@ import {
 
 const ADMIN_GROUP_KEY = "administration";
 
+/**
+ * The width at which the rail can sit BESIDE the content instead of over it.
+ *
+ * 1024px, matching Tailwind's `lg`, and the two must agree: the classes below
+ * switch the rail between drawer and rail at `lg`, and this decides whether the
+ * labels render. Reading the same number twice is what stops a 1000px window
+ * showing a 256px drawer with no labels in it.
+ */
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+/**
+ * Is there room for the rail beside the page?
+ *
+ * In JS rather than CSS alone because two things depend on the answer and only
+ * one of them is styling: the WIDTH is a class, but whether a row renders its
+ * LABEL is a render decision, and a media query cannot make that one.
+ *
+ * Guarded for the server and for jsdom, where `matchMedia` is a stub that
+ * answers `false` — which resolves to the drawer, and the drawer always shows
+ * its labels, so a test still sees every link by name.
+ */
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.(DESKTOP_QUERY).matches === true,
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia?.(DESKTOP_QUERY);
+    if (!mql) return undefined;
+
+    const onChange = (event) => setIsDesktop(event.matches);
+    // Re-read on mount: the initialiser ran during the first render, and a
+    // window can be resized between that and the effect.
+    setIsDesktop(mql.matches);
+
+    // `addListener` is the Safari < 14 spelling. Both are stubbed in tests, and
+    // a stub that implements neither simply gets no subscription rather than a
+    // TypeError — the initial value is still correct.
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else if (mql.addListener) mql.addListener(onChange);
+
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else if (mql.removeListener) mql.removeListener(onChange);
+    };
+  }, []);
+
+  return isDesktop;
+};
+
 export const Sidebar = () => {
-  const { sidebarOpen, toggleSidebar, collapsedNavGroups, toggleNavGroup } = useUIStore();
+  const {
+    sidebarOpen, toggleSidebar, collapsedNavGroups, toggleNavGroup,
+    mobileNavOpen, closeMobileNav,
+  } = useUIStore();
   const { user, logout } = useUserStore();
   const location = useLocation();
+  const isDesktop = useIsDesktop();
+
+  /**
+   * Whether rows show their labels.
+   *
+   * On desktop this is the user's collapse preference. On mobile it is always
+   * true: the drawer is 256px wide whatever the preference says, and an
+   * icon-only rail inside a full-width drawer is a 256px panel showing a column
+   * of ambiguous glyphs. The persisted preference is about the DESKTOP rail, so
+   * it must not follow the user onto a phone.
+   */
+  const expanded = isDesktop ? sidebarOpen : true;
+
+  /**
+   * A tap on a link has to close the drawer.
+   *
+   * Without this the page changes underneath a drawer that is still covering
+   * it, and the user has to dismiss it by hand every single time — which reads
+   * as the menu being stuck. Desktop is unaffected: the rail is not an overlay
+   * there, so there is nothing to close.
+   */
+  useEffect(() => {
+    if (!isDesktop) closeMobileNav();
+  }, [location.pathname, location.search, isDesktop, closeMobileNav]);
+
+  /** Escape closes it, as it does for every other overlay in the app. */
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") closeMobileNav();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileNavOpen, closeMobileNav]);
 
   const handleLogout = () => {
     logout();
@@ -307,9 +395,52 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
    * active row is hidden and the rail must still say where you are.
    */
   const linkClass = (isActive) =>
-    `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${isActive
+    `group relative flex items-center gap-3 rounded-lg px-3 py-2 min-h-9 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${isActive
       ? "nav-active bg-white text-primary-900 font-semibold shadow-sm"
       : "text-primary-100/90 font-medium hover:bg-white/[0.07] hover:text-white"
+    }`;
+
+  /**
+   * A PARENT NODE.
+   *
+   * The same SHAPE as a child row — same height, same padding, same 18px icon —
+   * because in a tree a parent and a child are the same kind of thing at
+   * different depths. What separates them is weight, the chevron, and the fact
+   * that children are indented underneath.
+   *
+   * `bg-white/[0.06]` when the branch holds the current page: enough to find at
+   * a glance while scrolling, and nowhere near the solid white pill an active
+   * ROW gets, so the two can never be confused.
+   */
+  const branchHeaderClass = (holdsActive) =>
+    `relative w-full flex items-center gap-3 rounded-lg px-3 py-2 min-h-9 text-sm font-semibold transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+      holdsActive
+        ? "bg-white/[0.06] text-white"
+        : "text-primary-100 hover:bg-white/[0.07] hover:text-white"
+    }`;
+
+  /**
+   * THE BRANCH — the indented well a parent's children sit in.
+   *
+   * `indent` is where the rail falls, and it is measured from something real in
+   * the parent rather than picked to look about right:
+   *
+   *   ml-[21px]  under a GROUP header, whose `px-3` (12px) and 18px icon put
+   *              the icon's centre line at 12 + 9 = 21px.
+   *   ml-3       under a SECTION header, which carries no icon, so the
+   *              meaningful line is where its label starts — `px-3`, 12px.
+   *
+   * Running the rail down from exactly there makes it read as descending FROM
+   * the parent rather than as a stripe that happens to be nearby, which is the
+   * difference between a tree and a list with a decoration on it.
+   *
+   * The rail brightens when the branch contains the current page, so "which
+   * section am I in" survives scrolling past the parent it belongs to — and at
+   * sub-module depth it is what tells two nested rails apart.
+   */
+  const branchClass = (holdsActive, indent = "ml-[21px]") =>
+    `relative ${indent} pl-2 border-l space-y-0.5 transition-colors duration-150 ${
+      holdsActive ? "border-primary-400/40" : "border-white/10"
     }`;
 
   const renderItem = (item) => {
@@ -320,13 +451,13 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
       <NavLink
         key={item.id}
         to={item.path}
-        title={sidebarOpen ? undefined : item.label}
+        title={expanded ? undefined : item.label}
         className={() => linkClass(isActive)}
       >
         {() => (
           <>
             <Icon size={18} className="shrink-0" />
-            {sidebarOpen && <span className="flex-1 truncate">{item.label}</span>}
+            {expanded && <span className="flex-1 truncate">{item.label}</span>}
           </>
         )}
       </NavLink>
@@ -334,24 +465,49 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
   };
 
   return (
-    <aside
-      className={`bg-linear-to-bl from-slate-800 via-primary-900 to-slate-900 h-screen flex flex-col transition-all duration-300 relative z-30 select-none shadow-xl shadow-primary-950/20 ${sidebarOpen ? "w-64" : "w-20"
+    <>
+      {/*
+        THE BACKDROP, mobile only.
+
+        Dismisses the drawer on a tap outside it, which is the gesture people
+        try first. `aria-hidden` because the drawer itself is the thing to
+        interact with; Escape covers the keyboard.
+      */}
+      <div
+        onClick={closeMobileNav}
+        aria-hidden="true"
+        className={`fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-[1px] transition-opacity duration-300 lg:hidden ${
+          mobileNavOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
+      />
+
+    <aside
+      className={`bg-linear-to-bl from-slate-800 via-primary-900 to-slate-900 h-screen flex flex-col transition-all duration-300 select-none shadow-xl shadow-primary-950/20
+        fixed inset-y-0 left-0 z-40 w-64
+        lg:relative lg:z-30 lg:translate-x-0 lg:visible
+        ${mobileNavOpen ? "translate-x-0 visible" : "-translate-x-full invisible"}
+        ${sidebarOpen ? "lg:w-64" : "lg:w-20"}`}
     >
+      {/*
+        The desktop collapse handle. Hidden below `lg`: it rides on the rail's
+        right edge, which on a drawer would float over the page content, and
+        collapsing a drawer to an icon strip is not a state the drawer has.
+      */}
       <button
         onClick={toggleSidebar}
-        className="absolute -right-3 top-6 bg-white text-primary-700 hover:text-primary-900 w-6 h-6 rounded-full flex items-center justify-center shadow-enterprise-md hover:scale-110 transition-all focus:outline-none ring-1 ring-primary-100"
+        aria-label={sidebarOpen ? "Collapse navigation" : "Expand navigation"}
+        className="hidden lg:flex absolute -right-3 top-6 bg-white text-primary-700 hover:text-primary-900 w-6 h-6 rounded-full items-center justify-center shadow-enterprise-md hover:scale-110 transition-all focus:outline-none ring-1 ring-primary-100"
       >
         {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
       </button>
 
       <div
-        className={`py-4 flex flex-col items-center overflow-hidden border-b border-white/10 ${sidebarOpen ? "px-4" : "justify-center"
+        className={`py-4 flex items-center overflow-hidden border-b border-white/10 ${expanded ? "px-4 justify-between gap-2" : "px-2 justify-center"
           }`}
       >
         <NavLink
           to="/hrms/dashboard"
-          className={`bg-white rounded-xl flex items-center justify-center transition-all duration-300 ${sidebarOpen ? "w-44 h-14 p-2" : "w-11 h-11 p-1"
+          className={`bg-white rounded-xl flex items-center justify-center transition-all duration-300 ${expanded ? "w-44 h-14 p-2" : "w-11 h-11 p-1"
             }`}
         >
           <img
@@ -360,9 +516,19 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
             className="object-contain w-full h-full"
           />
         </NavLink>
+
+        {/* The drawer's own dismiss. Mobile only — on desktop the handle on the
+            rail's edge does this job. */}
+        <button
+          onClick={closeMobileNav}
+          aria-label="Close navigation menu"
+          className="lg:hidden inline-flex items-center justify-center min-h-10 min-w-10 rounded-lg text-primary-100 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+          <X size={18} />
+        </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 overscroll-contain [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
         {groups.map((group) => {
           // A module with a single destination is rendered as a plain link. A
           // disclosure triangle that opens to reveal one row is a control that
@@ -375,9 +541,9 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
           const holdsActive = group.key === activeGroupKey;
           const collapsed = collapsedNavGroups.includes(group.key);
 
-          // Collapsed rail: the group header has nowhere to put a label and its
+          // Icon rail: the group header has nowhere to put a label and its
           // children have no room to indent, so the items are shown flat.
-          if (!sidebarOpen) {
+          if (!expanded) {
             return (
               <div key={group.key} className="space-y-1">
                 <div className="h-px bg-white/10 my-2" />
@@ -387,15 +553,24 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
           }
 
           return (
-            <div key={group.key} className="space-y-0.5">
+            /*
+              `pt-3 first:pt-0` is the spacing change, and it is the whole
+              readability fix at this level.
+
+              Every group and every row previously sat on the same 2px rhythm,
+              so a rail of twenty links read as one undifferentiated column and
+              the headings did no grouping work. The TYPE hierarchy is left
+              alone on purpose: this rail has three levels — group, sub-module
+              section, item — and the section headings below are already the
+              small uppercase treatment. Making the group headings uppercase too
+              would collapse two of those three levels into one.
+            */
+            <div key={group.key} className="space-y-0.5 pt-3 first:pt-0">
               <button
                 type="button"
                 onClick={() => toggleNavGroup(group.key)}
                 aria-expanded={!collapsed}
-                className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors duration-150 focus:outline-none ${holdsActive
-                  ? "text-white"
-                  : "text-primary-100 hover:bg-white/[0.07] hover:text-white"
-                  }`}
+                className={branchHeaderClass(holdsActive)}
               >
                 {/* Shut, but this is where you are. The accent says so, so
                     collapsing the group never costs you your place. */}
@@ -413,9 +588,10 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
                 />
               </button>
 
-              {!collapsed &&
-                (group.sections
-                  ? group.sections.map((section) => {
+              {!collapsed && (
+                <div className={branchClass(holdsActive)}>
+                  {group.sections
+                    ? group.sections.map((section) => {
                     /*
                       A SUB-MODULE, and now an actual disclosure rather than a
                       caption.
@@ -430,6 +606,8 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
                       nothing to put one on and a nameless toggle tells the user
                       nothing about what it hides.
                     */
+                    // No heading to hang a rail off, so these sit at the
+                    // group's own depth rather than inventing a level.
                     if (!section.label) {
                       return (
                         <div key={section.key} className="space-y-0.5">
@@ -448,7 +626,7 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
                           type="button"
                           onClick={() => toggleNavGroup(sectionKey)}
                           aria-expanded={!sectionCollapsed}
-                          className={`relative w-full flex items-center gap-2 px-3 pt-1 pb-1 rounded-lg text-[10.5px] font-bold uppercase tracking-[0.08em] transition-colors duration-150 focus:outline-none ${
+                          className={`relative w-full flex items-center gap-2 px-3 pt-1 pb-1 rounded-lg text-[10.5px] font-bold uppercase tracking-[0.08em] transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
                             sectionHoldsActive
                               ? "text-primary-100"
                               : "text-primary-200/55 hover:text-primary-100"
@@ -471,15 +649,20 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
                           />
                         </button>
 
-                        {!sectionCollapsed && section.items.map((item) => renderItem(item))}
+                        {/* The second rail. A sub-module's screens are its
+                            children, and at this depth the nested rail is what
+                            says so. */}
+                        {!sectionCollapsed && (
+                          <div className={branchClass(sectionHoldsActive, "ml-3")}>
+                            {section.items.map((item) => renderItem(item))}
+                          </div>
+                        )}
                       </div>
                     );
                   })
-                  : (
-                    <div className="space-y-0.5">
-                      {group.items.map((item) => renderItem(item))}
-                    </div>
-                  ))}
+                    : group.items.map((item) => renderItem(item))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -487,13 +670,13 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
 
       <div className="p-3 border-t border-white/10">
         <div
-          className={`flex items-center rounded-lg border border-white/10 bg-white/5 ${sidebarOpen ? "gap-2 p-2.5" : "flex-col gap-2 p-2"
+          className={`flex items-center rounded-lg border border-white/10 bg-white/5 ${expanded ? "gap-2 p-2.5" : "flex-col gap-2 p-2"
             }`}
         >
           <NavLink
             to="/hrms/me"
-            title={sidebarOpen ? "View your profile" : user?.user || user?.name || "Profile"}
-            className="flex items-center gap-3 min-w-0 flex-1 rounded-md hover:opacity-80 transition-opacity"
+            title={expanded ? "View your profile" : user?.user || user?.name || "Profile"}
+            className="flex items-center gap-3 min-w-0 flex-1 rounded-md hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             {user?.avatar ? (
               <img
@@ -507,7 +690,7 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
               </div>
             )}
 
-            {sidebarOpen && (
+            {expanded && (
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-white truncate leading-tight">
                   {user?.user || user?.name || "Loading..."}
@@ -523,13 +706,14 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
             onClick={handleLogout}
             title="Sign out"
             aria-label="Sign out"
-            className="p-1.5 rounded-md text-primary-200 hover:text-white hover:bg-red-500/80 transition-colors shrink-0 focus:outline-none"
+            className="p-1.5 rounded-md text-primary-200 hover:text-white hover:bg-red-500/80 transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             <LogOut size={16} />
           </button>
         </div>
       </div>
     </aside>
+    </>
   );
 };
 export default Sidebar;

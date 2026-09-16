@@ -849,9 +849,22 @@ describe('inbox mail', () => {
       'leave.pending',
       'offer_letter.ready',
     ]);
-    // Being an inbox item does not make an event worth an email. Thirteen of
-    // the twenty deliberately have none.
-    assert.equal(INBOX_TYPE_LIST.length - withMail.length, 13);
+    /**
+     * Being an inbox item does not make an event worth an email. Eighteen of
+     * the twenty-five deliberately have none.
+     *
+     * The count rose from thirteen when SI Academy added its five types
+     * (assigned, due soon, overdue, completed, certificate). None of them mails,
+     * and that is the decision rather than an omission: the list above is the
+     * assertion that actually guards behaviour - it is unchanged, so no new
+     * template slipped in - and this line is the tally that records the ratio.
+     *
+     * Training notifications land in the inbox, where the badge and the
+     * Academy screen already surface them. The seven events that DO mail are
+     * the ones where somebody else is blocked waiting on the recipient, and
+     * "your own training is due in three days" is not one of those.
+     */
+    assert.equal(INBOX_TYPE_LIST.length - withMail.length, 18);
   });
 
   test('🔴 no template carries a reason, an amount or any free text', () => {

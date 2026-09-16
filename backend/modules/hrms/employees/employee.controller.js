@@ -49,7 +49,10 @@ export const getEmployee = async (req, res, next) => {
  */
 export const createEmployee = async (req, res, next) => {
   try {
-    const { employee, tempPassword } = await service.createEmployee(req.body, req.hrmsActor);
+    const { employee, tempPassword, academy } = await service.createEmployee(
+      req.body,
+      req.hrmsActor,
+    );
 
     await recordAudit(
       req.user,
@@ -63,11 +66,26 @@ export const createEmployee = async (req, res, next) => {
           status: employee.status,
           // Which sensitive fields were supplied, never their values.
           sensitiveFieldsSet: sensitiveKeysPresent(employee),
+          // How much training the assignment rules gave them. Part of the
+          // employee-created record because "what were they required to do on
+          // day one" is a question a later audit asks.
+          academyPathsAssigned: academy?.assigned ?? 0,
         },
       },
     );
 
-    res.status(201).json({ success: true, data: { employee, tempPassword } });
+    /**
+     * `academy` is ADDITIVE and may be null.
+     *
+     * The rule engine runs after the employee transaction commits and never
+     * throws — see employee.service.js — so this reports what it managed to do
+     * rather than gating the response on it. HR sees "2 learning paths
+     * assigned" at the moment of creation, which is the only moment they are
+     * looking; a rule that matched nothing, or a rule whose path had been
+     * deactivated, shows up here rather than being discovered a fortnight later
+     * when the training was supposed to be finished.
+     */
+    res.status(201).json({ success: true, data: { employee, tempPassword, academy } });
   } catch (error) {
     next(error);
   }
