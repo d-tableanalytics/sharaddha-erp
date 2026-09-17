@@ -6,6 +6,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Modal } from "../../../components/ui/Modal";
 import { Input } from "../../../components/ui/Input";
+import { Select } from "../../../components/ui/Select";
 import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { academyAssessmentsApi } from "../../../services/hrms/academy";
@@ -385,20 +386,17 @@ function AssessmentModal({ assessmentId, onClose, onSaved }) {
             helperText="Leave blank for unlimited retries."
           />
 
-          <div className="w-full flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-700">Which attempt counts</label>
-            <select
-              value={form.scorePolicy}
-              onChange={(e) => set("scorePolicy", e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-            >
-              {Object.entries(SCORE_POLICY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Which attempt counts"
+            value={form.scorePolicy}
+            onChange={(e) => set("scorePolicy", e.target.value)}
+          >
+            {Object.entries(SCORE_POLICY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
 
           <div className="flex flex-col justify-end gap-2">
             <Toggle

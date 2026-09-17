@@ -17,6 +17,8 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Modal } from "../../../components/ui/Modal";
 import { Input } from "../../../components/ui/Input";
+import { Select } from "../../../components/ui/Select";
+import { Textarea } from "../../../components/ui/Textarea";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
 import { HRMS_ROUTE_PREFIX } from "@shared/constants/hrms.js";
@@ -59,6 +61,10 @@ export function PathBuilderPage() {
 
   const [addingCourse, setAddingCourse] = useState(false);
   const [addingLessonTo, setAddingLessonTo] = useState(null);
+  /** Which lesson type the "Add Content" panel launched, so the modal opens on it. */
+  const [addingLessonType, setAddingLessonType] = useState("video");
+  /** The course the "Add Content" panel targets. */
+  const [targetCourseId, setTargetCourseId] = useState(null);
   const [deletingCourse, setDeletingCourse] = useState(null);
   const [deletingLesson, setDeletingLesson] = useState(null);
 
@@ -154,6 +160,16 @@ export function PathBuilderPage() {
     }
   }, [deletingLesson, load]);
 
+  /**
+   * The course the "Add Content" rail adds to.
+   *
+   * Defaults to the first course rather than requiring a choice, and falls back
+   * to it if the selected one is deleted — a rail whose target has vanished
+   * would otherwise silently do nothing when pressed.
+   */
+  const target =
+    (path?.courses ?? []).find((c) => c.id === targetCourseId) ?? path?.courses?.[0] ?? null;
+
   return (
     <HrmsPageLayout
       title={path?.name ?? "Learning path"}
@@ -214,20 +230,24 @@ export function PathBuilderPage() {
               description="Add a course, then add video, PDF and quiz lessons to it. A path with no lessons cannot be assigned."
             />
           ) : (
-            path.courses.map((course, ci) => (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] items-start">
+            <div className="flex flex-col gap-4 min-w-0">
+            {path.courses.map((course, ci) => (
               <section
                 key={course.id}
                 className="bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden"
               >
                 <header className="flex flex-wrap items-start gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                  <span className="mt-0.5 text-[11px] font-bold text-slate-400 tabular-nums">
-                    {String(ci + 1).padStart(2, "0")}
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-600 tabular-nums shrink-0">
+                    {ci + 1}
                   </span>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-sm font-bold text-slate-900">{course.name}</h2>
-                      {!course.mandatory && <Badge variant="neutral">Optional</Badge>}
+                      <Badge variant={course.mandatory ? "primary" : "neutral"}>
+                        {course.mandatory ? "Mandatory" : "Optional"}
+                      </Badge>
                       {!course.active && <Badge variant="warning">Archived</Badge>}
                       {course.prerequisiteCourseId && (
                         <Badge variant="neutral">
@@ -261,7 +281,14 @@ export function PathBuilderPage() {
                     >
                       <ChevronDown size={14} />
                     </Button>
-                    <Button size="xs" variant="ghost" onClick={() => setAddingLessonTo(course)}>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingLessonType("video");
+                        setAddingLessonTo(course);
+                      }}
+                    >
                       <Plus size={13} className="mr-1" />
                       Lesson
                     </Button>
@@ -342,7 +369,20 @@ export function PathBuilderPage() {
                   </ul>
                 )}
               </section>
-            ))
+            ))}
+            </div>
+
+            <AddContentRail
+              courses={path.courses}
+              targetCourseId={target?.id ?? null}
+              onTargetChange={setTargetCourseId}
+              onAdd={(type) => {
+                if (!target) return;
+                setAddingLessonType(type);
+                setAddingLessonTo(target);
+              }}
+            />
+          </div>
           )}
         </div>
       )}
@@ -362,6 +402,7 @@ export function PathBuilderPage() {
       {addingLessonTo && (
         <LessonModal
           course={addingLessonTo}
+          initialType={addingLessonType}
           onClose={() => setAddingLessonTo(null)}
           onSaved={(result) => {
             setAddingLessonTo(null);
@@ -407,6 +448,79 @@ export function PathBuilderPage() {
 }
 
 /** Add a course to the path. */
+/**
+ * The "Add Content" rail.
+ *
+ * ---------------------------------------------------------------------------
+ * A RAIL HAS TO KNOW WHAT IT IS ADDING TO
+ * ---------------------------------------------------------------------------
+ * The design reference draws it as a free-floating panel beside the course
+ * list. That works in a mockup with one course and stops working with three —
+ * "Add Video" has to mean adding it SOMEWHERE, and a panel that silently picks
+ * a course for you is how a lesson ends up in the wrong module.
+ *
+ * So the rail names its target and lets it be changed. The buttons are
+ * otherwise exactly the reference's: one per lesson type, each opening the
+ * lesson modal already set to it, which is two fewer decisions than opening a
+ * blank form and choosing the type inside it.
+ *
+ * There is no "Add Link". `LESSON_TYPES` is video, pdf, document and quiz —
+ * this module has no link lesson, and a button that cannot produce one would be
+ * a promise the builder never keeps.
+ */
+function AddContentRail({ courses, targetCourseId, onTargetChange, onAdd }) {
+  const actions = [
+    { type: "video", label: "Add Video", icon: Film },
+    { type: "pdf", label: "Add PDF", icon: FileText },
+    { type: "document", label: "Add Document", icon: FileText },
+    { type: "quiz", label: "Add Assessment", icon: ClipboardList },
+  ];
+
+  return (
+    <aside className="lg:sticky lg:top-4 bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden">
+      <header className="px-4 py-3 border-b border-slate-100">
+        <h2 className="text-[13px] font-bold text-slate-900">Add Content</h2>
+      </header>
+
+      <div className="p-3 flex flex-col gap-3">
+        {courses.length > 1 && (
+          <Select
+            label="Add to course"
+            value={targetCourseId ?? ""}
+            onChange={(e) => onTargetChange(e.target.value)}
+          >
+            {courses.map((course, i) => (
+              <option key={course.id} value={course.id}>
+                {i + 1}. {course.name}
+              </option>
+            ))}
+          </Select>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          {actions.map(({ type, label, icon: Icon }) => (
+            <Button
+              key={type}
+              size="sm"
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => onAdd(type)}
+            >
+              <Icon size={14} className="mr-2 text-slate-400" />
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          Videos, PDFs and documents come from the Content Library; assessments come from the
+          Assessments tab. Upload or author it there first, then add it here.
+        </p>
+      </div>
+    </aside>
+  );
+}
+
 function CourseModal({ pathId, courses, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: "",
@@ -455,16 +569,13 @@ function CourseModal({ pathId, courses, onClose, onSaved }) {
           placeholder="IT Security Awareness"
         />
 
-        <div className="w-full flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700">Description</label>
-          <textarea
-            rows={2}
-            maxLength={2000}
-            value={form.description}
-            onChange={(e) => set("description", e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          />
-        </div>
+        <Textarea
+          label="Description"
+          rows={2}
+          maxLength={2000}
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
+        />
 
         <Input
           label="Estimated minutes"
@@ -526,11 +637,11 @@ function CourseModal({ pathId, courses, onClose, onSaved }) {
  * here mirrors the server's own check — it refuses a PDF content item in a
  * video lesson — so the mistake is not offered rather than merely rejected.
  */
-function LessonModal({ course, onClose, onSaved }) {
+function LessonModal({ course, initialType = "video", onClose, onSaved }) {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    type: "video",
+    type: initialType,
     contentId: null,
     assessmentId: null,
     mandatory: true,
@@ -583,23 +694,20 @@ function LessonModal({ course, onClose, onSaved }) {
   return (
     <Modal isOpen onClose={onClose} title={`Add a lesson to ${course.name}`} size="lg">
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <div className="w-full flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700">Lesson type</label>
-          <select
-            value={form.type}
-            onChange={(e) => {
-              set("type", e.target.value);
-              set("contentId", null);
-              set("assessmentId", null);
-            }}
-            className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          >
-            <option value="video">Video</option>
-            <option value="pdf">PDF</option>
-            <option value="document">Document</option>
-            <option value="quiz">Quiz</option>
-          </select>
-        </div>
+        <Select
+          label="Lesson type"
+          value={form.type}
+          onChange={(e) => {
+            set("type", e.target.value);
+            set("contentId", null);
+            set("assessmentId", null);
+          }}
+        >
+          <option value="video">Video</option>
+          <option value="pdf">PDF</option>
+          <option value="document">Document</option>
+          <option value="quiz">Quiz</option>
+        </Select>
 
         <Input
           label="Title"

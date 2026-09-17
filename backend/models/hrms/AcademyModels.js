@@ -171,6 +171,16 @@ const learningPathSchema = new Schema(
 
     audience: { type: audienceSchema, default: () => ({}) },
 
+    /**
+     * Free-text labels, exactly as `AcademyContent.tags` works.
+     *
+     * A path is found by what it is ABOUT - "Onboarding", "Compliance",
+     * "Product" - long before anybody remembers its full title, and the
+     * catalogue filters on them. Deliberately not an enum: the vocabulary is
+     * the company's and changes faster than a deploy.
+     */
+    tags: { type: [String], default: [], index: true },
+
     /** How the due date is computed per assignment. See constants/academy.js. */
     dueDateMode: { type: String, required: true, enum: DUE_DATE_MODES, default: 'none' },
     dueDays: { type: Number, default: null, min: 1 },

@@ -7,6 +7,8 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Modal } from "../../../components/ui/Modal";
 import { Input } from "../../../components/ui/Input";
+import { Select } from "../../../components/ui/Select";
+import { Textarea } from "../../../components/ui/Textarea";
 import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
 import {
   contentApi,
@@ -18,8 +20,30 @@ import {
 } from "../../../services/hrms/academy";
 import { MAX_CONTENT_BYTES } from "@shared/constants/academy.js";
 import { PercentBar } from "./academyShared";
+import { FilterChips } from "./academyVisuals";
 
 const PAGE_SIZE = 25;
+
+/** The thumbnail tint per content type, so a row is recognisable by shape. */
+const TYPE_TILE = {
+  video: "bg-primary-50 text-primary-700",
+  pdf: "bg-error-50 text-error-500",
+  document: "bg-slate-100 text-slate-600",
+};
+
+/**
+ * The chip row the design reference uses in place of a type dropdown.
+ *
+ * It has no "Links" chip. `CONTENT_TYPES` is video, pdf and document — there is
+ * no link content type in this module, and a chip that can never match anything
+ * is a control that teaches people not to trust the row.
+ */
+const TYPE_CHIPS = [
+  { key: null, label: "All" },
+  { key: "video", label: "Videos" },
+  { key: "pdf", label: "PDFs" },
+  { key: "document", label: "Documents" },
+];
 
 /** What the file picker offers, per declared content type. */
 const ACCEPT = {
@@ -98,12 +122,18 @@ export function ContentLibraryTab() {
       header: "Title",
       accessorKey: "title",
       cell: (row) => (
-        <div className="flex items-start gap-2.5 min-w-0">
-          {row.type === "video" ? (
-            <Film size={15} className="mt-0.5 shrink-0 text-slate-400" />
-          ) : (
-            <FileText size={15} className="mt-0.5 shrink-0 text-slate-400" />
-          )}
+        <div className="flex items-center gap-3 min-w-0">
+          {/* The reference puts a thumbnail at the head of every row. There is
+              no artwork to show, so the tile carries the TYPE — which is what a
+              thumbnail of a PDF would have told you anyway. */}
+          <span
+            aria-hidden="true"
+            className={`inline-flex items-center justify-center w-9 h-9 rounded-lg shrink-0 ${
+              TYPE_TILE[row.type] ?? TYPE_TILE.document
+            }`}
+          >
+            {row.type === "video" ? <Film size={16} /> : <FileText size={16} />}
+          </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-900 truncate">{row.title}</p>
             {row.description && (
@@ -128,6 +158,35 @@ export function ContentLibraryTab() {
     {
       header: "Size",
       cell: (row) => <span className="text-xs text-slate-600">{formatFileSize(row.fileSize)}</span>,
+    },
+    {
+      /**
+       * How many courses depend on this item.
+       *
+       * It is the column that answers "can I delete this?" before the click
+       * rather than after it — `deleteContent` refuses anything in use, and a
+       * zero here is the only safe row.
+       */
+      header: "Used In",
+      cell: (row) => (
+        <span
+          className={`text-xs tabular-nums ${
+            row.usedIn > 0 ? "font-semibold text-slate-700" : "text-slate-400"
+          }`}
+        >
+          {row.usedIn > 0
+            ? `${row.usedIn} course${row.usedIn === 1 ? "" : "s"}`
+            : "Not used"}
+        </span>
+      ),
+    },
+    {
+      header: "Status",
+      cell: (row) => (
+        <Badge variant={row.active ? "success" : "neutral"}>
+          {row.active ? "Active" : "Inactive"}
+        </Badge>
+      ),
     },
     {
       header: "Uploaded",
@@ -165,17 +224,6 @@ export function ContentLibraryTab() {
             setPage(1);
           }}
           searchPlaceholder="Search the library…"
-          filters={[
-            {
-              key: "type",
-              placeholder: "Type",
-              options: [
-                { value: "video", label: "Video" },
-                { value: "pdf", label: "PDF" },
-                { value: "document", label: "Document" },
-              ],
-            },
-          ]}
           values={filters}
           onChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -189,9 +237,19 @@ export function ContentLibraryTab() {
 
         <Button size="sm" onClick={() => setUploading(true)}>
           <Plus size={15} className="mr-1.5" />
-          Upload content
+          Upload Content
         </Button>
       </div>
+
+      <FilterChips
+        options={TYPE_CHIPS}
+        value={filters.type ?? null}
+        ariaLabel="Filter by content type"
+        onChange={(key) => {
+          setFilters((f) => ({ ...f, type: key ?? undefined }));
+          setPage(1);
+        }}
+      />
 
       {failure && (
         <div
@@ -325,25 +383,22 @@ function UploadContentModal({ onClose, onUploaded }) {
   return (
     <Modal isOpen onClose={saving ? () => {} : onClose} title="Upload content" size="lg">
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <div className="w-full flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700">Type</label>
-          <select
-            value={type}
-            disabled={saving}
-            onChange={(e) => {
-              setType(e.target.value);
-              setFile(null);
-              setDuration(null);
-              setFailure(null);
-              if (inputRef.current) inputRef.current.value = "";
-            }}
-            className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          >
+        <Select
+          label="Type"
+          value={type}
+          disabled={saving}
+          onChange={(e) => {
+            setType(e.target.value);
+            setFile(null);
+            setDuration(null);
+            setFailure(null);
+            if (inputRef.current) inputRef.current.value = "";
+          }}
+        >
             <option value="video">Video — tracked by how much is watched</option>
             <option value="pdf">PDF — read inline, confirmed by the learner</option>
-            <option value="document">Document — downloaded, confirmed by the learner</option>
-          </select>
-        </div>
+          <option value="document">Document — downloaded, confirmed by the learner</option>
+        </Select>
 
         <div className="w-full flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-700">File</label>
@@ -373,17 +428,14 @@ function UploadContentModal({ onClose, onUploaded }) {
           onChange={(e) => setTitle(e.target.value)}
         />
 
-        <div className="w-full flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700">Description</label>
-          <textarea
-            rows={2}
-            maxLength={2000}
-            disabled={saving}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 disabled:bg-slate-50"
-          />
-        </div>
+        <Textarea
+          label="Description"
+          rows={2}
+          maxLength={2000}
+          disabled={saving}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
 
         {saving && (
           <div className="flex flex-col gap-1.5">

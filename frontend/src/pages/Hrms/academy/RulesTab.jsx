@@ -7,6 +7,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Modal } from "../../../components/ui/Modal";
 import { Input } from "../../../components/ui/Input";
+import { Select } from "../../../components/ui/Select";
 import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
 import { departmentsApi, locationsApi } from "../../../services/hrms/org";
 import { rulesApi, pathsApi, formatInstant } from "../../../services/hrms/academy";
@@ -480,24 +481,18 @@ function RuleModal({ rule, paths, departments, locations, onClose, onSaved }) {
           )}
         </fieldset>
 
-        <div className="w-full flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-700">Trigger</label>
-          <select
-            value={form.trigger}
-            onChange={(e) => set("trigger", e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          >
-            {Object.entries(RULE_TRIGGER_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <span className="text-[11px] text-slate-500">
-            "Only when run manually" is how an existing workforce is backfilled onto a new
-            compliance path without the rule also firing on every future hire.
-          </span>
-        </div>
+        <Select
+          label="Trigger"
+          value={form.trigger}
+          onChange={(e) => set("trigger", e.target.value)}
+          helperText={'"Only when run manually" is how an existing workforce is backfilled onto a new compliance path without the rule also firing on every future hire.'}
+        >
+          {Object.entries(RULE_TRIGGER_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
 
         <Toggle checked={form.active} onChange={(v) => set("active", v)} label="Active" />
 

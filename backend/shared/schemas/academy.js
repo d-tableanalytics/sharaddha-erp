@@ -171,6 +171,7 @@ export const createPathSchema = z
     name: z.string().trim().min(1, 'A name is required.').max(PATH_NAME_MAX),
     description: optionalText(DESCRIPTION_MAX),
     audience: audienceSchema.optional(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
     ...dueDateBase,
     mandatory: z.boolean().default(true),
     /** Courses must be taken in order, and a later one stays locked until then. */
@@ -188,6 +189,7 @@ export const updatePathSchema = z
     name: z.string().trim().min(1).max(PATH_NAME_MAX).optional(),
     description: optionalText(DESCRIPTION_MAX),
     audience: audienceSchema.optional(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
     ...dueDateBase,
     dueDateMode: z.enum(DUE_DATE_MODES).optional(),
     mandatory: z.boolean().optional(),
@@ -202,6 +204,16 @@ export const pathListQuerySchema = paginationQuery.extend({
   search: z.string().trim().max(160).optional(),
   active: z.coerce.boolean().optional(),
   departmentId: objectId.optional(),
+  tag: z.string().trim().min(1).max(40).optional(),
+  /**
+   * The catalogue's three states, as the screen presents them.
+   *
+   * `active` is the stored flag and stays accepted; `status` is the derived
+   * view over it - see `derivePathStatus` in catalogue.service.js, which is the
+   * single place that derivation lives.
+   */
+  status: z.enum(['active', 'draft', 'archived']).optional(),
+  sort: z.enum(['updated', 'name', 'assigned', 'created']).default('updated'),
 });
 
 // ---------------------------------------------------------------------------

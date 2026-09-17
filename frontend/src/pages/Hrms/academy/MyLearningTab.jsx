@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { GraduationCap, PlayCircle, ArrowRight } from "lucide-react";
+import { GraduationCap, PlayCircle, ArrowRight, Layers, BookOpen } from "lucide-react";
 
 import { ErrorState } from "../../../components/hrms/ErrorState";
 import { EmptyState } from "../../../components/ui/EmptyState";
@@ -8,13 +8,8 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Button } from "../../../components/ui/Button";
 import { HRMS_ROUTE_PREFIX } from "@shared/constants/hrms.js";
 import { myLearningApi, formatInstant } from "../../../services/hrms/academy";
-import {
-  LearningPathCard,
-  ProgressRow,
-  StatCard,
-  AcademyStatusBadge,
-  DueLabel,
-} from "./academyShared";
+import { PercentBar, AcademyStatusBadge, DueLabel, MandatoryBadge } from "./academyShared";
+import { CoverTile, FilterChips } from "./academyVisuals";
 
 /**
  * My Learning — the module's default tab and the screen most people see.
@@ -46,6 +41,36 @@ export function MyLearningTab() {
     load();
   }, [load]);
 
+  const assignments = data?.assignments;
+
+  /**
+   * The chips and the list are driven by ONE predicate.
+   *
+   * A chip whose count disagrees with the number of cards it reveals is the
+   * defect this shape rules out: the count IS `filtered(key).length`, so the
+   * two cannot drift apart however the rules change later.
+   */
+  const matches = useCallback((assignment, key) => {
+    if (!key) return true;
+    if (key === "in_progress") return assignment.status === "in_progress";
+    if (key === "due_soon") return assignment.dueState === "due_soon";
+    if (key === "overdue") return assignment.dueState === "overdue";
+    if (key === "completed") return assignment.status === "completed";
+    return true;
+  }, []);
+
+  const chips = useMemo(() => {
+    const rows = assignments ?? [];
+    const count = (key) => rows.filter((a) => matches(a, key)).length;
+    return [
+      { key: null, label: "All", count: rows.length },
+      { key: "in_progress", label: "In Progress", count: count("in_progress") },
+      { key: "due_soon", label: "Due Soon", count: count("due_soon") },
+      { key: "overdue", label: "Overdue", count: count("overdue") },
+      { key: "completed", label: "Completed", count: count("completed") },
+    ];
+  }, [assignments, matches]);
+
   if (error) return <ErrorState description={error.message} onRetry={load} />;
 
   if (data === undefined) {
@@ -56,7 +81,7 @@ export function MyLearningTab() {
     );
   }
 
-  const { summary, assignments, continue: resume } = data;
+  const { continue: resume } = data;
 
   if (assignments.length === 0) {
     return (
@@ -68,178 +93,216 @@ export function MyLearningTab() {
     );
   }
 
-  /**
-   * The counters double as filters.
-   *
-   * Clicking "Overdue" filters the list below rather than navigating somewhere
-   * — the number and the thing it counts stay on one screen, which is what
-   * makes the count actionable rather than decorative.
-   */
-  const shown = assignments.filter((a) => {
-    if (!filter) return true;
-    if (filter === "overdue") return a.dueState === "overdue";
-    if (filter === "completed") return a.status === "completed";
-    if (filter === "in_progress") return a.status === "in_progress";
-    if (filter === "not_started") return a.status === "assigned";
-    return true;
-  });
-
-  const toggle = (key) => setFilter((f) => (f === key ? null : key));
+  const shown = assignments.filter((a) => matches(a, filter));
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ---- Counters ---------------------------------------------------- */}
-      <section>
-        <h2 className="sr-only">Your learning at a glance</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatCard label="Assigned" value={summary.assigned} />
-          <StatCard
-            label="Not started"
-            value={summary.notStarted}
-            onClick={() => toggle("not_started")}
-            active={filter === "not_started"}
-          />
-          <StatCard
-            label="In progress"
-            value={summary.inProgress}
-            tone="primary"
-            onClick={() => toggle("in_progress")}
-            active={filter === "in_progress"}
-          />
-          <StatCard
-            label="Completed"
-            value={summary.completed}
-            tone="success"
-            onClick={() => toggle("completed")}
-            active={filter === "completed"}
-          />
-          <StatCard
-            label="Overdue"
-            value={summary.overdue}
-            tone={summary.overdue > 0 ? "danger" : "neutral"}
-            onClick={() => toggle("overdue")}
-            active={filter === "overdue"}
-          />
-        </div>
-      </section>
-
-      {/* ---- Continue learning ------------------------------------------- */}
+      {/* ---- Continue learning -------------------------------------------- */}
       {resume && (
         <section>
-          <h2 className="text-sm font-bold text-slate-900 mb-3">Continue learning</h2>
+          <h2 className="text-sm font-bold text-slate-900 mb-3">Continue Learning</h2>
 
-          <div className="flex flex-col gap-4 p-4 sm:p-5 bg-white border border-slate-200 rounded-xl shadow-enterprise">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-slate-900">{resume.pathName}</h3>
-                {resume.nextLesson ? (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Next up in{" "}
-                    <span className="font-semibold text-slate-700">
-                      {resume.nextLesson.courseName}
-                    </span>
-                    : {resume.nextLesson.lessonTitle}
+          {/*
+            THE ONE CARD ON THIS SCREEN THAT IS A CALL TO ACTION.
+
+            The reference gives it a landscape thumbnail on the left, the path
+            and its next lesson in the middle, and the action at the far right —
+            a horizontal band that reads as a resume bar rather than as one more
+            card in the grid below. That distinction is the whole point of the
+            row: it is the single thing most people open this page to do.
+          */}
+          <article className="flex flex-col sm:flex-row sm:items-stretch bg-white border border-primary-200 rounded-xl shadow-enterprise overflow-hidden">
+            {/* Fixed on a phone; stretched to the row on `sm`, where
+                `self-stretch` gives it a definite height that `h-full` inside
+                can actually resolve against. */}
+            <div className="shrink-0 w-full h-32 sm:w-[190px] sm:h-auto sm:self-stretch">
+              <CoverTile name={resume.pathName} kind="path" />
+            </div>
+
+            <div className="flex-1 flex flex-col justify-center gap-3 p-4 sm:p-5 min-w-0">
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 leading-snug">
+                    {resume.pathName}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {resume.nextLesson ? (
+                      <>
+                        Next:{" "}
+                        <span className="font-semibold text-slate-700">
+                          {resume.nextLesson.lessonTitle}
+                        </span>
+                      </>
+                    ) : (
+                      "Everything available is complete — open the path to review it."
+                    )}
                   </p>
-                ) : (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Everything available is complete — open the path to review it.
-                  </p>
-                )}
+                </div>
+
+                <Link
+                  to={
+                    resume.nextLesson
+                      ? `${HRMS_ROUTE_PREFIX}/academy/learn/${resume.id}/lesson/${resume.nextLesson.lessonId}`
+                      : `${HRMS_ROUTE_PREFIX}/academy/learn/${resume.id}`
+                  }
+                  className="max-sm:w-full"
+                >
+                  {/* Full width on a phone. A 150px button floating in a 343px
+                      card is the primary action looking like an afterthought,
+                      and it is the one control here a thumb goes for. */}
+                  <Button size="md" className="max-sm:w-full">
+                    <PlayCircle size={16} className="mr-1.5" />
+                    {resume.percent > 0 ? "Continue Learning" : "Start Learning"}
+                    <ArrowRight size={15} className="ml-1.5" />
+                  </Button>
+                </Link>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <AcademyStatusBadge status={resume.status} dueState={resume.dueState} />
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex items-center gap-2.5 flex-1 min-w-[180px]">
+                  <PercentBar
+                    percent={resume.percent}
+                    tone={resume.dueState === "overdue" ? "danger" : undefined}
+                    className="flex-1"
+                  />
+                  <span className="text-xs font-bold text-slate-700 tabular-nums">
+                    {resume.percent}%
+                  </span>
+                </div>
+
                 <DueLabel
                   dueState={resume.dueState}
                   dueLabel={resume.dueLabel}
                   dueDate={resume.dueDate}
                 />
+
+                {resume.lastActivityAt && (
+                  <span className="text-[11px] text-slate-400">
+                    Last opened {formatInstant(resume.lastActivityAt)}
+                  </span>
+                )}
               </div>
             </div>
-
-            <ProgressRow
-              percent={resume.percent}
-              completed={resume.completedLessons}
-              total={resume.totalLessons}
-              tone={resume.dueState === "overdue" ? "danger" : undefined}
-            />
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to={
-                  resume.nextLesson
-                    ? `${HRMS_ROUTE_PREFIX}/academy/learn/${resume.id}/lesson/${resume.nextLesson.lessonId}`
-                    : `${HRMS_ROUTE_PREFIX}/academy/learn/${resume.id}`
-                }
-              >
-                <Button size="sm">
-                  <PlayCircle size={15} className="mr-1.5" />
-                  {resume.percent > 0 ? "Continue learning" : "Start learning"}
-                </Button>
-              </Link>
-              <Link to={`${HRMS_ROUTE_PREFIX}/academy/learn/${resume.id}`}>
-                <Button size="sm" variant="outline">
-                  View path
-                </Button>
-              </Link>
-              {resume.lastActivityAt && (
-                <span className="text-[11px] text-slate-400 ml-auto">
-                  Last opened {formatInstant(resume.lastActivityAt)}
-                </span>
-              )}
-            </div>
-          </div>
+          </article>
         </section>
       )}
 
-      {/* ---- All paths ---------------------------------------------------- */}
+      {/* ---- Filters + grid ------------------------------------------------ */}
       <section>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <h2 className="text-sm font-bold text-slate-900">
-            My learning paths
-            {filter && (
-              <span className="ml-2 text-xs font-medium text-slate-500">
-                ({shown.length} shown)
-              </span>
-            )}
-          </h2>
-          {filter && (
-            <Button size="xs" variant="ghost" onClick={() => setFilter(null)}>
-              Clear filter
-            </Button>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <FilterChips
+            options={chips}
+            value={filter}
+            onChange={setFilter}
+            ariaLabel="Filter learning paths"
+          />
         </div>
 
         {shown.length === 0 ? (
           <EmptyState
             title="Nothing matches that filter"
-            description="Clear the filter to see all of your learning paths."
+            description="Choose “All” to see every learning path assigned to you."
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {shown.map((assignment) => (
-              <LearningPathCard
-                key={assignment.id}
-                assignment={assignment}
-                to={`${HRMS_ROUTE_PREFIX}/academy/learn/${assignment.id}`}
-                action={
-                  <Link
-                    to={`${HRMS_ROUTE_PREFIX}/academy/learn/${assignment.id}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:underline"
-                  >
-                    {assignment.status === "completed"
-                      ? "Review"
-                      : assignment.percent > 0
-                        ? "Continue"
-                        : "Start"}
-                    <ArrowRight size={13} />
-                  </Link>
-                }
-              />
+              <PathCard key={assignment.id} assignment={assignment} />
             ))}
           </div>
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * One learning path in the grid.
+ *
+ * The reference's card is a vertical stack: cover, then title, then the counts,
+ * then progress, then the action across the full width of the card. The action
+ * being full-width matters — it makes every card in the row terminate in the
+ * same place, so the grid reads as a set of equivalent options rather than as
+ * cards of drifting height.
+ */
+function PathCard({ assignment }) {
+  const to = `${HRMS_ROUTE_PREFIX}/academy/learn/${assignment.id}`;
+  const tone =
+    assignment.dueState === "overdue"
+      ? "danger"
+      : assignment.dueState === "due_soon"
+        ? "warning"
+        : undefined;
+
+  const label =
+    assignment.status === "completed"
+      ? "Review"
+      : assignment.percent > 0
+        ? "Continue"
+        : "Start";
+
+  return (
+    <article className="group flex flex-col bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden transition-all hover:border-primary-300 hover:shadow-md">
+      <Link to={to} className="block h-32 shrink-0">
+        <CoverTile name={assignment.pathName} kind="path" />
+      </Link>
+
+      <div className="flex-1 flex flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-sm font-bold text-slate-900 leading-snug min-w-0">
+            <Link to={to} className="hover:text-primary-700">
+              {assignment.pathName}
+            </Link>
+          </h3>
+          <AcademyStatusBadge
+            status={assignment.status}
+            dueState={assignment.dueState}
+            className="shrink-0"
+          />
+        </div>
+
+        {/* The reference's "5 Courses · 12 Lessons" line — the size of the
+            commitment, which is the second thing anybody wants to know. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <Layers size={12} className="text-slate-400" />
+            {assignment.totalCourses} {assignment.totalCourses === 1 ? "Course" : "Courses"}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <BookOpen size={12} className="text-slate-400" />
+            {assignment.totalLessons} {assignment.totalLessons === 1 ? "Lesson" : "Lessons"}
+          </span>
+          <MandatoryBadge mandatory={assignment.mandatory} className="text-[10px] px-2 py-0" />
+        </div>
+
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="flex items-center gap-2.5">
+            <PercentBar percent={assignment.percent} tone={tone} className="flex-1" size="sm" />
+            <span className="text-xs font-bold text-slate-700 tabular-nums">
+              {assignment.percent}%
+            </span>
+          </div>
+
+          <DueLabel
+            dueState={assignment.dueState}
+            dueLabel={assignment.dueLabel}
+            dueDate={assignment.dueDate}
+          />
+        </div>
+      </div>
+
+      <div className="px-4 pb-4">
+        <Link to={to} className="block">
+          <Button
+            size="sm"
+            variant={assignment.percent > 0 ? "primary" : "outline"}
+            className="w-full"
+          >
+            {label}
+            <ArrowRight size={14} className="ml-1.5" />
+          </Button>
+        </Link>
+      </div>
+    </article>
   );
 }
 

@@ -34,6 +34,7 @@ import {
 } from '../models/hrms/AcademyModels.js';
 
 import academyRoutes from '../modules/hrms/academy/academy.routes.js';
+import { derivePathStatus } from '../modules/hrms/academy/catalogue.service.js';
 import employeeRoutes from '../modules/hrms/employees/employee.routes.js';
 import { hrmsAuthorizationChain, setEmployeeResolver } from '../middlewares/hrmsAuth.js';
 import { hrmsErrorHandler } from '../modules/hrms/hrms.errors.js';
@@ -1542,6 +1543,151 @@ describe('assessments', () => {
     });
   });
 
+  test('🔴 the lesson says how many attempts are LEFT, so the UI cannot offer one that is refused', async () => {
+    const assessment = await makeAssessment({ maxAttempts: 2, passingPercent: 100 });
+    const path = await LearningPath.create({ name: 'Quiz only', active: true });
+    const course = await AcademyCourse.create({
+      pathId: path._id,
+      name: 'Quiz',
+      order: 0,
+      lessons: [{ title: 'Quiz', type: 'quiz', assessmentId: assessment._id, mandatory: true, order: 0 }],
+    });
+    const { user, employee } = await makeEmployee();
+
+    const assignment = await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Learner',
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      lessons: [
+        {
+          courseId: course._id,
+          lessonId: course.lessons[0]._id,
+          title: 'Quiz',
+          type: 'quiz',
+          mandatory: true,
+          status: 'not_started',
+        },
+      ],
+    });
+
+    const lessonPath = `${P}/assignments/${assignment._id}/lessons/${course.lessons[0]._id}/attempt`;
+    const quizOf = async (url) => {
+      const res = await get(url, `${P}/assignments/${assignment._id}`);
+      return res.body.data.courses[0].lessons[0].assessment;
+    };
+
+    await withServer(appFor(user), async (url) => {
+      // Before anything: two attempts, and the limit itself so the screen can
+      // say "2 attempts left" rather than just enabling a button.
+      let quiz = await quizOf(url);
+      assert.equal(quiz.maxAttempts, 2);
+      assert.equal(quiz.attemptsRemaining, 2);
+
+      await post(url, lessonPath, { answers: [] });
+      quiz = await quizOf(url);
+      assert.equal(quiz.attemptsRemaining, 1);
+
+      await post(url, lessonPath, { answers: [] });
+      quiz = await quizOf(url);
+
+      /*
+       * THE BUG THIS PINS.
+       *
+       * The summary used to carry only what the learner had already DONE, never
+       * what they were still allowed to do. So the lesson's landing screen had
+       * nothing to gate on, offered "Try again" after the last attempt, and the
+       * server refused the click — a control offered, accepted, then refused.
+       */
+      assert.equal(quiz.attemptsRemaining, 0);
+      assert.equal(quiz.passed, false);
+
+      // ...and the refusal still stands, so the two agree.
+      const refused = await post(url, lessonPath, { answers: [] });
+      assert.equal(refused.status, 409);
+      assert.equal(refused.body.code, 'ASSESSMENT_NO_ATTEMPTS_LEFT');
+    });
+  });
+
+  test('an unlimited assessment reports null, not a number', async () => {
+    const assessment = await makeAssessment({ maxAttempts: null });
+    const path = await LearningPath.create({ name: 'Quiz only', active: true });
+    const course = await AcademyCourse.create({
+      pathId: path._id,
+      name: 'Quiz',
+      order: 0,
+      lessons: [{ title: 'Quiz', type: 'quiz', assessmentId: assessment._id, mandatory: true, order: 0 }],
+    });
+    const { user, employee } = await makeEmployee();
+
+    const assignment = await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Learner',
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      lessons: [
+        {
+          courseId: course._id,
+          lessonId: course.lessons[0]._id,
+          title: 'Quiz',
+          type: 'quiz',
+          mandatory: true,
+          status: 'not_started',
+        },
+      ],
+    });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/assignments/${assignment._id}`);
+      const quiz = res.body.data.courses[0].lessons[0].assessment;
+
+      // Null is "unlimited". A zero here would hide the button forever, which
+      // is the opposite of what an unlimited assessment means.
+      assert.equal(quiz.maxAttempts, null);
+      assert.equal(quiz.attemptsRemaining, null);
+    });
+  });
+
+  test('🔴 the answer key never rides along on the attempt summary', async () => {
+    const assessment = await makeAssessment({ maxAttempts: 2 });
+    const path = await LearningPath.create({ name: 'Quiz only', active: true });
+    const course = await AcademyCourse.create({
+      pathId: path._id,
+      name: 'Quiz',
+      order: 0,
+      lessons: [{ title: 'Quiz', type: 'quiz', assessmentId: assessment._id, mandatory: true, order: 0 }],
+    });
+    const { user, employee } = await makeEmployee();
+
+    const assignment = await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Learner',
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      lessons: [
+        {
+          courseId: course._id,
+          lessonId: course.lessons[0]._id,
+          title: 'Quiz',
+          type: 'quiz',
+          mandatory: true,
+          status: 'not_started',
+        },
+      ],
+    });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/assignments/${assignment._id}`);
+      // The batch loader that fetches maxAttempts selects named fields only —
+      // `questions` is not among them, so widening this DTO cannot leak them.
+      assert.equal(JSON.stringify(res.body).includes('isCorrect'), false);
+      assert.equal(JSON.stringify(res.body).includes('suspicious email'), false);
+    });
+  });
+
   test('a passed assessment cannot be re-sat and its score lowered', async () => {
     const assessment = await makeAssessment({ passingPercent: 50 });
     const path = await LearningPath.create({ name: 'Quiz only', active: true });
@@ -1710,5 +1856,471 @@ describe('auditing', () => {
       false,
       'an audit row must not become a second copy of the report',
     );
+  });
+});
+
+// ===========================================================================
+// What the screens are given to draw with
+// ===========================================================================
+
+describe('the fields the Academy screens render', () => {
+  /** A learner with the two-course path assigned, every lesson recorded. */
+  async function assignedLearner() {
+    const { path, courseOne, courseTwo, assessment } = await makePath({
+      sequential: false,
+      requiresCertificate: false,
+    });
+    const { user, employee } = await makeEmployee();
+
+    const assignment = await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Learner',
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      lessons: [
+        ...courseOne.lessons.map((lesson) => ({
+          courseId: courseOne._id,
+          lessonId: lesson._id,
+          title: lesson.title,
+          type: lesson.type,
+          mandatory: true,
+          status: 'not_started',
+        })),
+        {
+          courseId: courseTwo._id,
+          lessonId: courseTwo.lessons[0]._id,
+          title: 'Security Assessment',
+          type: 'quiz',
+          mandatory: true,
+          status: 'not_started',
+        },
+      ],
+    });
+
+    return { user, employee, assignment, path, courseOne, courseTwo, assessment };
+  }
+
+  test('my-learning states how many COURSES a path spans, not only its lessons', async () => {
+    const { user, assignment } = await assignedLearner();
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/my-learning`);
+      assert.equal(res.status, 200);
+
+      const row = res.body.data.assignments.find((a) => a.id === assignment._id.toString());
+      // Two courses - the card reads "2 Courses" beside the lesson count.
+      assert.equal(row.totalCourses, 2);
+      assert.ok(row.totalLessons >= 2);
+    });
+  });
+
+  test('a quiz lesson carries the rules of its assessment before it is started', async () => {
+    const { user, assignment } = await assignedLearner();
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/assignments/${assignment._id}`);
+      assert.equal(res.status, 200);
+
+      const quiz = res.body.data.courses.flatMap((c) => c.lessons).find((l) => l.type === 'quiz');
+
+      // The panel the learner reads before committing to an attempt.
+      assert.equal(quiz.assessment.passingPercent, 70);
+      assert.equal(quiz.assessment.questionCount, 2);
+      assert.equal(quiz.assessment.scorePolicy, 'highest');
+      assert.equal(quiz.assessment.attemptCount, 0);
+    });
+  });
+
+  test('the question COUNT arrives without any question reaching the wire', async () => {
+    const { user, assignment } = await assignedLearner();
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/assignments/${assignment._id}`);
+      assert.equal(res.status, 200);
+
+      const quiz = res.body.data.courses.flatMap((c) => c.lessons).find((l) => l.type === 'quiz');
+
+      assert.equal(quiz.assessment.questionCount, 2);
+
+      /**
+       * The projection behind that count selects `questions._id` and nothing
+       * else, and replaces the array with its length. If it is ever widened,
+       * this is what catches it: no question text, no option text and above all
+       * no `isCorrect` may appear anywhere in this response.
+       */
+      assert.equal(quiz.assessment.questions, undefined);
+
+      const wire = JSON.stringify(res.body);
+      assert.ok(!wire.includes('isCorrect'), 'correctness must never be serialised');
+    });
+  });
+
+  /**
+   * The path's blurb reaches the hero and the About tab.
+   *
+   * It was missing from this DTO and neither screen noticed, because the
+   * frontend fixture supplied a description the server never sent. That is the
+   * shape of bug a fixture hides, so the round trip is asserted here against a
+   * real path rather than a hand-written object.
+   */
+  test('the path detail carries the path description, read live', async () => {
+    const { user, assignment, path } = await assignedLearner();
+
+    await withServer(appFor(user), async (url) => {
+      const before = await get(url, `${P}/assignments/${assignment._id}`);
+      assert.equal(before.body.data.description, path.description);
+      assert.ok(path.description, 'the fixture path must actually have one');
+    });
+
+    // Edited by HR: every learner sees the new wording, not the wording as it
+    // was on the day they were assigned.
+    await LearningPath.updateOne({ _id: path._id }, { $set: { description: 'Revised blurb.' } });
+
+    await withServer(appFor(user), async (url) => {
+      const after = await get(url, `${P}/assignments/${assignment._id}`);
+      assert.equal(after.body.data.description, 'Revised blurb.');
+    });
+  });
+
+  test('the content library says how many courses depend on each item', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    await makePath({ sequential: false, requiresCertificate: false });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/content`);
+      assert.equal(res.status, 200);
+
+      // Every item makePath uploads is wired into its one content course, so
+      // each reports a single dependent course.
+      const rows = res.body.data.data;
+      assert.ok(rows.length >= 2);
+      for (const row of rows) assert.equal(row.usedIn, 1);
+    });
+  });
+
+  test('an unused content item reports zero rather than nothing', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    await AcademyContent.create({
+      title: 'Orphan handbook',
+      type: 'pdf',
+      storageKey: 'academy/orphan.pdf',
+      storageCategory: STORAGE_CATEGORIES.ACADEMY_CONTENT,
+      mimeType: 'application/pdf',
+      fileSize: 2048,
+      active: true,
+    });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/content`);
+      const orphan = res.body.data.data.find((r) => r.title === 'Orphan handbook');
+      assert.equal(orphan.usedIn, 0);
+    });
+  });
+
+  test('the dashboard breaks completion down by department and lists recent activity', async () => {
+    const { user: hr } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    const { path } = await makePath({ sequential: false, requiresCertificate: false });
+    const { employee } = await makeEmployee();
+
+    const department = await Department.create({ name: `Sales ${seq++}`, code: `SAL${seq}` });
+
+    await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Asha Verma',
+      departmentId: department._id,
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      status: 'completed',
+      completedAt: new Date(),
+      lessons: [],
+    });
+
+    await withServer(appFor(hr), async (url) => {
+      const res = await get(url, `${P}/dashboard`);
+      assert.equal(res.status, 200);
+
+      const sales = res.body.data.byDepartment.find((d) => d.departmentId === department._id.toString());
+      assert.equal(sales.assigned, 1);
+      assert.equal(sales.completed, 1);
+      assert.equal(sales.completionPercent, 100);
+      assert.equal(sales.departmentName, department.name);
+
+      const completion = res.body.data.recentActivity.find((a) => a.kind === 'completed');
+      assert.equal(completion.employeeName, 'Asha Verma');
+      assert.equal(completion.pathName, path.name);
+    });
+  });
+
+  test('a failed attempt appears in the activity feed, named and scored', async () => {
+    const { user: hr } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    const { path, courseTwo, assessment } = await makePath({
+      sequential: false,
+      requiresCertificate: false,
+    });
+    const { user, employee } = await makeEmployee();
+
+    const assignment = await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Rohit Mehta',
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      lessons: [
+        {
+          courseId: courseTwo._id,
+          lessonId: courseTwo.lessons[0]._id,
+          title: 'Security Assessment',
+          type: 'quiz',
+          mandatory: true,
+          status: 'not_started',
+        },
+      ],
+    });
+
+    // Answer nothing, so the attempt fails.
+    await withServer(appFor(user), async (url) => {
+      const res = await post(
+        url,
+        `${P}/assignments/${assignment._id}/lessons/${courseTwo.lessons[0]._id}/attempt`,
+        {
+          answers: assessment.questions.map((q) => ({
+            questionId: q._id.toString(),
+            selectedOptionIds: [],
+          })),
+        },
+      );
+      assert.equal(res.status, 201);
+      assert.equal(res.body.data.passed, false);
+    });
+
+    await withServer(appFor(hr), async (url) => {
+      const res = await get(url, `${P}/dashboard`);
+      const failure = res.body.data.recentActivity.find((a) => a.kind === 'attempt');
+
+      assert.equal(failure.employeeName, 'Rohit Mehta');
+      assert.equal(failure.passed, false);
+      assert.equal(failure.attemptNo, 1);
+      assert.equal(failure.score, 0);
+      // The lesson is NAMED - "failed an assessment" tells an administrator
+      // nothing they can act on.
+      assert.equal(failure.detail, 'Security Assessment');
+    });
+  });
+});
+
+// ===========================================================================
+// The learning path catalogue
+// ===========================================================================
+
+describe('the learning path catalogue', () => {
+  /** A path with no courses - started and never finished. */
+  const emptyPath = (over = {}) =>
+    LearningPath.create({
+      name: `Empty ${seq++}`,
+      dueDateMode: 'none',
+      mandatory: true,
+      active: true,
+      ...over,
+    });
+
+  test('a path with no courses is a DRAFT, not an active one', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    await emptyPath({ name: 'Half-written path' });
+    await makePath({ sequential: false, requiresCertificate: false });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/paths`);
+      assert.equal(res.status, 200);
+
+      const draft = res.body.data.data.find((p) => p.name === 'Half-written path');
+      assert.equal(draft.status, 'draft');
+      assert.equal(draft.courseCount, 0);
+
+      // The one that actually has courses is active.
+      const real = res.body.data.data.find((p) => p.courseCount > 0);
+      assert.equal(real.status, 'active');
+    });
+  });
+
+  test('a deactivated path is ARCHIVED even though it has courses', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    const { path } = await makePath({ sequential: false, requiresCertificate: false });
+    await LearningPath.updateOne({ _id: path._id }, { $set: { active: false } });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/paths`);
+      const row = res.body.data.data.find((p) => p.id === path._id.toString());
+      assert.equal(row.status, 'archived');
+      assert.ok(row.courseCount > 0, 'archived because it is inactive, not because it is empty');
+    });
+  });
+
+  /**
+   * The derivation exists twice - once in JavaScript for single-row callers and
+   * once in aggregation operators so the list can FILTER on it. Two copies of a
+   * rule is how a filter and a badge come to disagree, so they are asserted
+   * against each other over every combination that matters.
+   */
+  test('the aggregated status and derivePathStatus agree on every case', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    await emptyPath({ name: 'Empty and active' });
+    await emptyPath({ name: 'Empty and inactive', active: false });
+    const { path } = await makePath({ sequential: false, requiresCertificate: false });
+
+    // The fourth case: inactive AND non-empty, which must read "archived"
+    // rather than "draft".
+    const retired = await emptyPath({ name: 'Retired but full', active: false });
+    await AcademyCourse.create({ pathId: retired._id, name: 'Old module', order: 0, lessons: [] });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/paths?pageSize=50`);
+      assert.equal(res.body.data.data.length, 4);
+
+      for (const row of res.body.data.data) {
+        assert.equal(
+          row.status,
+          derivePathStatus({ active: row.active }, row.courseCount),
+          `${row.name} disagrees`,
+        );
+      }
+
+      // And the four cases really were all present.
+      const byName = Object.fromEntries(res.body.data.data.map((r) => [r.name, r.status]));
+      assert.equal(byName['Empty and active'], 'draft');
+      assert.equal(byName['Empty and inactive'], 'archived');
+      assert.equal(byName['Retired but full'], 'archived');
+      assert.equal(byName[path.name], 'active');
+    });
+  });
+
+  /**
+   * The bug this shape exists to prevent: filtering a page in memory leaves
+   * `total` counting the unfiltered set, so the pager offers pages that are not
+   * there.
+   */
+  test('filtering by status narrows the TOTAL, not just the visible page', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    await emptyPath();
+    await emptyPath();
+    await makePath({ sequential: false, requiresCertificate: false });
+
+    await withServer(appFor(user), async (url) => {
+      const all = await get(url, `${P}/paths`);
+      assert.equal(all.body.data.total, 3);
+
+      const drafts = await get(url, `${P}/paths?status=draft`);
+      assert.equal(drafts.body.data.total, 2);
+      assert.equal(drafts.body.data.data.length, 2);
+      assert.ok(drafts.body.data.data.every((p) => p.status === 'draft'));
+    });
+  });
+
+  test('the tiles count what the search matched, before the status filter', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    await emptyPath({ name: 'Zebra draft' });
+    await makePath({ sequential: false, requiresCertificate: false });
+
+    await withServer(appFor(user), async (url) => {
+      const all = await get(url, `${P}/paths`);
+      assert.equal(all.body.data.summary.total, 2);
+      assert.equal(all.body.data.summary.draft, 1);
+      assert.equal(all.body.data.summary.active, 1);
+
+      // Filtering BY status leaves the other tiles standing, so they stay
+      // usable as controls.
+      const filtered = await get(url, `${P}/paths?status=draft`);
+      assert.equal(filtered.body.data.summary.active, 1);
+      assert.equal(filtered.body.data.total, 1);
+
+      // Searching narrows them all together.
+      const searched = await get(url, `${P}/paths?search=Zebra`);
+      assert.equal(searched.body.data.summary.total, 1);
+      assert.equal(searched.body.data.summary.active, 0);
+    });
+  });
+
+  test('a path counts its lessons and its assessments, not only its courses', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    const { path } = await makePath({ sequential: false, requiresCertificate: false });
+
+    await withServer(appFor(user), async (url) => {
+      const res = await get(url, `${P}/paths`);
+      const row = res.body.data.data.find((p) => p.id === path._id.toString());
+
+      assert.equal(row.courseCount, 2);
+      // Two content lessons in the first course, one quiz in the second.
+      assert.equal(row.lessonCount, 3);
+      assert.equal(row.assessmentCount, 1);
+    });
+  });
+
+  test('tags are stored, returned and filterable', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+
+    await withServer(appFor(user), async (url) => {
+      const created = await post(url, `${P}/paths`, {
+        name: 'Compliance refresher',
+        dueDateMode: 'none',
+        tags: ['Compliance', 'Mandatory'],
+      });
+      assert.equal(created.status, 201);
+      assert.deepEqual(created.body.data.tags, ['Compliance', 'Mandatory']);
+
+      await post(url, `${P}/paths`, { name: 'Sales basics', dueDateMode: 'none', tags: ['Sales'] });
+
+      const filtered = await get(url, `${P}/paths?tag=Compliance`);
+      assert.equal(filtered.body.data.total, 1);
+      assert.equal(filtered.body.data.data[0].name, 'Compliance refresher');
+
+      // Search reaches tags too - people type the subject, not the title.
+      const searched = await get(url, `${P}/paths?search=sales`);
+      assert.equal(searched.body.data.total, 1);
+      assert.equal(searched.body.data.data[0].name, 'Sales basics');
+    });
+  });
+
+  test('sorting by name and by assigned volume both work', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+    const { path } = await makePath({ sequential: false, requiresCertificate: false });
+    await emptyPath({ name: 'AAA first alphabetically' });
+
+    const { employee } = await makeEmployee();
+    await LearningAssignment.create({
+      employeeId: employee._id,
+      employeeName: 'Learner',
+      pathId: path._id,
+      pathName: path.name,
+      source: 'manual',
+      lessons: [],
+    });
+
+    await withServer(appFor(user), async (url) => {
+      const byName = await get(url, `${P}/paths?sort=name`);
+      assert.equal(byName.body.data.data[0].name, 'AAA first alphabetically');
+
+      const byAssigned = await get(url, `${P}/paths?sort=assigned`);
+      assert.equal(byAssigned.body.data.data[0].id, path._id.toString());
+      assert.equal(byAssigned.body.data.data[0].assignedCount, 1);
+    });
+  });
+
+  test('the detail panel names who created the path', async () => {
+    const { user } = await makeEmployee({ roles: [R.HR_ADMIN] });
+
+    await withServer(appFor(user), async (url) => {
+      const created = await post(url, `${P}/paths`, {
+        name: 'Authored path',
+        dueDateMode: 'none',
+      });
+      const res = await get(url, `${P}/paths/${created.body.data.id}`);
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data.createdByName, user.user);
+      assert.equal(res.body.data.status, 'draft'); // no courses yet
+      assert.equal(res.body.data.lessonCount, 0);
+      assert.equal(res.body.data.assessmentCount, 0);
+    });
   });
 });

@@ -59,6 +59,7 @@ import { contentStorageKey, contentByIds } from './content.service.js';
 import { issue as issueCertificate } from './certificate.service.js';
 import {
   loadAssessment,
+  assessmentsByIds,
   toLearnerDto,
   markAttempt,
   effectiveAttempt,
@@ -413,6 +414,14 @@ export function toAssignmentSummary(row) {
     percent,
     completedLessons: counts.completed,
     totalLessons: counts.total,
+    /**
+     * How many COURSES this path spans.
+     *
+     * Counted off the lesson records already in hand rather than joined from
+     * the path - the records carry `courseId`, so this is a set size over data
+     * that is loaded either way and costs no extra query.
+     */
+    totalCourses: new Set(records.map((r) => String(r.courseId))).size,
     dueDate: row.dueDate ?? null,
     dueState: due.state,
     dueLabel: due.label,
@@ -577,10 +586,34 @@ export async function getAssignment(id, actor) {
     .sort({ order: 1 })
     .lean();
 
+  /**
+   * The path's own blurb.
+   *
+   * Read LIVE rather than denormalised onto the assignment: unlike `pathName`,
+   * which is kept on the row so a deleted path still has something to display,
+   * the description is prose that HR edits and expects to see updated. A copy
+   * frozen at assignment time would show every learner the wording as it was on
+   * the day they joined.
+   */
+  const path = await LearningPath.findById(row.pathId).select('description').lean();
+
   const records = row.lessons ?? [];
   const rollup = courseProgress(courses, records, { sequential: row.sequential });
   const contentMap = await contentByIds(
     courses.flatMap((c) => (c.lessons ?? []).map((l) => l.contentId)),
+  );
+
+  /**
+   * The quizzes, so a lesson can say how many attempts are LEFT.
+   *
+   * Without this the attempt summary knew only what the learner had already
+   * done, never what they are still allowed to do — so the lesson's landing
+   * screen offered "Try again" to somebody who had used their last attempt,
+   * and the server refused the click. A control that is offered, accepted and
+   * then refused is the one thing a control must never be.
+   */
+  const assessmentMap = await assessmentsByIds(
+    courses.flatMap((c) => (c.lessons ?? []).map((l) => l.assessmentId)),
   );
 
   const byLessonId = new Map(records.map((r) => [idStr(r.lessonId), r]));
@@ -619,7 +652,10 @@ export async function getAssignment(id, actor) {
             CONTENT_LESSON_TYPES.includes(lesson.type) && (!content || Boolean(content.deletedAt)),
           contentTitle: content?.title ?? null,
           mimeType: content?.mimeType ?? null,
-          assessment: lesson.type === 'quiz' ? assessmentSummaryFor(row, lesson) : null,
+          assessment:
+            lesson.type === 'quiz'
+              ? assessmentSummaryFor(row, lesson, assessmentMap.get(idStr(lesson.assessmentId)))
+              : null,
         };
       });
 
@@ -635,6 +671,7 @@ export async function getAssignment(id, actor) {
   return {
     ...toAssignmentSummary(row),
     employeeCode: subject?.employeeCode ?? null,
+    description: path?.description ?? null,
     sequential: row.sequential,
     cancelReason: row.cancelReason ?? null,
     courses: detailed,
@@ -643,7 +680,7 @@ export async function getAssignment(id, actor) {
 }
 
 /** Attempt history for one quiz lesson, as the learner's course page shows it. */
-function assessmentSummaryFor(assignment, lesson) {
+function assessmentSummaryFor(assignment, lesson, assessment = null) {
   const attempts = (assignment.attempts ?? []).filter(
     (a) => idStr(a.lessonId) === idStr(lesson._id),
   );
@@ -656,6 +693,29 @@ function assessmentSummaryFor(assignment, lesson) {
     passed: attempts.some((a) => a.passed),
     bestScore: best?.score ?? null,
     latestScore: latest?.score ?? null,
+    /**
+     * What the learner may still do, computed by the SAME function the submit
+     * endpoint gates on — so the button and the refusal cannot disagree.
+     *
+     * `null` means unlimited, which is what an assessment created without an
+     * attempt limit gets. An assessment that has been deleted since the lesson
+     * was authored resolves to no row here, and the screen falls back to
+     * offering the attempt: the server still refuses it with a message that
+     * says the assessment is gone, which is more useful than a disabled button
+     * with no explanation.
+     */
+    maxAttempts: assessment?.maxAttempts ?? null,
+    attemptsRemaining: assessment ? attemptsRemaining(assessment, attempts) : null,
+    /**
+     * The rules of the assessment, so the screen can state them BEFORE the
+     * learner starts rather than after they have committed to an attempt.
+     *
+     * `questionCount` is a count and not the questions - see the projection in
+     * `assessmentsByIds`, which loads question ids only.
+     */
+    passingPercent: assessment?.passingPercent ?? null,
+    questionCount: assessment?.questionCount ?? null,
+    scorePolicy: assessment?.scorePolicy ?? null,
     attempts: attempts
       .sort((a, b) => a.attemptNo - b.attemptNo)
       .map((a) => ({

@@ -174,6 +174,41 @@ export async function loadAssessment(id) {
   return Assessment.findOne({ _id: id, deletedAt: null }).lean().catch(() => null);
 }
 
+/**
+ * Several, by id, for a screen that renders a whole path at once.
+ *
+ * One query rather than one per quiz lesson. Only the fields the ATTEMPT
+ * summary needs — never `questions`, which carry the answer key and have no
+ * business travelling to a screen that is not presenting the assessment.
+ */
+export async function assessmentsByIds(ids) {
+  const unique = [...new Set(ids.map((id) => (id ? String(id) : null)).filter(Boolean))];
+  if (unique.length === 0) return new Map();
+
+  const rows = await Assessment.find({ _id: { $in: unique.map(oid) } })
+    /**
+     * 🔴 `questions._id` AND NOTHING ELSE FROM `questions`.
+     *
+     * The learner-facing screens need to say how many questions an assessment
+     * has before it is started. They must never see the questions themselves,
+     * and above all not `options.isCorrect`.
+     *
+     * So the projection takes the ids only - enough to count, carrying no text
+     * and no correctness - and the array is replaced by its length below, so
+     * nothing downstream can accidentally forward it.
+     */
+    .select('title passingPercent maxAttempts scorePolicy active deletedAt questions._id')
+    .lean()
+    .catch(() => []);
+
+  return new Map(
+    rows.map((r) => {
+      const { questions, ...rest } = r;
+      return [idStr(r._id), { ...rest, questionCount: (questions ?? []).length }];
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------

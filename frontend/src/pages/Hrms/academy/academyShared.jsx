@@ -1,7 +1,5 @@
-import { Link } from "react-router-dom";
 import { twMerge } from "tailwind-merge";
 import {
-  BookOpen,
   FileText,
   Lock,
   CheckCircle2,
@@ -186,11 +184,11 @@ export const LESSON_ICONS = {
 };
 
 /** The lesson's state, as one icon. Completed / in progress / not started. */
-export function LessonStatusIcon({ status, className }) {
+export function LessonStatusIcon({ status, className, size = 16 }) {
   if (status === "completed") {
     return (
       <CheckCircle2
-        size={16}
+        size={size}
         aria-label="Completed"
         className={twMerge("text-success-600 shrink-0", className)}
       />
@@ -199,7 +197,7 @@ export function LessonStatusIcon({ status, className }) {
   if (status === "in_progress") {
     return (
       <Circle
-        size={16}
+        size={size}
         aria-label="In progress"
         className={twMerge("text-primary-600 fill-primary-100 shrink-0", className)}
       />
@@ -207,7 +205,7 @@ export function LessonStatusIcon({ status, className }) {
   }
   return (
     <Circle
-      size={16}
+      size={size}
       aria-label="Not started"
       className={twMerge("text-slate-300 shrink-0", className)}
     />
@@ -286,99 +284,83 @@ export function MissingContentNotice({ className }) {
 // ---------------------------------------------------------------------------
 
 /**
- * One learning path, as the learner sees it in My Learning.
- *
- * Carries everything section 4 lists: name, description, progress, counts, due
- * date, status, and whether it is mandatory. Built on the portal's card
- * surface — white, `border-slate-200`, `rounded-xl`, `shadow-enterprise` — so
- * it sits beside an Expenses or Leave card without looking imported.
+ * The tone palette. Shared by the accent bar and the icon tile so a given tone
+ * means the same colour wherever it lands.
  */
-export function LearningPathCard({ assignment, to, action }) {
-  const {
-    pathName,
-    percent,
-    completedLessons,
-    totalLessons,
-    status,
-    dueState,
-    dueLabel,
-    dueDate,
-    mandatory,
-  } = assignment;
+const TONE_BAR = {
+  neutral: "bg-slate-300",
+  primary: "bg-primary-500",
+  success: "bg-success-600",
+  warning: "bg-warning-500",
+  danger: "bg-error-500",
+};
 
-  const tone = dueState === "overdue" ? "danger" : dueState === "due_soon" ? "warning" : undefined;
-
-  return (
-    <article className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden transition-shadow hover:shadow-md">
-      <div className="flex-1 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div className="flex items-start gap-2.5 min-w-0">
-            <BookOpen size={16} className="mt-0.5 shrink-0 text-slate-400" />
-            <h3 className="text-sm font-bold text-slate-900 leading-snug">
-              {to ? (
-                <Link to={to} className="hover:text-primary-700 hover:underline">
-                  {pathName}
-                </Link>
-              ) : (
-                pathName
-              )}
-            </h3>
-          </div>
-          <AcademyStatusBadge status={status} dueState={dueState} className="shrink-0" />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <MandatoryBadge mandatory={mandatory} />
-          <DueLabel dueState={dueState} dueLabel={dueLabel} dueDate={dueDate} />
-        </div>
-
-        <ProgressRow
-          percent={percent}
-          completed={completedLessons}
-          total={totalLessons}
-          tone={tone}
-        />
-      </div>
-
-      {action && (
-        <div className="px-4 sm:px-5 py-3 bg-slate-50/50 border-t border-slate-100">{action}</div>
-      )}
-    </article>
-  );
-}
+const TONE_TILE = {
+  neutral: "bg-slate-100 text-slate-600",
+  primary: "bg-primary-50 text-primary-700",
+  success: "bg-success-50 text-success-600",
+  warning: "bg-warning-50 text-warning-600",
+  danger: "bg-error-50 text-error-500",
+};
 
 /**
- * A dashboard counter.
+ * One Academy number.
  *
- * Deliberately close to `components/hrms/dashboard/StatTile` rather than an
- * import of it: that one links somewhere and takes a `to`, these are filters
- * that change the list below. Same visual weight, same palette, same rounding.
+ * ---------------------------------------------------------------------------
+ * THE TONE IS NEVER THE NUMBER
+ * ---------------------------------------------------------------------------
+ * This once tinted the figure itself - an overdue count rendered in red text.
+ * A number is data, and data reads best at full contrast; a row of tiles with
+ * differently coloured figures is a row nobody can compare at a glance, because
+ * the eye does colour before it does magnitude.
+ *
+ * So the tone is carried BESIDE the number and never by it, in one of two ways:
+ * an icon tile when the caller supplies an icon - the design reference's
+ * treatment - and otherwise the 4px top bar that `components/hrms/dashboard/
+ * StatTile` uses. Both leave the digits at `slate-900`.
+ *
+ * It stays a separate component rather than an import of `StatTile`: that one is
+ * a link or a static tile, and this one can also be a TOGGLE that filters the
+ * list below it. Same shell, same palette, different control.
  */
-export function StatCard({ label, value, tone = "neutral", onClick, active }) {
-  const tones = {
-    neutral: "text-slate-900",
-    primary: "text-primary-700",
-    success: "text-success-600",
-    warning: "text-warning-600",
-    danger: "text-error-600",
-  };
-
+export function StatCard({ label, value, tone = "neutral", icon: Icon, onClick, active, hint }) {
   const Element = onClick ? "button" : "div";
 
   return (
     <Element
-      {...(onClick ? { type: "button", onClick } : {})}
+      {...(onClick ? { type: "button", onClick, "aria-pressed": Boolean(active) } : {})}
       className={twMerge(
-        "flex flex-col gap-1 px-4 py-3 bg-white border rounded-xl shadow-enterprise text-left transition-colors",
+        "relative flex items-center gap-3 px-4 py-4 bg-white border rounded-xl shadow-enterprise overflow-hidden text-left transition-colors",
         active ? "border-primary-400 ring-1 ring-primary-200" : "border-slate-200",
-        onClick && "hover:border-slate-300 cursor-pointer",
+        onClick &&
+          "cursor-pointer hover:border-primary-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
       )}
     >
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </span>
-      <span className={twMerge("text-2xl font-bold tabular-nums leading-none", tones[tone])}>
-        {value}
+      {Icon ? (
+        <span
+          aria-hidden="true"
+          className={twMerge(
+            "inline-flex items-center justify-center w-10 h-10 rounded-xl shrink-0",
+            TONE_TILE[tone] ?? TONE_TILE.neutral,
+          )}
+        >
+          <Icon size={19} strokeWidth={1.8} />
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          className={twMerge("absolute inset-x-0 top-0 h-1", TONE_BAR[tone] ?? TONE_BAR.neutral)}
+        />
+      )}
+
+      <span className="flex flex-col min-w-0">
+        <span className="text-2xl font-bold text-slate-900 tabular-nums leading-none">
+          {typeof value === "number" ? value.toLocaleString("en-IN") : value}
+        </span>
+        <span className="mt-1 text-[11px] font-bold uppercase tracking-wide text-slate-500 truncate">
+          {label}
+        </span>
+        {hint && <span className="mt-0.5 text-[11px] text-slate-400 truncate">{hint}</span>}
       </span>
     </Element>
   );
@@ -394,7 +376,6 @@ export default {
   LessonStatusBadge,
   LockedNotice,
   MissingContentNotice,
-  LearningPathCard,
   StatCard,
   LESSON_ICONS,
 };

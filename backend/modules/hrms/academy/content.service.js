@@ -114,7 +114,49 @@ export async function listContent(actor, query) {
     AcademyContent.countDocuments(filter),
   ]);
 
-  return page(rows.map(toContentDto), total, q);
+  /**
+   * How many courses use each item on THIS PAGE.
+   *
+   * ---------------------------------------------------------------------------
+   * WHY IT IS WORTH A SECOND QUERY
+   * ---------------------------------------------------------------------------
+   * Deleting an item that a course depends on is refused - see `deleteContent` -
+   * and until now the only way to find that out was to try. The count turns a
+   * refusal that arrives after the click into a fact visible before it.
+   *
+   * It is bounded by the PAGE and not by the library: at most `pageSize` ids go
+   * into the `$match`, so this stays one indexed aggregation however large the
+   * library grows. Counting usage for every item in the collection is the
+   * version of this that quietly becomes the slowest query in the module.
+   */
+  const usage = new Map();
+  if (rows.length > 0) {
+    const counts = await AcademyCourse.aggregate([
+      {
+        $match: {
+          deletedAt: null,
+          lessons: {
+            $elemMatch: {
+              contentId: { $in: rows.map((r) => r._id) },
+              type: { $in: CONTENT_LESSON_TYPES },
+            },
+          },
+        },
+      },
+      { $unwind: '$lessons' },
+      { $match: { 'lessons.contentId': { $in: rows.map((r) => r._id) } } },
+      { $group: { _id: '$lessons.contentId', courses: { $addToSet: '$_id' } } },
+      { $project: { _id: 1, n: { $size: '$courses' } } },
+    ]).catch(() => []);
+
+    for (const c of counts) usage.set(idStr(c._id), c.n);
+  }
+
+  return page(
+    rows.map((row) => ({ ...toContentDto(row), usedIn: usage.get(idStr(row._id)) ?? 0 })),
+    total,
+    q,
+  );
 }
 
 export async function getContent(id, actor) {

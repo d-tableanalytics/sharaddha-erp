@@ -35,6 +35,7 @@ import { toDay } from '../../../shared/academy/progress.js';
 import { HrmsForbiddenError } from '../hrms.errors.js';
 import {
   idStr,
+  iso,
   oid,
   parse,
   canViewOrg,
@@ -132,7 +133,8 @@ export async function academyDashboard(actor) {
   const scope = await reportScope(actor);
   const today = toDay(new Date());
 
-  const [totals, byStatus, topPaths, recent, certificates] = await Promise.all([
+  const [totals, byStatus, topPaths, recent, certificates, byDepartment, completions, attempts] =
+    await Promise.all([
     LearningAssignment.aggregate([
       { $match: { ...scope, status: { $ne: 'cancelled' } } },
       {
@@ -199,6 +201,79 @@ export async function academyDashboard(actor) {
     AcademyCertificate.countDocuments(
       scope.employeeId ? { employeeId: scope.employeeId, revokedAt: null } : { revokedAt: null },
     ),
+
+    /**
+     * Completion by department.
+     *
+     * Grouped on the assignment's own denormalised `departmentId` rather than
+     * joined to Employee - the field is there, it is indexed
+     * (`{ departmentId: 1, status: 1 }`), and a `$lookup` per assignment to
+     * re-derive a value already stored is the shape this file's own header
+     * warns about.
+     *
+     * The rate is COMPLETED OVER ASSIGNED, not average progress. A department
+     * where everyone is 90% of the way through has finished nothing, and a
+     * dashboard that reports that as 90% is telling HR the opposite of what it
+     * needs to act on.
+     */
+    LearningAssignment.aggregate([
+      { $match: { ...scope, status: { $ne: 'cancelled' }, departmentId: { $ne: null } } },
+      {
+        $group: {
+          _id: '$departmentId',
+          assigned: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+        },
+      },
+      { $sort: { assigned: -1 } },
+      { $limit: 8 },
+    ]),
+
+    // Recently finished paths, for the activity feed.
+    LearningAssignment.find({ ...scope, status: 'completed', completedAt: { $ne: null } })
+      .sort({ completedAt: -1 })
+      .limit(8)
+      .select('employeeName pathName completedAt')
+      .lean(),
+
+    /**
+     * Recently submitted assessment attempts.
+     *
+     * The lesson TITLE is resolved from the assignment's own `lessons` array
+     * rather than by joining the course - the record carries it, so this stays
+     * one pass over one collection.
+     */
+    LearningAssignment.aggregate([
+      { $match: { ...scope, 'attempts.0': { $exists: true } } },
+      { $unwind: '$attempts' },
+      { $sort: { 'attempts.submittedAt': -1 } },
+      { $limit: 8 },
+      {
+        $project: {
+          employeeName: 1,
+          pathName: 1,
+          attemptNo: '$attempts.attemptNo',
+          passed: '$attempts.passed',
+          score: '$attempts.score',
+          at: '$attempts.submittedAt',
+          lessonTitle: {
+            $let: {
+              vars: {
+                match: {
+                  $first: {
+                    $filter: {
+                      input: { $ifNull: ['$lessons', []] },
+                      cond: { $eq: ['$$this.lessonId', '$attempts.lessonId'] },
+                    },
+                  },
+                },
+              },
+              in: '$$match.title',
+            },
+          },
+        },
+      },
+    ]),
   ]);
 
   const statusCounts = Object.fromEntries(byStatus.map((s) => [s._id, s.n]));
@@ -206,6 +281,50 @@ export async function academyDashboard(actor) {
     ...scope,
     ...overdueMatch(today),
   });
+
+  /**
+   * Department names, in ONE query for the eight rows the aggregation returned.
+   *
+   * Not a `$lookup` inside the pipeline: the group has already collapsed
+   * thousands of assignments down to at most eight ids, so the join is eight
+   * documents rather than one per assignment.
+   */
+  const departments = await Department.find({ _id: { $in: byDepartment.map((d) => d._id) } })
+    .select('name')
+    .lean()
+    .catch(() => []);
+  const departmentName = new Map(departments.map((d) => [idStr(d._id), d.name]));
+
+  /**
+   * The activity feed: completions and attempts interleaved, newest first.
+   *
+   * Merged HERE rather than in a single pipeline because they come from
+   * different shapes - one is a document, the other an array element - and a
+   * `$unionWith` to combine them would cost more than sorting sixteen rows.
+   */
+  const activity = [
+    ...completions.map((c) => ({
+      kind: 'completed',
+      employeeName: c.employeeName,
+      pathName: c.pathName,
+      at: c.completedAt,
+      detail: null,
+      passed: true,
+    })),
+    ...attempts.map((a) => ({
+      kind: 'attempt',
+      employeeName: a.employeeName,
+      pathName: a.pathName,
+      at: a.at,
+      detail: a.lessonTitle ?? 'an assessment',
+      attemptNo: a.attemptNo,
+      score: a.score,
+      passed: a.passed === true,
+    })),
+  ]
+    .filter((row) => row.at)
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 8);
 
   return {
     metrics: {
@@ -227,6 +346,31 @@ export async function academyDashboard(actor) {
       overdue: p.overdue,
       completionPercent: p.assigned > 0 ? Math.round((p.completed / p.assigned) * 100) : 0,
       averagePercent: Math.round(p.avgPercent ?? 0),
+    })),
+    /**
+     * Completion rate by department, highest first.
+     *
+     * A department whose assignments all belong to one person is statistically
+     * meaningless but still shown - suppressing small samples would quietly hide
+     * the two-person team that has done nothing, which is precisely the row an
+     * administrator needs.
+     */
+    byDepartment: byDepartment.map((d) => ({
+      departmentId: idStr(d._id),
+      departmentName: departmentName.get(idStr(d._id)) ?? 'Unassigned',
+      assigned: d.assigned,
+      completed: d.completed,
+      completionPercent: d.assigned > 0 ? Math.round((d.completed / d.assigned) * 100) : 0,
+    })),
+    recentActivity: activity.map((row) => ({
+      kind: row.kind,
+      employeeName: row.employeeName,
+      pathName: row.pathName,
+      detail: row.detail,
+      attemptNo: row.attemptNo ?? null,
+      score: row.score ?? null,
+      passed: row.passed,
+      at: iso(row.at),
     })),
     overdueQueue: recent.map((r) => ({
       id: idStr(r._id),

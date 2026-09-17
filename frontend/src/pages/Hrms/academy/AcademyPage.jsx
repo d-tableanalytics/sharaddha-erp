@@ -116,7 +116,7 @@ export function AcademyPage() {
   return (
     <HrmsPageLayout
       title="SI Academy"
-      subtitle="Assigned learning paths, courses and assessments — with progress, due dates and certificates."
+      subtitle="Learn. Grow. Achieve."
       breadcrumbs={[
         { label: "HRMS", to: `${HRMS_ROUTE_PREFIX}/dashboard` },
         { label: "SI Academy" },

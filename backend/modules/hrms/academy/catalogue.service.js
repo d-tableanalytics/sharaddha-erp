@@ -35,6 +35,7 @@ import {
   Assessment,
   LearningAssignment,
 } from '../../../models/hrms/AcademyModels.js';
+import User from '../../../models/User.js';
 import { recordAudit } from '../../../utils/auditLog.js';
 import { AUDIT_ACTIONS } from '../../../shared/constants/hrms.js';
 import {
@@ -78,11 +79,45 @@ const isDuplicateKey = (error) => error?.code === 11000;
 // DTOs
 // ---------------------------------------------------------------------------
 
-export function toPathDto(row, { courseCount = null, assignedCount = null } = {}) {
+/**
+ * The three states the catalogue presents, derived from what is stored.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS DERIVED AND NOT A FOURTH COLUMN
+ * ---------------------------------------------------------------------------
+ * The screen wants Active / Draft / Archived. The model stores one boolean,
+ * `active`, and that boolean is load-bearing: the rule engine, the assign
+ * endpoint and the learner-facing queries all gate on it. Replacing it with an
+ * enum would mean migrating every one of those, for a distinction that is
+ * already visible in the data.
+ *
+ *   archived - `active: false`. Explicitly withdrawn; cannot be assigned.
+ *   draft    - active, but no courses. Started and never finished: assigning it
+ *              would give somebody a path that completes the instant it lands.
+ *   active   - active, with something in it.
+ *
+ * "Draft" is therefore not a flag somebody forgot to clear - it is the real,
+ * actionable state of a path nobody can usefully be given, which is exactly
+ * what an administrator opening this screen is looking for.
+ *
+ * It is defined ONCE, here, and the list pipeline reproduces it in aggregation
+ * operators so filtering and display cannot disagree. Change one, change both -
+ * and `academy-api.test.js` asserts they still match.
+ */
+export function derivePathStatus(row, courseCount) {
+  if (row.active === false) return 'archived';
+  return (courseCount ?? 0) === 0 ? 'draft' : 'active';
+}
+
+export function toPathDto(
+  row,
+  { courseCount = null, assignedCount = null, lessonCount = null, assessmentCount = null } = {},
+) {
   return {
     id: idStr(row._id),
     name: row.name,
     description: row.description ?? null,
+    tags: row.tags ?? [],
     audience: {
       departmentIds: (row.audience?.departmentIds ?? []).map(idStr),
       locationIds: (row.audience?.locationIds ?? []).map(idStr),
@@ -97,7 +132,10 @@ export function toPathDto(row, { courseCount = null, assignedCount = null } = {}
     requiresCertificate: row.requiresCertificate === true,
     certificateValidityMonths: row.certificateValidityMonths ?? null,
     active: row.active !== false,
+    status: row.status ?? derivePathStatus(row, courseCount),
     courseCount,
+    lessonCount,
+    assessmentCount,
     assignedCount,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
@@ -180,46 +218,157 @@ export async function listPaths(actor, query) {
 
   if (q.search) {
     const rx = new RegExp(escapeRegex(q.search), 'i');
-    filter.$or = [{ name: rx }, { description: rx }];
+    filter.$or = [{ name: rx }, { description: rx }, { tags: rx }];
   }
   if (q.departmentId) filter['audience.departmentIds'] = oid(q.departmentId);
+  if (q.tag) filter.tags = q.tag;
 
-  const [rows, total] = await Promise.all([
-    LearningPath.find(filter)
-      .sort({ active: -1, name: 1 })
-      .skip(skipOf(q))
-      .limit(q.pageSize)
-      .lean(),
-    LearningPath.countDocuments(filter),
+  /**
+   * ---------------------------------------------------------------------------
+   * ONE PIPELINE, BECAUSE STATUS IS A FILTER AND NOT JUST A LABEL
+   * ---------------------------------------------------------------------------
+   * `status` is derived from the course count (see `derivePathStatus`), so it
+   * cannot be applied as a `find()` condition. Deriving it in application code
+   * after the page was fetched would filter the 25 rows already returned and
+   * leave `total` counting the unfiltered set - a pager that reports 12 results
+   * and shows 4, which is the bug this shape exists to avoid.
+   *
+   * So the derivation happens in the database, before `$skip`/`$limit`, and the
+   * count comes from the same pipeline. The `$lookup` is bounded by the number
+   * of PATHS, which is a catalogue a company curates by hand - dozens, not the
+   * unbounded collections AD-13 is about - and the inner match is on an indexed
+   * `pathId`.
+   */
+  const lessonsOf = { $ifNull: ['$$course.lessons', []] };
+
+  const enrich = [
+    {
+      $lookup: {
+        from: AcademyCourse.collection.name,
+        let: { pid: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$pathId', '$$pid'] }, deletedAt: null } },
+          { $project: { 'lessons.type': 1 } },
+        ],
+        as: 'courseDocs',
+      },
+    },
+    {
+      $lookup: {
+        from: LearningAssignment.collection.name,
+        let: { pid: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ['$pathId', '$$pid'] },
+              status: { $in: ACTIVE_ASSIGNMENT_STATUSES },
+            },
+          },
+          { $count: 'n' },
+        ],
+        as: 'assignedDocs',
+      },
+    },
+    {
+      $addFields: {
+        courseCount: { $size: '$courseDocs' },
+        lessonCount: {
+          $sum: {
+            $map: { input: '$courseDocs', as: 'course', in: { $size: lessonsOf } },
+          },
+        },
+        assessmentCount: {
+          $sum: {
+            $map: {
+              input: '$courseDocs',
+              as: 'course',
+              in: {
+                $size: {
+                  $filter: {
+                    input: lessonsOf,
+                    as: 'lesson',
+                    cond: { $eq: ['$$lesson.type', 'quiz'] },
+                  },
+                },
+              },
+            },
+          },
+        },
+        assignedCount: { $ifNull: [{ $first: '$assignedDocs.n' }, 0] },
+      },
+    },
+    {
+      // The aggregation twin of `derivePathStatus`. Both are asserted to agree.
+      $addFields: {
+        status: {
+          $cond: [
+            { $eq: ['$active', false] },
+            'archived',
+            { $cond: [{ $eq: ['$courseCount', 0] }, 'draft', 'active'] },
+          ],
+        },
+      },
+    },
+    { $project: { courseDocs: 0, assignedDocs: 0 } },
+  ];
+
+  const SORTS = {
+    updated: { updatedAt: -1, name: 1 },
+    created: { createdAt: -1, name: 1 },
+    name: { name: 1 },
+    assigned: { assignedCount: -1, name: 1 },
+  };
+
+  const [result] = await LearningPath.aggregate([
+    { $match: filter },
+    ...enrich,
+    {
+      $facet: {
+        /**
+         * The tiles count what the SEARCH matched, before the status filter.
+         *
+         * So typing a word narrows every tile together, and clicking "Drafts"
+         * does not zero the other three - which is what makes the tiles usable
+         * as filters rather than as a readout that collapses the moment you use
+         * it.
+         */
+        summary: [{ $group: { _id: '$status', n: { $sum: 1 } } }],
+        rows: [
+          ...(q.status ? [{ $match: { status: q.status } }] : []),
+          { $sort: SORTS[q.sort] ?? SORTS.updated },
+          { $skip: skipOf(q) },
+          { $limit: q.pageSize },
+        ],
+        total: [
+          ...(q.status ? [{ $match: { status: q.status } }] : []),
+          { $count: 'n' },
+        ],
+      },
+    },
   ]);
 
-  // Course and assignment counts in two aggregates rather than two queries per
-  // row - the N+1 that turns a 25-row page into 51 round trips.
-  const ids = rows.map((r) => r._id);
-  const [courseCounts, assignedCounts] = await Promise.all([
-    AcademyCourse.aggregate([
-      { $match: { pathId: { $in: ids }, deletedAt: null } },
-      { $group: { _id: '$pathId', n: { $sum: 1 } } },
-    ]),
-    LearningAssignment.aggregate([
-      { $match: { pathId: { $in: ids }, status: { $in: ACTIVE_ASSIGNMENT_STATUSES } } },
-      { $group: { _id: '$pathId', n: { $sum: 1 } } },
-    ]),
-  ]);
+  const counts = Object.fromEntries((result?.summary ?? []).map((r) => [r._id, r.n]));
 
-  const courseBy = new Map(courseCounts.map((c) => [idStr(c._id), c.n]));
-  const assignedBy = new Map(assignedCounts.map((c) => [idStr(c._id), c.n]));
-
-  return page(
-    rows.map((r) =>
-      toPathDto(r, {
-        courseCount: courseBy.get(idStr(r._id)) ?? 0,
-        assignedCount: assignedBy.get(idStr(r._id)) ?? 0,
-      }),
+  return {
+    ...page(
+      (result?.rows ?? []).map((r) =>
+        toPathDto(r, {
+          courseCount: r.courseCount,
+          lessonCount: r.lessonCount,
+          assessmentCount: r.assessmentCount,
+          assignedCount: r.assignedCount,
+        }),
+      ),
+      result?.total?.[0]?.n ?? 0,
+      q,
     ),
-    total,
-    q,
-  );
+    summary: {
+      total: (counts.active ?? 0) + (counts.draft ?? 0) + (counts.archived ?? 0),
+      active: counts.active ?? 0,
+      draft: counts.draft ?? 0,
+      archived: counts.archived ?? 0,
+    },
+  };
 }
 
 /** One path with its courses, in sequence, each with its lessons. */
@@ -249,8 +398,38 @@ export async function getPath(id, actor) {
     }),
   ]);
 
+  /**
+   * Who made it, by NAME.
+   *
+   * The row stores `createdByUserId` only. The detail panel says "Created by
+   * Sumedh", and a screen that renders a 24-character id there is a screen
+   * nobody reads - so the two ids are resolved in one query, here, where there
+   * are at most two of them. The list deliberately does NOT do this: it would
+   * be a join per row for a line the cards do not show.
+   */
+  const authorIds = [path.createdByUserId, path.updatedByUserId].filter(Boolean);
+  const authors = authorIds.length
+    ? await User.find({ _id: { $in: authorIds } })
+        // 🔴 The display name on User is `user`, NOT `name` - the same pair
+        // `audit.service.js` selects, and it falls back to the email for an
+        // account that has never been given one.
+        .select('user email')
+        .lean()
+        .catch(() => [])
+    : [];
+  const nameOf = new Map(authors.map((u) => [idStr(u._id), u.user || u.email || null]));
+
+  const lessons = courses.flatMap((c) => c.lessons ?? []);
+
   return {
-    ...toPathDto(path, { courseCount, assignedCount }),
+    ...toPathDto(path, {
+      courseCount,
+      assignedCount,
+      lessonCount: lessons.length,
+      assessmentCount: lessons.filter((l) => l.type === 'quiz').length,
+    }),
+    createdByName: nameOf.get(idStr(path.createdByUserId)) ?? null,
+    updatedByName: nameOf.get(idStr(path.updatedByUserId)) ?? null,
     courses: courses.map((c) => toCourseDto(c, contentMap)),
   };
 }
@@ -299,7 +478,7 @@ export async function updatePath(id, body, actor, context = {}) {
   if (!row) throw new HrmsNotFoundError('Learning path');
 
   for (const key of [
-    'name', 'description', 'audience', 'dueDateMode', 'dueDays', 'dueDate',
+    'name', 'description', 'audience', 'tags', 'dueDateMode', 'dueDays', 'dueDate',
     'mandatory', 'sequential', 'requiresCertificate', 'certificateValidityMonths', 'active',
   ]) {
     if (dto[key] !== undefined) row[key] = dto[key];
