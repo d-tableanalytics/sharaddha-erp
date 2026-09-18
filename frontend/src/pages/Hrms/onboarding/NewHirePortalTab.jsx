@@ -26,6 +26,7 @@ import {
   CLOSED_TASK_STATUSES,
   OFFER_LETTER_STATE_LABELS,
 } from "@shared/constants/onboarding.js";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * The new hire's own portal — the module's default tab.
@@ -89,7 +90,7 @@ export function NewHirePortalTab() {
     try {
       const { url } = (await offerLettersApi.documentUrl(offer.id)) ?? {};
       if (!url) throw new Error("No letter has been generated for this offer.");
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       setFailure(err?.message ?? "That letter could not be opened.");
     } finally {

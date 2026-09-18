@@ -8,6 +8,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Input } from "../../../components/ui/Input";
 import { certificatesApi, formatDay } from "../../../services/hrms/academy";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * My certificates.
@@ -44,9 +45,7 @@ export function CertificatesTab() {
     setError(null);
     try {
       const { url } = await certificatesApi.documentUrl(id);
-      // `noopener` because the target is a storage origin and must never get a
-      // handle on this window.
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       setError(err);
     } finally {

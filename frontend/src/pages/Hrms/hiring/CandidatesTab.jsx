@@ -14,6 +14,7 @@ import {
   RESUME_MIME_TYPES,
   MAX_RESUME_BYTES,
 } from "@shared/constants/hiring.js";
+import { openFile } from "../../../services/fileUrl";
 
 const CELL = "px-4 py-2.5 align-top";
 const HEAD = "px-4 py-2.5";
@@ -97,9 +98,7 @@ export function CandidatesTab() {
     try {
       const { url } = (await candidatesApi.resumeUrl(row.id)) ?? {};
       if (!url) throw new Error("No résumé is attached to this candidate.");
-      // noopener, so the presigned URL is not handed a reference back to this
-      // tab.
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       setFailure(err?.message ?? "That résumé could not be opened.");
     } finally {

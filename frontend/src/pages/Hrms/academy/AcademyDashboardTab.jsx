@@ -21,6 +21,23 @@ import { StatCard, PercentBar } from "./academyShared";
 import { DonutChart, MiniBars, MeterRow } from "./academyVisuals";
 
 /**
+ * How tall a list panel may grow before it scrolls inside itself.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE LISTS ARE CAPPED
+ * ---------------------------------------------------------------------------
+ * Both of these are server-bounded — eight paths, eight activity rows — but
+ * eight activity rows is already twice the height of a one-path completion
+ * list, and the taller of the two set the height of the whole row. A dashboard
+ * is a page somebody scans in one screenful; a panel that decides its own
+ * height from whichever neighbour happens to have the most data is not that.
+ *
+ * So each list gets the same ceiling and scrolls inside it. The panels then
+ * size to their own content and stop dragging each other about.
+ */
+const LIST_BOX = "max-h-[20rem] overflow-y-auto overscroll-contain";
+
+/**
  * The Academy admin dashboard.
  *
  * ---------------------------------------------------------------------------
@@ -154,7 +171,7 @@ export function AcademyDashboardTab() {
               No assignment carries a department yet, so there is nothing to break down.
             </p>
           ) : (
-            <div className="flex flex-col gap-3.5">
+            <div className={`flex flex-col gap-3.5 ${LIST_BOX}`}>
               {byDepartment.map((row) => (
                 <MeterRow
                   key={row.departmentId}
@@ -175,13 +192,23 @@ export function AcademyDashboardTab() {
         </Panel>
       </div>
 
-      {/* ---- Paths · activity --------------------------------------------- */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Panel title="Learning path completion" className="lg:col-span-3" bodyClassName="p-0">
+      {/* ---- Paths · activity ---------------------------------------------
+          EQUAL HALVES, AND `items-start`.
+
+          This was a 3/2 split with the panels stretching to match. That gave
+          six-tenths of the row to a list that is often one progress bar, and
+          four-tenths to the activity feed, where every line then wrapped — the
+          emphasis was backwards. Stretching made it worse: a single path beside
+          eight activity rows left most of the left panel empty.
+
+          `items-start` lets each panel be as tall as its own content, and the
+          cap above stops either one running away. */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
+        <Panel title="Learning path completion" bodyClassName="p-0">
           {pathCompletion.length === 0 ? (
             <p className="p-5 text-xs text-slate-500">No paths have been assigned yet.</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className={`divide-y divide-slate-100 ${LIST_BOX}`}>
               {pathCompletion.map((path) => (
                 <li key={path.pathId} className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
@@ -213,13 +240,13 @@ export function AcademyDashboardTab() {
           )}
         </Panel>
 
-        <Panel title="Recent Activity" className="lg:col-span-2" bodyClassName="p-0">
+        <Panel title="Recent Activity" bodyClassName="p-0">
           {recentActivity.length === 0 ? (
             <p className="p-5 text-xs text-slate-500">
               Nothing has been completed or attempted yet.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className={`divide-y divide-slate-100 ${LIST_BOX}`}>
               {recentActivity.map((row, i) => (
                 <ActivityRow key={`${row.employeeName}-${row.at}-${i}`} row={row} />
               ))}
@@ -235,7 +262,7 @@ export function AcademyDashboardTab() {
             Nothing is overdue. Every assigned path is inside its deadline.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className={`divide-y divide-slate-100 ${LIST_BOX}`}>
             {overdueQueue.map((row) => (
               <li key={row.id}>
                 <Link
@@ -305,16 +332,21 @@ function ActivityRow({ row }) {
       <Initial name={row.employeeName} size={28} />
 
       <span className="flex-1 min-w-0">
-        <span className="block text-[13px] text-slate-700 leading-snug">
+        {/*
+          WHAT HAPPENED on the first line, the NUMBERS on the second.
+
+          The attempt number and the score used to run on after the lesson
+          title, which pushed every assessment row onto two lines and wrapped
+          the score onto its own — so the eye had to reassemble one sentence
+          from two. They belong beside the timestamp: all three are the detail
+          of the event, not the event itself.
+        */}
+        <span className="block text-[13px] text-slate-700 leading-snug line-clamp-2">
           <span className="font-semibold text-slate-900">{row.employeeName}</span>{" "}
           {isAttempt ? (
             <>
               {row.passed ? "passed" : "failed"}{" "}
               <span className="font-medium text-slate-800">{row.detail}</span>
-              {row.attemptNo != null && (
-                <span className="text-slate-500"> (Attempt {row.attemptNo})</span>
-              )}
-              {row.score != null && <span className="text-slate-500"> · {row.score}%</span>}
             </>
           ) : (
             <>
@@ -322,7 +354,20 @@ function ActivityRow({ row }) {
             </>
           )}
         </span>
-        <span className="block mt-0.5 text-[11px] text-slate-400">{formatInstant(row.at)}</span>
+
+        <span className="flex flex-wrap items-center gap-x-1.5 mt-0.5 text-[11px] text-slate-400">
+          {isAttempt && row.attemptNo != null && <span>Attempt {row.attemptNo}</span>}
+          {isAttempt && row.score != null && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className={failed ? "font-semibold text-error-600" : "font-semibold text-success-600"}>
+                {row.score}%
+              </span>
+            </>
+          )}
+          {isAttempt && <span aria-hidden="true">·</span>}
+          <span>{formatInstant(row.at)}</span>
+        </span>
       </span>
 
       <Icon size={14} className={`mt-0.5 shrink-0 ${tint}`} />

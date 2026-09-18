@@ -39,6 +39,7 @@ import {
   LESSON_ICONS,
 } from "./academyShared";
 import { CoverTile } from "./academyVisuals";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * One learning path, as the learner works through it.
@@ -100,9 +101,7 @@ export function LearningPathPage() {
     setCertBusy(true);
     try {
       const { url } = await certificatesApi.documentUrl(assignment.certificateId);
-      // A presigned URL, opened in a new tab. `noopener` because the target is
-      // a storage origin and must never get a handle on this window.
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       setError(err);
     } finally {

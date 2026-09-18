@@ -20,6 +20,7 @@ import { O2dApiError } from "../../services/o2d/client";
 import { StageTimeline, OrderStatusBadge, Field, Section } from "./o2dShared";
 import { STAGES, ORDER_STATUS } from "@shared/constants/o2d.js";
 import { CompleteStageModal } from "./CompleteStageModal";
+import { openFile } from "../../services/fileUrl";
 
 /**
  * Order 360 (§22) — everything about one order, in one place.
@@ -177,7 +178,7 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const openDocument = async (doc) => {
     try {
       const { url } = await o2dApi.documentUrl(doc._id);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       toast.error(err?.message ?? "Could not open that document.");
     }

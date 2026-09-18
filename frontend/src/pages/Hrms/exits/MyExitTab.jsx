@@ -22,6 +22,7 @@ import {
   Field,
 } from "./exitsShared";
 import { InitiateExitDrawer } from "./InitiateExitDrawer";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * The signed-in employee's own exit.
@@ -74,7 +75,7 @@ export function MyExitTab() {
     setBusy(true);
     try {
       const { url } = await exitsApi.relievingLetterUrl(exit.id);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       toast.error(err?.message ?? "That letter could not be opened.");
     } finally {

@@ -27,6 +27,7 @@ import {
   formatDuration,
   CONTENT_TYPE_LABELS,
 } from "../../../services/hrms/academy";
+import { fileUrl } from "../../../services/fileUrl";
 import {
   PercentBar,
   MissingContentNotice,
@@ -624,7 +625,9 @@ function VideoLesson({ assignmentId, lesson, onProgress, onError, onReload }) {
     assignmentsApi
       .contentUrl(assignmentId, lesson.id)
       .then(({ url }) => {
-        if (!cancelled) setSrc(url);
+        // Resolved against the API origin — the local storage driver returns a
+        // relative URL, which a `<video src>` would resolve against the SPA.
+        if (!cancelled) setSrc(fileUrl(url));
       })
       .catch((err) => {
         if (!cancelled) onError(err.message);
@@ -811,7 +814,7 @@ function DocumentLesson({ assignmentId, lesson, busy, setBusy, onDone, onError }
         </div>
       ) : isPdf && link ? (
         <object
-          data={link.url}
+          data={fileUrl(link.url)}
           type="application/pdf"
           aria-label={lesson.title}
           className={`${MEDIA_BOX} bg-slate-100 border border-slate-200 rounded-xl`}
@@ -820,7 +823,7 @@ function DocumentLesson({ assignmentId, lesson, busy, setBusy, onDone, onError }
               among them, which is exactly where employees read these. */}
           <div className="flex flex-col items-center justify-center gap-3 h-full p-6 text-center">
             <p className="text-xs text-slate-500">Your browser cannot display this PDF inline.</p>
-            <a href={link.url} target="_blank" rel="noopener noreferrer">
+            <a href={fileUrl(link.url)} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline">
                 <ExternalLink size={14} className="mr-1.5" />
                 Open the document
@@ -831,7 +834,7 @@ function DocumentLesson({ assignmentId, lesson, busy, setBusy, onDone, onError }
       ) : link ? (
         <div className={`${MEDIA_BOX} flex flex-col items-center justify-center gap-3 p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center`}>
           <p className="text-xs text-slate-500">This document opens in a new tab.</p>
-          <a href={link.url} target="_blank" rel="noopener noreferrer">
+          <a href={fileUrl(link.url)} target="_blank" rel="noopener noreferrer">
             <Button size="sm" variant="outline">
               <Download size={14} className="mr-1.5" />
               Open {link.name}

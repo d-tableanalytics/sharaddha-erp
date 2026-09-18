@@ -6,7 +6,7 @@ import { useAdminStore } from '../../store/adminStore';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import {
-  ACTION_LABELS, grantsToMap, mapToGrants, sameGrants, mapHas, toggleCell,
+  ACTION_LABELS, grantsToMap, mapToGrants, sameGrants, mapHas, toggleCell, mergeGrantLists, grantsBeyond,
 } from '../../utils/grants';
 
 /**
@@ -22,20 +22,27 @@ import {
  * the honest way to show that is to render what they already have as settled
  * and let the admin add to it.
  *
- * So the role's own cells are ticked and locked, labelled with where they came
- * from. Only the difference is editable, and only the difference is saved. An
- * admin who unticks nothing and ticks two boxes has granted two things, not
- * re-stated forty.
+ * So the role's own cells start ticked, labelled with where they came from -
+ * but every cell in this grid, role-derived or not, is an ORDINARY checkbox.
+ * There are no locked boxes here either. See `grantsBeyond` in utils/grants.js
+ * for how that is made safe: what actually gets SAVED as this account's own
+ * extra access is always the draft with the role's contribution subtracted
+ * back out, so ticking or unticking a role-derived cell can be seen and undone
+ * freely without ever writing a permanent copy of the role's access onto the
+ * account.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * ADDITIVE, AND SAID SO
  * ─────────────────────────────────────────────────────────────────────────
  *
- * There is no way to take something away here, and that is deliberate rather
- * than unfinished - see the note on updateUserAccess in the user controller.
- * A per-user subtraction is invisible: nobody reviewing the role matrix would
- * ever learn that one account had been quietly cut back. Removing access is
- * done on the role, where it is visible. The banner says this out loud so an
+ * There is no way to take something away HERE, and that is deliberate rather
+ * than unfinished - see the note on updateUserAccess in the user controller. A
+ * per-user subtraction would also be invisible: nobody reviewing the role
+ * matrix would ever learn that one account had been quietly cut back.
+ * Unticking a role-derived cell in this modal and saving does not change that -
+ * the subtraction above means it was never going to be persisted as this
+ * account's business either way. Removing access is done on the ROLE, where it
+ * is visible to whoever looks at it next. The banner says this out loud so an
  * admin does not go looking for a control that was left out on purpose.
  */
 export const UserAccessModal = ({ user, onClose }) => {
@@ -52,18 +59,6 @@ export const UserAccessModal = ({ user, onClose }) => {
     setLoadingRegistry(true);
     fetchRegistry().finally(() => setLoadingRegistry(false));
   }, [open, registry, fetchRegistry]);
-
-  // Reset the draft each time a different account is opened. Keyed on the id
-  // rather than the object, which is a new reference on every store update.
-  const userId = user?._id;
-  const userExtraGrants = user?.extraGrants;
-  useEffect(() => {
-    if (!userId) return;
-    setDraft(grantsToMap(userExtraGrants));
-    // userExtraGrants is read, not depended on: a save returns a fresh array
-    // and depending on it would reset the grid mid-edit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
 
   /**
    * The account's role, as the roles API describes it.
@@ -84,20 +79,54 @@ export const UserAccessModal = ({ user, onClose }) => {
   const roleIsUnrestricted = !!role?.isSuperAdmin;
   const rolePortalOnly = !!role?.portalOnly;
 
-  const isInherited = (m, s, a) => roleIsUnrestricted || mapHas(inherited, m, s, a);
-  const isChecked = (m, s, a) => isInherited(m, s, a) || mapHas(draft, m, s, a);
+  /**
+   * Seed the draft once the account is chosen AND the role data needed to
+   * merge with it has arrived - not on `[userId]` alone.
+   *
+   * `roleLoaded` flips from false to true exactly once per account (`roles` is
+   * fetched once and this account's row does not change while the modal is
+   * open), so this re-seeds when the role data that was missing on first paint
+   * finally lands, and never again after that - a later, unrelated refresh of
+   * the `roles` store must not overwrite an edit in progress.
+   */
+  const userId = user?._id;
+  const userExtraGrants = user?.extraGrants;
+  const roleLoaded = Boolean(role);
+  useEffect(() => {
+    if (!userId) return;
+    setDraft(mergeGrantLists(role?.effectiveGrants, userExtraGrants));
+    // userExtraGrants and role's effectiveGrants are read here, not depended
+    // on beyond the roleLoaded flip: a save returns fresh array references
+    // every time, and depending on them directly would reset the grid
+    // mid-edit whenever anything else touched the roles or users store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, roleLoaded]);
 
-  const toggle = (m, s, a) => {
-    if (isInherited(m, s, a)) return;
-    setDraft((prev) => toggleCell(prev, m, s, a));
-  };
+  /**
+   * Every cell — role-derived or the account's own — is an ordinary,
+   * freely-toggleable checkbox. There is no locked cell in this modal either;
+   * see `grantsBeyond` below for how unticking a role-derived cell is made
+   * safe to allow without it ever being written onto the account as if it
+   * were the account's own.
+   */
+  const isChecked = (m, s, a) => draft.get(`${m}.${s}`)?.has(a) || false;
+  const toggle = (m, s, a) => setDraft((prev) => toggleCell(prev, m, s, a));
 
-  const dirty = !sameGrants(mapToGrants(draft), user?.extraGrants || []);
-  const extraCount = mapToGrants(draft).reduce((n, g) => n + g.actions.length, 0);
+  /**
+   * What is actually saveable: the draft with the role's own contribution
+   * subtracted back out. Ticking or unticking a cell the role already grants
+   * moves the checkbox but never changes this — which is the whole point: it
+   * can be seen and played with, but it cannot be persisted as this ACCOUNT's
+   * extra access, because it was never that.
+   */
+  const extraGrants = useMemo(() => grantsBeyond(draft, inherited), [draft, inherited]);
+
+  const dirty = !sameGrants(mapToGrants(extraGrants), user?.extraGrants || []);
+  const extraCount = mapToGrants(extraGrants).reduce((n, g) => n + g.actions.length, 0);
 
   const handleSave = async () => {
     setSaving(true);
-    const res = await updateUserAccess(user._id, mapToGrants(draft));
+    const res = await updateUserAccess(user._id, mapToGrants(extraGrants));
     setSaving(false);
     if (!res.success) {
       toast.error(res.error);
@@ -142,7 +171,8 @@ export const UserAccessModal = ({ user, onClose }) => {
           <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
             <p className="text-xs text-slate-500 font-medium max-w-2xl">
               This account signs in as <span className="font-bold text-slate-700">{user?.role}</span>.
-              Everything that role grants is ticked and locked below. Anything you add here
+              Everything that role grants is already ticked below — unticking it here has no
+              effect, since taking it away means changing the role. Anything you add here
               applies to <span className="font-bold text-slate-700">this account only</span>.
             </p>
             <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 shrink-0">
@@ -188,8 +218,8 @@ export const UserAccessModal = ({ user, onClose }) => {
               <Store size={16} className="mt-0.5 shrink-0" />
               <p className="text-xs font-semibold">
                 This account is a {user?.role}, which is confined to the Customer Portal. The
-                server ignores anything granted outside it, so those cells are disabled here —
-                move the account to another role first if it needs internal access.
+                server ignores anything granted outside it, so ticking those cells has no
+                effect — move the account to another role first if it needs internal access.
               </p>
             </div>
           )}
@@ -271,28 +301,29 @@ export const UserAccessModal = ({ user, onClose }) => {
                                 );
                               }
 
-                              const fromRole = isInherited(mod.key, sub.key, action);
+                              const fromRole = mapHas(inherited, mod.key, sub.key, action);
                               return (
                                 <td key={action} className="px-2 py-2 text-center">
-                                  <span className="relative inline-flex items-center justify-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked(mod.key, sub.key, action)}
-                                      onChange={() => toggle(mod.key, sub.key, action)}
-                                      disabled={fromRole || fenced}
-                                      title={
-                                        fromRole
-                                          ? `Already granted by the ${user?.role} role.`
-                                          : fenced
-                                            ? 'Outside the Customer Portal, so the server would ignore it.'
-                                            : undefined
-                                      }
-                                      className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                                    />
-                                    {fromRole && !fenced && (
-                                      <Lock size={9} className="absolute -right-3 text-slate-400 pointer-events-none" />
-                                    )}
-                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked(mod.key, sub.key, action)}
+                                    onChange={() => toggle(mod.key, sub.key, action)}
+                                    aria-label={`${ACTION_LABELS[action] || action} — ${mod.label} / ${sub.label}`}
+                                    // Informational only, on hover — not a lock. A
+                                    // role-derived tick can be freely unticked and
+                                    // reticked; it is simply never what gets SAVED
+                                    // as this account's own extra access, since
+                                    // `grantsBeyond` subtracts the role's own
+                                    // contribution before anything is sent.
+                                    title={
+                                      fromRole
+                                        ? `Already granted by the ${user?.role} role.`
+                                        : fenced
+                                          ? 'Outside the Customer Portal — the server ignores anything granted here.'
+                                          : undefined
+                                    }
+                                    className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 cursor-pointer"
+                                  />
                                 </td>
                               );
                             })}

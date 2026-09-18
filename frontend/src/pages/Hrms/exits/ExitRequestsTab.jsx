@@ -29,6 +29,7 @@ import {
   Field,
 } from "./exitsShared";
 import { SettlementCard } from "./MyExitTab";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * Exit requests, for HR and reporting managers.
@@ -187,7 +188,7 @@ function ExitDetailDrawer({ exit, onClose, onChanged }) {
     setBusy(true);
     try {
       const { url } = await exitsApi.relievingLetterUrl(exit.id);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       toast.error(err?.message ?? "That letter could not be opened.");
     } finally {

@@ -70,6 +70,69 @@ export const toggleCell = (map, moduleKey, subKey, action) => {
   return next;
 };
 
+/**
+ * Union two grant lists into one lookup, actions merged per cell.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY BOTH SCREENS NEED THIS, AND WHY IT LIVES HERE ONCE
+ * ---------------------------------------------------------------------------
+ * Neither screen's checkboxes are locked. A role's matrix shows a cell ticked
+ * because the role's compiled-in BASELINE grants it, or because its own stored
+ * grants do, or both - and every one of those cells is an ordinary checkbox a
+ * Super Admin can freely uncheck and recheck. A single account's Extra Access
+ * modal shows a cell ticked because the account's ROLE already grants it, or
+ * because the account has its own extra grant, or both - same shape, same
+ * freedom to toggle.
+ *
+ * Both screens seed their draft with this union, so a checkbox always opens by
+ * telling the truth about what is granted TODAY rather than only the part a
+ * previous screen happened to store explicitly. What each screen does with the
+ * result on SAVE differs - see `grantsBeyond` for the account modal's half -
+ * but the union itself is one calculation, used identically by both, so they
+ * cannot drift into two different ideas of what "currently granted" means.
+ */
+export const mergeGrantLists = (a = [], b = []) => {
+  const map = grantsToMap(a);
+  for (const [id, actions] of grantsToMap(b)) {
+    const merged = new Set(map.get(id) || []);
+    for (const action of actions) merged.add(action);
+    map.set(id, merged);
+  }
+  return map;
+};
+
+/**
+ * What `draftMap` adds ON TOP of `baseMap` - the grants left after removing
+ * everything `baseMap` already covers.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY A DRAFT MUST BE FILTERED BEFORE IT IS SAVED AS ONE ACCOUNT'S EXTRA GRANTS
+ * ---------------------------------------------------------------------------
+ * The Extra Access modal seeds its draft with `mergeGrantLists(role's grants,
+ * the account's own extra grants)`, so a cell the role already grants shows
+ * ticked and can be freely toggled like any other - no locked checkbox. But
+ * "extra access" is stored as a pure ADDITION on top of whatever the account's
+ * role happens to be, and if a tick that came from the role were saved back
+ * into that list verbatim, the account would carry a permanent, invisible copy
+ * of its OLD role's access - one that survives the account being reassigned to
+ * a different role entirely, which defeats the point of the role existing.
+ *
+ * So every save passes the draft through this first. Unchecking a cell that
+ * came from the role has no effect either way - it was never going to be
+ * counted as "extra" - which is the same honest shape the role matrix uses for
+ * its own baseline: the box reflects what is true, the floor beneath it moves
+ * only where the floor itself is edited.
+ */
+export const grantsBeyond = (draftMap, baseMap) => {
+  const out = new Map();
+  for (const [id, actions] of draftMap) {
+    const baseActions = baseMap.get(id) || new Set();
+    const extra = new Set([...actions].filter((action) => !baseActions.has(action)));
+    if (extra.size > 0) out.set(id, extra);
+  }
+  return out;
+};
+
 export default {
   ACTION_LABELS,
   grantsToMap,
@@ -77,4 +140,6 @@ export default {
   sameGrants,
   mapHas,
   toggleCell,
+  mergeGrantLists,
+  grantsBeyond,
 };

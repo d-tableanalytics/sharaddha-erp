@@ -5,6 +5,7 @@ import { Paperclip, Upload, Loader2 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { expensesApi, uploadReceipt, formatDay } from "../../../services/hrms";
 import { Money } from "./expensesShared";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * The line items of one claim, with its receipts.
@@ -80,7 +81,7 @@ function ReceiptCell({ claimId, line, canUpload, onChange }) {
     setBusy(true);
     try {
       const { url } = await expensesApi.receiptUrl(claimId, line.id);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (error) {
       toast.error(error?.message ?? "Could not open that receipt.");
     } finally {

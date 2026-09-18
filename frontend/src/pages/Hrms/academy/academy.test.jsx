@@ -718,7 +718,8 @@ describe("the academy dashboard", () => {
     await screen.findByRole("heading", { name: "Recent Activity" });
     expect(screen.getByText("Asha Verma")).toBeTruthy();
     expect(screen.getByText(/failed/)).toBeTruthy();
-    expect(screen.getByText(/\(Attempt 1\)/)).toBeTruthy();
+    // The attempt now sits on the meta line beside the score and the time.
+    expect(screen.getByText("Attempt 1")).toBeTruthy();
   });
 });
 
@@ -1163,5 +1164,63 @@ describe("preview sizing", () => {
 
     // All four selects live in that one bar.
     expect(bar.querySelectorAll("select").length).toBe(4);
+  });
+});
+
+// ===========================================================================
+// Dashboard panels
+// ===========================================================================
+
+describe("the dashboard panels", () => {
+  const panelFor = (title) => screen.getByRole("heading", { name: title }).closest("section");
+
+  /**
+   * 🔴 NEITHER LIST MAY SET THE OTHER'S HEIGHT.
+   *
+   * These were a 3/2 split with the panels stretching to match, so one
+   * completed path beside six activity rows left most of the left panel empty
+   * and wrapped every line of the right one. Equal halves, `items-start`, and a
+   * shared ceiling with its own scrollbar.
+   */
+  it("bounds both lists and lets each panel size to its own content", async () => {
+    signIn([R.HR_ADMIN]);
+    at("/hrms/academy/dashboard");
+
+    await screen.findByRole("heading", { name: "Recent Activity" });
+
+    const paths = panelFor("Learning path completion");
+    const activity = panelFor("Recent Activity");
+
+    // Same row, equal halves, no stretching.
+    expect(paths.parentElement).toBe(activity.parentElement);
+    expect(paths.parentElement.className).toContain("lg:grid-cols-2");
+    expect(paths.parentElement.className).toContain("items-start");
+    expect(paths.className).not.toContain("col-span");
+    expect(activity.className).not.toContain("col-span");
+
+    // Each list scrolls inside a ceiling rather than growing the page.
+    for (const panel of [paths, activity]) {
+      const list = panel.querySelector("ul");
+      expect(list.className).toContain("max-h-[");
+      expect(list.className).toContain("overflow-y-auto");
+    }
+  });
+
+  it("puts the event on one line and the attempt, score and time on the next", async () => {
+    signIn([R.HR_ADMIN]);
+    at("/hrms/academy/dashboard");
+
+    await screen.findByRole("heading", { name: "Recent Activity" });
+
+    const failure = screen
+      .getByText("Rohit Mehta")
+      .closest("li");
+    const [event, meta] = failure.querySelectorAll(":scope > span.flex-1 > span");
+
+    // The sentence carries no numbers — they used to run on after the title and
+    // wrap the score onto a line of its own.
+    expect(event.textContent).toBe("Rohit Mehta failed Product Quiz");
+    expect(meta.textContent).toContain("Attempt 1");
+    expect(meta.textContent).toContain("40%");
   });
 });

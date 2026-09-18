@@ -18,6 +18,7 @@ import {
 } from "../../../services/hrms/onboarding";
 import { createOfferLetterSchema } from "@shared/schemas/onboarding.js";
 import { OFFER_LETTER_STATE_LABELS } from "@shared/constants/onboarding.js";
+import { openFile } from "../../../services/fileUrl";
 
 const CELL = "px-4 py-2.5 align-top";
 const HEAD = "px-4 py-2.5";
@@ -85,8 +86,7 @@ export function OfferLettersTab() {
     try {
       const { url } = (await offerLettersApi.documentUrl(row.id)) ?? {};
       if (!url) throw new Error("No letter has been generated for this offer.");
-      // noopener, so the presigned URL is not handed a reference back to this tab.
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (err) {
       setFailure(err?.message ?? "That letter could not be opened.");
     } finally {

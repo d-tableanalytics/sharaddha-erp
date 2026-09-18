@@ -5,6 +5,7 @@ import { FileText, Download, Loader2 } from "lucide-react";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { documentsApi, formatFileSize } from "../../../services/hrms";
+import { openFile } from "../../../services/fileUrl";
 
 /**
  * Small pieces the document tabs share.
@@ -25,7 +26,7 @@ export function OpenDocumentButton({ documentId, label = "Open", size = "xs" }) 
     setBusy(true);
     try {
       const { url } = await documentsApi.fileUrl(documentId);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openFile(url);
     } catch (error) {
       toast.error(error?.message ?? "That document could not be opened.");
     } finally {
