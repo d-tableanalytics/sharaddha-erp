@@ -30,10 +30,11 @@ import TaskCalendarView from '../Delegation/TaskCalendarView';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Button } from '../../components/ui/Button';
 import { TabNav } from '../../components/hrms/TabNav';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { StatTile } from '../../components/workqueue/StatTile';
+import { TASK_STATUS_TILES } from '../../components/workqueue/taskTiles';
 
 // Status Tab definitions
 const STATUS_TABS = [
@@ -43,15 +44,6 @@ const STATUS_TABS = [
   { key: 'In Progress', label: 'In Progress', dot: 'bg-warning-500' },
   { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500' },
   { key: 'Completed', label: 'Completed', dot: 'bg-success-500' },
-];
-
-const KPI_CARDS = [
-  { key: 'All', countKey: 'Total', label: 'Total', dot: 'bg-slate-400', textColor: 'text-slate-900' },
-  { key: 'Overdue', countKey: 'Overdue', label: 'Overdue', dot: 'bg-error-500', textColor: 'text-error-600' },
-  { key: 'Pending', countKey: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent', textColor: 'text-slate-700' },
-  { key: 'In Progress', countKey: 'In Progress', label: 'In Progress', dot: 'bg-warning-500', textColor: 'text-warning-500' },
-  { key: 'Awaiting Verification', countKey: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500', textColor: 'text-primary-600' },
-  { key: 'Completed', countKey: 'Completed', label: 'Completed', dot: 'bg-success-500', textColor: 'text-success-600' },
 ];
 
 // Helper: Extract Initials
@@ -654,18 +646,6 @@ export function InLoopTasks() {
         subtitle={dynamicSubtitle}
         actions={
           <>
-          {/* Refresh Button */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={fetchData}
-            disabled={loading}
-            title="Refresh loop tasks"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-
           {/* Role-Gated Admin Switcher */}
           {isAdmin && (
             <div className="relative shrink-0">
@@ -703,37 +683,24 @@ export function InLoopTasks() {
       />
 
       {/* ── 2. QUICK STATS RIBBON (6 KPI Metric Cards) ────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {KPI_CARDS.map((card) => {
-          const isActive = activeTab === card.key;
-          const count = ribbonCounts[card.countKey] ?? 0;
-          return (
-            <div
-              key={card.key}
-              onClick={() => setActiveTab(card.key)}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group ${
-                isActive
-                  ? 'border-primary-600 ring-2 ring-primary-500/20 bg-white'
-                  : 'border-slate-200 bg-white hover:border-primary-600'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
-                  {card.label}
-                </span>
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${card.dot}`} />
-              </div>
-              <div className="flex items-baseline justify-between mt-1">
-                <span className={`text-2xl font-semibold ${card.textColor}`}>
-                  {count}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-                  Filter →
-                </span>
-              </div>
-            </div>
-          );
-        })}
+      {/*
+        The HR Dashboard's Quick Access tile, carrying a count: same shell, same
+        40px toned chip, same label type, same `gap-3` grid. The six statuses
+        come from the list Delegation reads too, so the two ribbons match.
+      */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {TASK_STATUS_TILES.map((card) => (
+          <StatTile
+            key={card.key}
+            icon={card.icon}
+            tone={card.tone}
+            label={card.label}
+            value={ribbonCounts[card.countKey] ?? 0}
+            active={activeTab === card.key}
+            title={`Show ${card.label.toLowerCase()} tasks`}
+            onClick={() => setActiveTab(card.key)}
+          />
+        ))}
       </div>
 
       {/* ── 3. TOOLBAR & MULTI-FACTOR FILTERING SYSTEM ─────────────────── */}

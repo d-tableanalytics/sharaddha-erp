@@ -848,7 +848,7 @@ async function main({
   }
 
   await connect();
-  bootstrapHrms();
+  await bootstrapHrms();
 
   try {
     // ---- reference data ---------------------------------------------------

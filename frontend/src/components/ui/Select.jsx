@@ -29,13 +29,27 @@ import {
  * the whole control clickable.
  */
 export const Select = React.forwardRef(
-  ({ className, label, error, helperText, disabled, children, ...props }, ref) => (
+  ({ className, id, label, error, helperText, disabled, children, ...props }, ref) => {
+    /*
+     * Associated, not merely adjacent — see the same note on `Input`. A
+     * <label> with no `htmlFor` beside a native select is the one case where
+     * the native control's accessibility advantage is thrown away again.
+     */
+    const generatedId = React.useId();
+    const selectId = id ?? generatedId;
+
+    return (
     <div className="w-full flex flex-col gap-1.5">
-      {label && <label className={fieldLabelClass}>{label}</label>}
+      {label && (
+        <label htmlFor={selectId} className={fieldLabelClass}>
+          {label}
+        </label>
+      )}
 
       <div className="relative">
         <select
           ref={ref}
+          id={selectId}
           disabled={disabled}
           className={twMerge(
             fieldClass(error),
@@ -56,7 +70,8 @@ export const Select = React.forwardRef(
       {error && <span className={fieldErrorClass}>{error}</span>}
       {!error && helperText && <span className={fieldHintClass}>{helperText}</span>}
     </div>
-  ),
+    );
+  },
 );
 Select.displayName = "Select";
 

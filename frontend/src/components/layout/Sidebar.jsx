@@ -6,7 +6,7 @@ import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
 import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
 import {
-  canOpenUserManagement, canManageRoles, canUseO2d, hasPermission, PERMISSIONS,
+  canOpenUserManagement, canManageRoles, canUseO2d, canAction, hasPermission, PERMISSIONS,
 } from "../../utils/permissions";
 import { o2dRoute } from "@shared/constants/o2d.js";
 import {
@@ -301,23 +301,63 @@ If the user has assign_any_task, the UI must show ALL tasks, with columns for �
 No “Delegation” submenu. No separate “Checklist” page. Just one single work-queue page with the behavior above.
   */
 
-  const workQueue = canUseO2d(user)
-    ? [{
-      key: "workQueue",
-      label: "Work Queue",
-      icon: BookAIcon,
-      items: [
-        { id: "wq:mywork", key: "mywork", label: "My Work", path: "/work-queue", icon: Table },
-        { id: "wq:delegation", key: "delegation", label: "Delegation", path: "/wq/delegation", icon: Forward },
-        { id: "wq:looptasks", key: "looptasks", label: "Loop Tasks", path: "/wq/looptasks", icon: RefreshCwIcon },
-        { id: "wq:alltasks", key: "alltasks", label: "All Tasks", path: "/wq/alltasks", icon: Table2 },
-        { id: "wq:deletedtasks", key: "deletedtasks", label: "Deleted Tasks", path: "/wq/deletedtasks", icon: Trash2 },
-        { id: "wq:checklist", key: "checklist", label: "Checklist", path: "/wq/checklist", icon: CheckSquare },
-        { id: "wq:executivescoreboard", key: "executivescoreboard", label: "Executive Scoreboard", path: "/wq/executivescoreboard", icon: Trophy },
-        { id: "wq:activities", key: "activities", label: "Activities", path: "/wq/activities", icon: BarChart3 },
-      ],
-    }]
-    : [];
+  /**
+   * WORK QUEUE.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * IT USED TO ASK FMS WHETHER THE WORK QUEUE WAS VISIBLE
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * The whole group was gated on `canUseO2d` — `view_o2d`, which is FMS's
+   * permission — and then every one of its eight rows rendered unconditionally.
+   * Two bugs in one expression:
+   *
+   *   A role granted the Work Queue and not FMS saw NO Work Queue at all.
+   *   A role granted FMS read-only saw all eight rows, including the Trash Bin,
+   *   the Executive Scoreboard and the Activities audit log.
+   *
+   * So the group asks its OWN module now, and each row asks the cell behind the
+   * screen it opens. `canAction` reads the grants the server resolved, which is
+   * the same computation `authorizeModule` runs when the request arrives — so a
+   * row is in the rail exactly when its endpoint will answer.
+   *
+   * The Trash Bin, the Scoreboard and the Activities log are separately
+   * grantable because they are separately dangerous: deleted work, everybody's
+   * targets, and who-changed-what are not things a task-doer needs in order to
+   * do tasks.
+   */
+  const wqItems = [
+    ...(canAction(user, "work_queue", "tasks", "view")
+      ? [
+          { id: "wq:mywork", key: "mywork", label: "My Work", path: "/work-queue", icon: Table },
+          { id: "wq:delegation", key: "delegation", label: "Delegation", path: "/wq/delegation", icon: Forward },
+          { id: "wq:looptasks", key: "looptasks", label: "Loop Tasks", path: "/wq/looptasks", icon: RefreshCwIcon },
+          { id: "wq:alltasks", key: "alltasks", label: "All Tasks", path: "/wq/alltasks", icon: Table2 },
+        ]
+      : []),
+    ...(canAction(user, "work_queue", "trash", "view")
+      ? [{ id: "wq:deletedtasks", key: "deletedtasks", label: "Deleted Tasks", path: "/wq/deletedtasks", icon: Trash2 }]
+      : []),
+    ...(canAction(user, "work_queue", "checklist", "view")
+      ? [{ id: "wq:checklist", key: "checklist", label: "Checklist", path: "/wq/checklist", icon: CheckSquare }]
+      : []),
+    ...(canAction(user, "work_queue", "scoreboard", "view")
+      ? [{ id: "wq:executivescoreboard", key: "executivescoreboard", label: "Executive Scoreboard", path: "/wq/executivescoreboard", icon: Trophy }]
+      : []),
+    ...(canAction(user, "work_queue", "activity", "view")
+      ? [{ id: "wq:activities", key: "activities", label: "Activities", path: "/wq/activities", icon: BarChart3 }]
+      : []),
+  ];
+
+  const workQueue =
+    wqItems.length > 0
+      ? [{
+        key: "workQueue",
+        label: "Work Queue",
+        icon: BookAIcon,
+        items: wqItems,
+      }]
+      : [];
 
 
   // Administration sits at the BOTTOM of the rail, under everything it

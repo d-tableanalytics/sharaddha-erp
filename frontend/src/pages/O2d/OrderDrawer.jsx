@@ -21,6 +21,7 @@ import { StageTimeline, OrderStatusBadge, Field, Section } from "./o2dShared";
 import { STAGES, ORDER_STATUS } from "@shared/constants/o2d.js";
 import { CompleteStageModal } from "./CompleteStageModal";
 import { openFile } from "../../services/fileUrl";
+import { delegationService } from "../../services/delegation";
 
 /**
  * Order 360 (§22) — everything about one order, in one place.
@@ -61,6 +62,10 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  /** Who a stage can be handed to — loaded once, reused across every stage row. */
+  const [assignableUsers, setAssignableUsers] = useState(null);
+  /** The stage number currently mid-assign/unassign, so its own control disables. */
+  const [assigningStage, setAssigningStage] = useState(null);
 
   const canWork = hasPermission(user, PERMISSIONS.WORK_O2D_STAGE);
   const canHold = hasPermission(user, PERMISSIONS.HOLD_O2D);
@@ -88,6 +93,17 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * Who a stage can be handed to — loaded once, lazily, and only for somebody
+   * who could actually use the control. Reused across the whole stage list
+   * rather than fetched per row: it is the same "everyone but a customer"
+   * roster the Delegation screen's own assignee picker already uses.
+   */
+  useEffect(() => {
+    if (!canWork || assignableUsers) return;
+    delegationService.getUsers().then(setAssignableUsers).catch(() => setAssignableUsers([]));
+  }, [canWork, assignableUsers]);
 
   // Loaded lazily: most people open the drawer to see progress, and fetching
   // three tabs' worth of data for every click is three requests wasted.
@@ -131,6 +147,23 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
    * renders only the fields that stage declares.
    */
   const completeStage = (stage) => setCompleting(stage);
+
+  /**
+   * Hand a stage to one named person. Their My Work / All Tasks picks it up as
+   * a real task from this one call — see `o2dDelegationSync.service.js`.
+   */
+  const assignStage = async (stage, userId) => {
+    setAssigningStage(stage.stageNumber);
+    const name = assignableUsers?.find((u) => u._id === userId)?.user ?? "the selected teammate";
+    await act(() => o2dApi.assignStage(orderId, stage.stageNumber, userId), `${stage.stageName} assigned to ${name}.`);
+    setAssigningStage(null);
+  };
+
+  const unassignStage = async (stage) => {
+    setAssigningStage(stage.stageNumber);
+    await act(() => o2dApi.unassignStage(orderId, stage.stageNumber), `${stage.stageName} unassigned.`);
+    setAssigningStage(null);
+  };
 
   const decideAdvance = (advanceRequired) =>
     act(
@@ -400,6 +433,10 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
                     : []
                 }
                 onAct={completeStage}
+                assignableUsers={assignableUsers}
+                onAssign={assignStage}
+                onUnassign={unassignStage}
+                assigningStage={assigningStage}
               />
             </Section>
           )}

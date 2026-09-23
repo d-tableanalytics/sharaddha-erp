@@ -37,6 +37,7 @@ import {
   completeStageSchema,
   advanceDecisionSchema,
   skipStageSchema,
+  assignStageSchema,
   holdOrderSchema,
   resumeOrderSchema,
   listO2dOrdersQuery,
@@ -187,6 +188,26 @@ router.post(
   canWork,
   validate({ body: skipStageSchema }),
   controller.skip,
+);
+
+/**
+ * Hand a stage to one named person — §"link O2D tasks to the Work Queue".
+ *
+ * `canWork` (not `canView`): the assign button is scoped to whoever could
+ * complete the stage themselves. The service re-checks by ROLE against the
+ * live stage master (§37), the same way `complete` does — this route guard is
+ * the coarse gate, not the whole answer.
+ */
+router.post(
+  '/orders/:id/stages/:stageNumber/assign',
+  canWork,
+  validate({ body: assignStageSchema }),
+  controller.assignStage,
+);
+router.delete(
+  '/orders/:id/stages/:stageNumber/assign',
+  canWork,
+  controller.unassignStageHandler,
 );
 
 router.post('/orders/:id/hold', canHold, validate({ body: holdOrderSchema }), controller.hold);

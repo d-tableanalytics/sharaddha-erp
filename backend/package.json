@@ -10,12 +10,15 @@
     "test": "node --test --test-reporter=spec \"tests/**/*.test.js\"",
     "test:watch": "node --test --watch \"tests/**/*.test.js\"",
     "verify:rbac": "node scripts/verify-rbac.js",
+    "verify:guards": "node scripts/verify-route-guards.js",
+    "seed:role-baselines": "node scripts/seed-role-baselines.js",
     "verify:contract": "node scripts/verify-shared-contract.js",
     "verify:passwords": "node scripts/hrms/verify-password-hashing.js",
     "verify:sensitive": "node scripts/hrms/verify-no-plaintext-sensitive.js",
     "hrms:import": "node scripts/hrms/import-client-workbook.js",
     "hrms:migrate-keys": "node scripts/hrms/migrate-encryption-keys.js",
-    "academy:seed": "node scripts/hrms/seed-academy-demo.js"
+    "academy:seed": "node scripts/hrms/seed-academy-demo.js",
+    "work-queue:clear": "node scripts/clear-work-queue.js"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1123.0",

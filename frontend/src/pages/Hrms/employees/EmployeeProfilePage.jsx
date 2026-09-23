@@ -16,6 +16,7 @@ import {
   HRMS_MODULES as M,
   HRMS_ACTIONS as A,
   SCOPES as S,
+  HRMS_ROLES as R,
 } from "@shared/permissions/constants.js";
 import { SENSITIVE_EMPLOYEE_FIELD_LIST } from "@shared/security/sensitive-fields.js";
 
@@ -165,8 +166,16 @@ export function EmployeeProfilePage() {
               Only offered when there is a password to reset. An employee need
               not be a portal user, and the server refuses this for one who is
               not - so showing the button would be an action that can only fail.
+              And only offered to a super admin: `resetEmployeePassword` in
+              employee.service.js requires that role key independently of the
+              route's `employees:edit:org` guard, the same "narrower check
+              inside the service" pattern the probation and sensitive-field
+              rules use. This is a ROLE-IDENTITY rule, not a granted permission
+              - there is no (module, action, scope) triple for it - so it is
+              checked against `roleKeys`, using the shared constant rather than
+              a repeated string literal.
             */}
-            {roleKeys.includes("hrms_super_admin") && employee.userId && (
+            {roleKeys.includes(R.SUPER_ADMIN) && employee.userId && (
               <Button variant="secondary" onClick={resetPassword}>
                 <KeyRound size={14} className="mr-1.5" />
                 Reset password

@@ -6,6 +6,7 @@ import CompanyProfile from '../../../models/hrms/CompanyProfile.js';
 import { getReadUrl } from '../../../utils/hrms/storage/index.js';
 import { recordAudit } from '../../../utils/auditLog.js';
 import { STORAGE_CATEGORIES, INDIAN_STATE_CODES } from '../../../shared/constants/hrms.js';
+import { brandSchema } from '../../../shared/schemas/settings.js';
 import { z } from '../../../shared/validation/common.js';
 
 export const updateCompanyProfileSchema = z
@@ -28,7 +29,18 @@ export const updateCompanyProfileSchema = z
       .partial(),
     weekendDays: z.array(z.number().int().min(0).max(6)).max(7),
     financialYearStartMonth: z.number().int().min(1).max(12),
-    brand: z.record(z.string(), z.unknown()),
+    /*
+     * The same four-key hex allow-list the Settings surface uses, not a free
+     * record.
+     *
+     * This accepted `z.record(z.string(), z.unknown())` - an unbounded blob on
+     * a `settings:edit:org` endpoint - which quietly defeated the allow-list
+     * `brandSchema` exists to be. Two surfaces editing one field must agree on
+     * what the field is, and the narrower of the two is the honest answer:
+     * anything stored here is a colour that a theme will eventually inject into
+     * a stylesheet, so a non-hex value is a value nothing can safely use.
+     */
+    brand: brandSchema,
   })
   .partial();
 

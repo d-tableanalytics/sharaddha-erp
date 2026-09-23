@@ -13,16 +13,25 @@
 
 import mongoose from 'mongoose';
 
+import { seedHrmsRoles } from '../../modules/hrms/rbac/seedRoles.js';
+
 /** First start includes a binary download on a cold machine. */
 const LAUNCH_TIMEOUT_MS = 120_000;
 
 let server = null;
 
-/** Start mongod and connect mongoose. Call from a `before` hook. */
+/**
+ * Start mongod and connect mongoose. Call from a `before` hook.
+ *
+ * Seeds the eight HRMS roles before returning, so a suite whose first test
+ * runs before any `clearCollections()` call still finds them defined - the
+ * same reason `clearCollections()` reseeds after every wipe.
+ */
 export async function startTestMongo() {
   const { MongoMemoryServer } = await import('mongodb-memory-server');
   server = await MongoMemoryServer.create({ instance: { launchTimeout: LAUNCH_TIMEOUT_MS } });
   await mongoose.connect(server.getUri(), { dbName: 'hrms_test' });
+  await seedHrmsRoles();
   return server.getUri();
 }
 
@@ -44,10 +53,24 @@ export async function syncIndexes(...models) {
   for (const model of models) await model.syncIndexes();
 }
 
-/** Empty every collection, so each test starts from a known state. */
+/**
+ * Empty every collection, so each test starts from a known state - then
+ * reseed the eight HRMS roles.
+ *
+ * The reseed exists because permissions now resolve from `HrmsRole` documents
+ * rather than from code (see `modules/hrms/rbac/seedRoles.js`), and this
+ * helper's whole job is wiping every collection on the connection, `HrmsRole`
+ * included. Without it, every test in every HRMS suite would start each case
+ * with `hrms_employee`, `hrms_super_admin` and the rest defined nowhere, and
+ * a `stubProtect(user)` naming one of those keys would grant nothing. The
+ * eight args this used to ignore were already a hint that call sites expected
+ * SOME of that state to survive a clear; this makes the one piece that has
+ * to, in every suite, do so without every test file re-deriving it.
+ */
 export async function clearCollections() {
   const { collections } = mongoose.connection;
   await Promise.all(Object.values(collections).map((c) => c.deleteMany({})));
+  await seedHrmsRoles();
 }
 
 export default { startTestMongo, stopTestMongo, syncIndexes, clearCollections };

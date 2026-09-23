@@ -41,9 +41,30 @@ function formatRelativeTime(dateString) {
   return `${diffDay}d ago`;
 }
 
+/**
+ * Is this row a mirror of an O2D stage rather than a delegated task of its own?
+ *
+ * It is here so the assignee sees everything they owe in one place — but the
+ * work belongs to the order, and the verbs that would move it elsewhere
+ * (deleting it, renaming it, moving its deadline) are the order's to perform.
+ * The server refuses or ignores all three; saying so on the row is what stops
+ * somebody trying.
+ *
+ * Keyed on `sourceType`, never on the title or a naming convention: a task
+ * somebody happened to call "O2D something" is still their own task.
+ */
+export const isO2dMirror = (task) => task?.sourceType === 'o2d_stage';
+
+/**
+ * `Reassigned` alongside the two finished states, and for the same reason they
+ * are here: an overdue badge accuses somebody of being late, and a task that
+ * was taken off them is not theirs to be late on. The row only reaches this
+ * screen through All Tasks, where it is history rather than a to-do.
+ */
 function isTaskOverdue(task) {
   if (!task.dueDate) return false;
   if (task.status === 'Completed' || task.status === 'Awaiting Verification') return false;
+  if (task.status === 'Reassigned') return false;
   return new Date(task.dueDate).getTime() < Date.now();
 }
 
@@ -204,6 +225,20 @@ export function TaskListView({
                 <h4 className="text-sm font-bold text-slate-900 line-clamp-1 group-hover:text-primary-700 transition-colors">
                   {task.taskTitle}
                 </h4>
+                {/*
+                  Says where this row came from, carrying the PO and stage
+                  number Order Tracker shows — so "why does Order Tracker say
+                  something different" is a question nobody has to ask: the two
+                  lists are the same task, kept in step in both directions.
+                */}
+                {isO2dMirror(task) && (
+                  <span
+                    className="mt-0.5 inline-flex items-center gap-0.5 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-primary-700"
+                    title={`Stage ${task.sourceStageNumber} of order ${task.sourcePoNumber} — kept in sync with Order Tracker`}
+                  >
+                    O2D · {task.sourcePoNumber}
+                  </span>
+                )}
                 <div className="sm:hidden text-[10px] font-semibold text-slate-400">
                   {task.doerFirstName} {task.doerLastName}
                 </div>
@@ -240,7 +275,13 @@ export function TaskListView({
               </span>
 
               {/* Quick Action: Verify & Complete (for Awaiting Verification) */}
-              {isAwaitingVerification && (
+              {/*
+                `onQuickVerify` absent means the caller decided this actor may
+                not verify - see DelegationPage. Rendering the button anyway
+                would throw on click rather than 403, which is a worse failure
+                than not offering it.
+              */}
+              {isAwaitingVerification && onQuickVerify && (
                 <button
                   type="button"
                   onClick={(e) => handleQuickVerify(e, task)}

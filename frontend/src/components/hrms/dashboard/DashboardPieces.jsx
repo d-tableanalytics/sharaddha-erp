@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge";
 import * as Icons from "lucide-react";
 
 import { EmptyState } from "../../ui/EmptyState";
+import { TILE_TONE } from "../../ui/tileTokens";
 
 /**
  * The dashboard's building blocks.
@@ -188,13 +189,6 @@ export function PersonRow({ name, meta, trailing, to }) {
 // Quick access
 // ---------------------------------------------------------------------------
 
-const QA_TONE = {
-  primary: "bg-primary-50 text-primary-700 group-hover:bg-primary-100",
-  success: "bg-success-50 text-success-600 group-hover:bg-success-100",
-  warning: "bg-warning-50 text-warning-600 group-hover:bg-warning-100",
-  danger: "bg-error-50 text-error-500 group-hover:bg-error-100",
-  neutral: "bg-slate-100 text-slate-600 group-hover:bg-slate-200",
-};
 
 /**
  * One Quick Access tile.
@@ -218,7 +212,7 @@ export function QuickAccessTile({ item, prefix }) {
       <span
         className={twMerge(
           "inline-flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
-          QA_TONE[item.tone] ?? QA_TONE.neutral,
+          TILE_TONE[item.tone] ?? TILE_TONE.neutral,
         )}
       >
         <Icon size={18} />

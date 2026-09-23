@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 
 import { useUserStore } from '../../store/userStore';
 import delegationService from '../../services/delegation';
+import { usePermissions } from '../../hooks/usePermissions';
 import { PageHeader } from '../../components/common/PageHeader';
 import { ErrorState } from '../../components/hrms/ErrorState';
 
@@ -116,6 +117,15 @@ const FilterChip = ({ label, onRemove }) => (
 );
 
 export function DeletedTasks() {
+  /**
+   * Restoring is a separate grant from reading the bin.
+   *
+   * Both resolve to `manage_work_queue_trash` today, so this changes nobody's
+   * access - the route guard on the page already implies it. It is written out
+   * anyway because the two are different acts, and the day the bin becomes
+   * readable by an auditor is the day this line is what stops the auditor
+   * un-deleting things. The server enforces it on PATCH /:id/restore either way.
+   */
   const navigate = useNavigate();
 
   // ── Access Control Evaluation ──────────────────────────────────────────
@@ -137,6 +147,9 @@ export function DeletedTasks() {
   const [users, setUsers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { can } = usePermissions();
+  const canRestore = can('work_queue', 'trash', 'approve');
+
   const [restoringId, setRestoringId] = useState(null);
 
   // Filter toolbar states
@@ -980,6 +993,7 @@ export function DeletedTasks() {
 
                 {/* [3] Action Column */}
                 <div className="shrink-0 sm:self-center pt-2 sm:pt-0 sm:pl-2">
+                  {canRestore && (
                   <button
                     type="button"
                     onClick={() => handleRestore(taskId)}
@@ -994,6 +1008,7 @@ export function DeletedTasks() {
                     )}
                     <span>Restore</span>
                   </button>
+                  )}
                 </div>
               </div>
             );

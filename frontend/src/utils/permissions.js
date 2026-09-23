@@ -29,6 +29,15 @@ export const PERMISSIONS = {
   MANAGE_USERS: "manage_users",
   MANAGE_CUSTOMER_USERS: "manage_customer_users",
   MANAGE_ROLES: "manage_roles",
+  // Per-action Administration keys. MIRRORS backend/config/permissions.js -
+  // see the note there. MANAGE_USERS/MANAGE_ROLES still gate ENTRY to their
+  // screens; these gate the writes on them.
+  CREATE_USERS: "create_users",
+  EDIT_USERS: "edit_users",
+  DELETE_USERS: "delete_users",
+  CREATE_ROLES: "create_roles",
+  EDIT_ROLES: "edit_roles",
+  DELETE_ROLES: "delete_roles",
   VIEW_REPORTS: "view_reports",
   VIEW_ALL_BOOKINGS: "view_all_bookings",
   EDIT_BOOKING_PRE_PO: "edit_booking_pre_po",

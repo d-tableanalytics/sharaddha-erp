@@ -233,7 +233,7 @@ export const listCustomFields = async (req, res, next) => {
 export const createCustomField = async (req, res, next) => {
   try {
     const data = await service.createCustomField(req.body);
-    await recordAudit(req.user, 'hrms.custom_field.created', `Created custom field "${data.name}"`, req, {
+    await recordAudit(req.user, AUDIT_ACTIONS.CUSTOM_FIELD_CREATED, `Created custom field "${data.name}"`, req, {
       meta: data,
     });
     res.status(201).json({ success: true, data });
@@ -245,7 +245,7 @@ export const createCustomField = async (req, res, next) => {
 export const updateCustomField = async (req, res, next) => {
   try {
     const data = await service.updateCustomField(req.params.id, req.body);
-    await recordAudit(req.user, 'hrms.custom_field.updated', `Updated custom field "${data.name}"`, req, {
+    await recordAudit(req.user, AUDIT_ACTIONS.CUSTOM_FIELD_UPDATED, `Updated custom field "${data.name}"`, req, {
       meta: data,
     });
     res.status(200).json({ success: true, data });
@@ -259,7 +259,7 @@ export const deleteCustomField = async (req, res, next) => {
     await service.deleteCustomField(req.params.id);
     await recordAudit(
       req.user,
-      'hrms.custom_field.deleted',
+      AUDIT_ACTIONS.CUSTOM_FIELD_DELETED,
       `Retired custom field ${req.params.id}; existing values are kept`,
       req,
       { meta: { id: req.params.id } },

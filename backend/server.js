@@ -139,7 +139,7 @@ const startServer = async () => {
   // answerable by reading modules/hrms/hrms.bootstrap.js — and so importing an
   // HRMS service from a script does not arm a background behaviour as a side
   // effect.
-  bootstrapHrms();
+  await bootstrapHrms();
 
   if (RETENTION_CRON_ENABLED) {
     cron.schedule(RETENTION_CRON_SCHEDULE, () => {

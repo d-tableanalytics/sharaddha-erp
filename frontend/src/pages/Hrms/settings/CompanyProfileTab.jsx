@@ -4,6 +4,7 @@ import { Upload } from "lucide-react";
 
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
+import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
 import { ErrorState } from "../../../components/hrms/ErrorState";
 import { settingsApi, BRAND_TOKEN_LABELS } from "../../../services/hrms/settings";
 
@@ -29,6 +30,7 @@ export function CompanyProfileTab() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingLogo, setPendingLogo] = useState(null);
   const [form, setForm] = useState({ legalName: "", displayName: "", brand: {} });
   const fileRef = useRef(null);
 
@@ -76,6 +78,19 @@ export function CompanyProfileTab() {
     }
   };
 
+  const upload = async (file) => {
+    setUploading(true);
+    try {
+      setData(await settingsApi.uploadLogo(file));
+      toast.success("Logo updated.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message ?? err?.message ?? "That logo could not be uploaded.");
+    } finally {
+      setUploading(false);
+      setPendingLogo(null);
+    }
+  };
+
   const onPickLogo = async (event) => {
     const file = event.target.files?.[0];
     // Reset immediately so re-picking the same file still fires a change.
@@ -93,15 +108,14 @@ export function CompanyProfileTab() {
       return;
     }
 
-    setUploading(true);
-    try {
-      setData(await settingsApi.uploadLogo(file));
-      toast.success("Logo updated.");
-    } catch (err) {
-      toast.error(err?.response?.data?.message ?? err?.message ?? "That logo could not be uploaded.");
-    } finally {
-      setUploading(false);
+    // Replacing overwrites the stored logo with no undo, so the FIRST upload
+    // goes straight through and a REPLACEMENT asks. Confirming an action that
+    // destroys nothing is just a click in the way.
+    if (data?.logoUrl) {
+      setPendingLogo(file);
+      return;
     }
+    await upload(file);
   };
 
   if (error) {
@@ -159,8 +173,16 @@ export function CompanyProfileTab() {
         {/* ---- Logo ---- */}
         <section className="rounded-lg border border-slate-200 bg-white p-4">
           <h3 className="mb-1 text-sm font-semibold text-slate-900">Company logo</h3>
+          {/*
+            It said "Shown in the sidebar and embedded on payslip PDFs", and
+            neither was true: the sidebar renders a bundled asset and nothing
+            reads `logoKey` outside this screen. Stored-and-not-yet-used is a
+            fine state for it to be in; claiming otherwise sends somebody
+            hunting for a rendering bug that does not exist.
+          */}
           <p className="mb-3 text-xs text-slate-500">
-            Shown in the sidebar and embedded on payslip PDFs. PNG, under 512 KB.
+            PNG, under 512 KB. Stored against the company record — not yet rendered on other
+            screens.
           </p>
 
           <div className="flex items-center gap-4">
@@ -205,8 +227,18 @@ export function CompanyProfileTab() {
       {/* ---- Branding ---- */}
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="mb-1 text-sm font-semibold text-slate-900">Branding</h3>
+        {/*
+          The reference's equivalent card tells the admin "Changes take effect
+          on next page load". They do not — there, or here: the tokens are
+          stored and no stylesheet reads them. The defaults now at least match
+          the palette the app really renders (they were the reference's indigo
+          against our blue), so the swatches describe the running theme even
+          though editing them does not change it yet.
+        */}
         <p className="mb-3 text-xs text-slate-500">
-          Four tokens, and only these four — the server refuses anything else.
+          Four tokens, and only these four — the server refuses anything else. They are recorded
+          for a future themed build; the app does not read them yet, so changing them will not
+          repaint these screens.
         </p>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -242,6 +274,17 @@ export function CompanyProfileTab() {
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </div>
+
+      <ConfirmationDialog
+        isOpen={pendingLogo !== null}
+        onClose={() => setPendingLogo(null)}
+        onConfirm={() => upload(pendingLogo)}
+        loading={uploading}
+        variant="danger"
+        confirmText="Replace logo"
+        title="Replace the company logo?"
+        description="The current logo is overwritten and cannot be recovered. Upload a new PNG only if you have the original to hand."
+      />
     </form>
   );
 }

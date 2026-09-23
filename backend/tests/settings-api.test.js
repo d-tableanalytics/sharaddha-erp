@@ -40,7 +40,7 @@ import { AUDIT_ACTIONS } from '../shared/constants/hrms.js';
 import { HRMS_ROLES as R, HRMS_ROLE_LIST } from '../shared/permissions/constants.js';
 import { decryptField, __resetCrypto } from '../utils/hrms/crypto/index.js';
 import { BRAND_TOKENS } from '../shared/schemas/settings.js';
-import { buildTestApp, stubProtect, withServer, get, post, patch, put } from './helpers/http.js';
+import { buildTestApp, stubProtect, withServer, get, post, patch, put, del } from './helpers/http.js';
 import { startTestMongo, stopTestMongo, syncIndexes, clearCollections } from './helpers/mongo.js';
 
 const S = '/api/v1/hrms/settings';
@@ -520,6 +520,39 @@ test('integration secrets are encrypted at rest', async () => {
   );
 });
 
+test('an ACTIVE integration must carry its non-secret fields; parking it need not', async () => {
+  /*
+   * Nothing was required in either direction, so an empty config saved with
+   * `active: true` and showed a green Active badge for an integration that
+   * could not reach anything. Secrets stay optional on purpose — omitting one
+   * means "keep the stored value", which is what makes editing an integration
+   * without retyping its webhook possible.
+   */
+  const { superAdmin } = await seedRoles();
+  await withServer(appFor(superAdmin.user), async (url) => {
+    // Active + empty: refused, and it names the field that is missing.
+    const empty = await put(url, `${S}/integrations`, { kind: 'slack', config: {}, active: true });
+    assert.equal(empty.status, 400);
+
+    // Active + the non-secret field present, secret omitted: accepted.
+    const ok = await put(url, `${S}/integrations`, {
+      kind: 'slack',
+      config: { defaultChannel: '#people' },
+      active: true,
+    });
+    assert.equal(ok.status, 200);
+
+    // Deactivating is always allowed — that is how a half-finished
+    // integration is parked.
+    const parked = await put(url, `${S}/integrations`, {
+      kind: 'tally',
+      config: {},
+      active: false,
+    });
+    assert.equal(parked.status, 200);
+  });
+});
+
 test('an undeclared config field is refused', async () => {
   // The reference's `config` is `z.record(z.string(), z.any())` — anything at
   // all, written straight into the column.
@@ -555,14 +588,19 @@ test('an empty secret means "leave it alone", not "clear it"', async () => {
 // Roles — read only
 // ===========================================================================
 
-test('the role matrix is the eight CODE-defined roles, with their permissions', async () => {
+test('the role matrix is the eight seeded roles, editable, with their permissions', async () => {
   const { superAdmin } = await seedRoles();
   await withServer(appFor(superAdmin.user), async (url) => {
     const data = envelope(await get(url, `${S}/roles`));
 
-    assert.equal(data.editable, false, 'the screen must say it cannot be edited here');
+    assert.equal(data.editable, true, 'every role is a database row now');
     assert.deepEqual(data.roles.map((r) => r.key).sort(), [...HRMS_ROLE_LIST].sort());
-    assert.equal(data.roles.every((r) => r.isSystem), true);
+    assert.equal(data.roles.every((r) => r.isSystem === false), true);
+    assert.equal(
+      data.roles.filter((r) => r.protected).map((r) => r.key).join(','),
+      R.SUPER_ADMIN,
+      'only the super admin role is protected',
+    );
 
     const admin = data.roles.find((r) => r.key === R.SUPER_ADMIN);
     assert.ok(admin.permissions.length > 0);
@@ -585,16 +623,34 @@ test('the matrix reports how many accounts hold each role', async () => {
   });
 });
 
-test('there is NO role create, update or delete route', async () => {
-  // The reference's builder writes Role/RolePermission rows that its ActorLoader
-  // really does read. Shraddha resolves permissions from the code matrix
-  // (AD-3), so the same screen here would grant nothing — offering it would be
-  // a lie told by the UI. Role MEMBERSHIP is changed at
-  // PATCH /hrms/employees/:id/roles instead.
+test('the role write routes can only ever address a CUSTOM role', async () => {
+  /*
+   * The eight built-in roles are code, not rows (AD-3), so there is no id in
+   * `hrms_roles` that names one - which is what makes "a system role cannot be
+   * edited or deleted" structural here rather than three `isSystem` refusals
+   * the way the reference does it. The write routes exist, and they reach
+   * custom roles only.
+   */
   const { superAdmin } = await seedRoles();
+  const absent = new mongoose.Types.ObjectId().toString();
+
   await withServer(appFor(superAdmin.user), async (url) => {
-    assert.equal((await post(url, `${S}/roles`, { key: 'x', label: 'X' })).status, 404);
-    assert.equal((await patch(url, `${S}/roles/anything`, { label: 'X' })).status, 404);
+    // A built-in key is refused at the DTO, before anything is written.
+    const collide = await post(url, `${S}/roles`, {
+      key: R.HR_ADMIN,
+      label: 'Impostor',
+      permissions: [],
+    });
+    assert.equal(collide.status, 400, 'a built-in key cannot be claimed by a custom role');
+
+    // No custom role has this id, and no built-in role ever will.
+    assert.equal((await patch(url, `${S}/roles/${absent}`, { label: 'X' })).status, 404);
+    assert.equal((await del(url, `${S}/roles/${absent}`)).status, 404);
+
+    // A malformed id is a 400 from the boundary, not a 500 from a CastError.
+    assert.equal((await patch(url, `${S}/roles/not-an-id`, { label: 'X' })).status, 400);
+
+    // PUT was never part of this surface.
     assert.equal((await put(url, `${S}/roles`, { key: 'x' })).status, 404);
   });
 });

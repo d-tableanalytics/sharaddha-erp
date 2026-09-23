@@ -11,6 +11,16 @@ export const ConfirmationDialog = ({
   cancelText = "Cancel",
   loading = false,
   variant = "primary",
+  /**
+   * The action is blocked by something the dialog can already see.
+   *
+   * For when a dependency makes the answer "no" before the request is sent —
+   * a role somebody still holds, a department with employees on it. Leaving
+   * the button live in that case spends a round trip to be told what the
+   * screen already knew. Defaults to false, so every existing caller is
+   * unchanged.
+   */
+  confirmDisabled = false,
 }) => {
   return (
     // While the confirmed action is in flight the dialog can't be dismissed —
@@ -23,7 +33,12 @@ export const ConfirmationDialog = ({
           <Button variant="secondary" onClick={onClose} disabled={loading}>
             {cancelText}
           </Button>
-          <Button variant={variant} onClick={onConfirm} loading={loading}>
+          <Button
+            variant={variant}
+            onClick={onConfirm}
+            loading={loading}
+            disabled={confirmDisabled}
+          >
             {confirmText}
           </Button>
         </div>

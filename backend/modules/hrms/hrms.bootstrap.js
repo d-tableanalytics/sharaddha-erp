@@ -15,9 +15,10 @@
 import { registerRetentionHandler } from './retention/retention.registry.js';
 import { auditRetentionHandler } from './retention/auditRetention.handler.js';
 import { inboxRetentionHandler } from './inbox/inbox.service.js';
-import { setEmployeeResolver } from '../../middlewares/hrmsAuth.js';
+import { setEmployeeResolver, registerResourceResolver } from '../../middlewares/hrmsAuth.js';
 import {
   resolveEmployeeByUser,
+  resourceContextForEmployee,
   describe as describeReferences,
   registerReferenceProvider,
 } from './references/reference.service.js';
@@ -45,6 +46,7 @@ import { resolveOfferLetterAccess } from './onboarding/offerLetter.service.js';
 import { resolveContentAccess } from './academy/content.service.js';
 import { resolveCertificateAccess } from './academy/certificate.service.js';
 import { RETENTION_CATEGORIES, STORAGE_CATEGORIES, AUDIT_ACTIONS } from '../../shared/constants/hrms.js';
+import { seedHrmsRoles } from './rbac/seedRoles.js';
 
 /**
  * Wire up the HRMS foundation.
@@ -52,8 +54,17 @@ import { RETENTION_CATEGORIES, STORAGE_CATEGORIES, AUDIT_ACTIONS } from '../../s
  * Phase 1 registers what Phase 1 owns. Later phases add their own:
  *   attendance  -> the selfie retention handler + its file access rule
  *   payroll     -> payslip and bank-file access rules
+ *
+ * `seedHrmsRoles` runs FIRST, and is why this function is now `async` and
+ * `server.js` awaits it before accepting requests: every HRMS role, the eight
+ * seeded ones included, resolves an actor's permissions from the database now
+ * (see `customRole.service.js`'s file header), so a request arriving before
+ * the seed has run would find no definition for any of them. `seedRoles.js`
+ * carries the detail on why the seed can never overwrite an edit.
  */
-export function bootstrapHrms() {
+export async function bootstrapHrms() {
+  await seedHrmsRoles();
+
   registerRetentionHandler(RETENTION_CATEGORIES.AUDIT_LOG, auditRetentionHandler);
 
   /**
@@ -113,6 +124,35 @@ export function bootstrapHrms() {
       return null;
     }
     return resolveEmployeeByUser(userId);
+  });
+
+  /**
+   * `:id` on the Employee Master routes -> a ResourceContext, so
+   * `requirePermission`'s team/self scope specs (employee.routes.js) evaluate
+   * against the actual row instead of the guard's "no resource" fallback.
+   *
+   * Without this the middleware layer waved every `:id` through for
+   * employees:view:team/self and employees:edit:self - not exploitable today,
+   * because employee.service.js's assertCanView/assertCanEdit independently
+   * re-derive and re-check the same resource before returning or writing any
+   * row (its own "second line of defence" comment says so explicitly), but the
+   * route guard itself was decorative rather than enforcing. Registered here,
+   * the same place `setEmployeeResolver` is, rather than inside
+   * middlewares/hrmsAuth.js, which is one of the 16 files shared byte-for-byte
+   * with the sibling Customer Portal repo.
+   *
+   * Goes through `resourceContextForEmployee` rather than deriving the context
+   * here: that helper exists precisely so self/team/department are always
+   * derived the same way, and its own comment names assembling one by hand as
+   * how a scope check quietly starts passing for the wrong person.
+   */
+  registerResourceResolver('id', async (id) => {
+    // Same guard as the actor lookup above, and for the same reason: with no
+    // provider `resolveEmployee` throws, and requirePermission resolves every
+    // resourceParam before evaluating any spec - so throwing here would 503 a
+    // route even for an org-scoped actor who needs no resource at all.
+    if (!describeReferences().employee) return undefined;
+    return resourceContextForEmployee(id);
   });
 
   /**

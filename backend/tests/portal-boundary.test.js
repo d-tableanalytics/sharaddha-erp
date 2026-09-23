@@ -113,7 +113,24 @@ describe('customer vs internal user management', () => {
     // ...and must NOT reach Internal User Management, which is the escalation
     // path: a salesperson who could create staff could create an Admin.
     assert.ok(!users.actions.create.includes('manage_customer_users'));
-    assert.deepEqual(users.actions.create, ['manage_users']);
+
+    /*
+     * Internal user creation has its OWN key, and it is not a key any
+     * customer-facing grant carries.
+     *
+     * This used to assert the literal `['manage_users']`. That key now opens
+     * the screen and no longer authorises the writes on it - all four actions
+     * shared it, so a View grant compiled to the key the POST route demanded.
+     * What the test is really about is that NOTHING reachable from customer
+     * management admits you here, so that is what it checks.
+     */
+    assert.deepEqual(users.actions.create, ['create_users']);
+    for (const key of customers.actions.create) {
+      assert.ok(
+        !users.actions.create.includes(key),
+        `${key} reaches customer creation and must not also reach staff creation`,
+      );
+    }
   });
 
   test('the role matrix is editable in exactly one domain', () => {

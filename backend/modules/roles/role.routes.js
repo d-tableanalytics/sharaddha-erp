@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getRoles,
   getRegistry,
+  getHrmsRoles,
   createRole,
   updateRole,
   updateRolePermissions,
@@ -9,7 +10,7 @@ import {
   getMyAccess,
 } from './role.controller.js';
 import { protect } from '../../middlewares/auth.js';
-import { authorize, PERMISSIONS } from '../../middlewares/rbac.js';
+import { authorize, authorizeModule, PERMISSIONS } from '../../middlewares/rbac.js';
 import { auditLogger } from '../../middlewares/auditLogger.js';
 import { requirePortalModule } from '../../middlewares/portalGuard.js';
 
@@ -54,16 +55,34 @@ router.get('/my-access', getMyAccess);
 router.use(requirePortalModule('administration', 'roles'));
 router.use(authorize(PERMISSIONS.MANAGE_ROLES));
 
+/*
+ * `manage_roles` opened the screen AND authorised every write on it, because
+ * all four actions on this sub-module resolved to that one key. Reading the
+ * permission matrix and rewriting it are not the same authority - the matrix is
+ * where every other permission in the product is decided - so each write now
+ * names its own cell.
+ */
+const canCreate = authorizeModule('administration', 'roles', 'create');
+const canEdit = authorizeModule('administration', 'roles', 'edit');
+const canDelete = authorizeModule('administration', 'roles', 'delete');
+
 router.get('/', getRoles);
 
 // Static path, declared before any ':id' route would shadow it.
 router.get('/registry', getRegistry);
 
-router.post('/', auditLogger('Create Role'), createRole);
-router.patch('/:id', auditLogger('Update Role'), updateRole);
-router.delete('/:id', auditLogger('Delete Role'), deleteRole);
+/**
+ * The eight HRMS roles, read-only — see the handler for why this calls the
+ * same function the HRMS settings screen uses rather than a second
+ * implementation. Static path, same reason as '/registry' above.
+ */
+router.get('/hrms', getHrmsRoles);
+
+router.post('/', canCreate, auditLogger('Create Role'), createRole);
+router.patch('/:id', canEdit, auditLogger('Update Role'), updateRole);
+router.delete('/:id', canDelete, auditLogger('Delete Role'), deleteRole);
 
 // Legacy flat-permission endpoint. Still served - see the note on the handler.
-router.put('/:id/permissions', auditLogger('Update Role Permissions'), updateRolePermissions);
+router.put('/:id/permissions', canEdit, auditLogger('Update Role Permissions'), updateRolePermissions);
 
 export default router;

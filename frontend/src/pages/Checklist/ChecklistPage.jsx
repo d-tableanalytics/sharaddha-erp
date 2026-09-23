@@ -14,7 +14,8 @@ import { isAdmin as checkIsAdmin, isSuperAdmin } from '../../utils/permissions';
 import { checklistApi } from '../../services/checklist';
 import toast from 'react-hot-toast';
 
-import { TasksTable } from './TasksTable';
+import { TasksTable, isO2dMirror } from './TasksTable';
+import { CompleteStageModal } from '../O2d/CompleteStageModal';
 import { RoutinesTable } from './RoutinesTable';
 import { DepartmentScoreboard } from './DepartmentScoreboard';
 import { KpiDrilldownDrawer } from './KpiDrilldownDrawer';
@@ -44,6 +45,8 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/Button';
+import { StatTile } from '../../components/workqueue/StatTile';
+import { usePermissions } from '../../hooks/usePermissions';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,11 +60,11 @@ const isManager = (user) =>
 // ── KPI Tile Config ──────────────────────────────────────────────────────────
 
 const KPI_TILES = [
-  { key: 'total',          label: 'Total',          icon: ClipboardList, accent: 'bg-slate-400', textColor: 'text-slate-900' },
-  { key: 'pendingToday',   label: 'Pending Today',  icon: Clock,         accent: 'bg-primary-500',  textColor: 'text-primary-600' },
-  { key: 'overdue',        label: 'Overdue',        icon: AlertTriangle, accent: 'bg-error-500',   textColor: 'text-error-600' },
-  { key: 'completed',      label: 'Completed',      icon: CheckCircle2,  accent: 'bg-success-500', textColor: 'text-success-600' },
-  { key: 'complianceRate', label: 'Compliance',     icon: TrendingUp,    accent: 'bg-primary-500', textColor: 'text-primary-600' },
+  { key: 'total',          label: 'Total',         icon: ClipboardList, tone: 'neutral' },
+  { key: 'pendingToday',   label: 'Pending Today', icon: Clock,         tone: 'warning' },
+  { key: 'overdue',        label: 'Overdue',       icon: AlertTriangle, tone: 'danger'  },
+  { key: 'completed',      label: 'Completed',     icon: CheckCircle2,  tone: 'success' },
+  { key: 'complianceRate', label: 'Compliance',    icon: TrendingUp,    tone: 'primary' },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -70,7 +73,33 @@ const KPI_TILES = [
 
 export function ChecklistPage() {
   const user = useUserStore((s) => s.user);
+
+  /**
+   * `admin` AND THE CELLS ANSWER DIFFERENT QUESTIONS. BOTH ARE NEEDED.
+   *
+   * `admin` is `isManager(user)` - a ROLE test - and what it actually decides
+   * here is SCOPE: whose occurrences this screen lists, whether the Routines and
+   * Departments tabs exist, whether the department and doer filters appear. The
+   * server makes the same distinction independently in its own isManager
+   * checks, so the two agree about what data comes back.
+   *
+   * What `admin` was ALSO doing, and should not have been, is deciding who may
+   * act. Every button below - new checklist, complete, reassign, remark, stop a
+   * routine - was either ungated or gated on that role test, which meant a
+   * manager granted the checklist read-only could still stop a routine, and a
+   * non-manager granted full checklist rights could not add a remark.
+   *
+   * So actions ask the matrix now, and `admin` keeps the scope question it was
+   * always really answering.
+   */
   const admin = isManager(user);
+
+  const { can } = usePermissions();
+  const canCreate = can('work_queue', 'checklist', 'create');
+  const canEdit = can('work_queue', 'checklist', 'edit');
+  const canStopRoutine = can('work_queue', 'checklist', 'delete');
+  const canComplete = can('work_queue', 'checklist', 'approve');
+  const canReassign = can('work_queue', 'assignment', 'edit');
 
   // ── Data state ───────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState([]);
@@ -335,52 +364,48 @@ export function ChecklistPage() {
 
 
           {/* New checklist CTA */}
-          <Button size="sm" onClick={() => setCreateDrawer(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            {admin ? 'New Checklist' : 'Add Task'}
-          </Button>
+          {canCreate && (
+            <Button size="sm" onClick={() => setCreateDrawer(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              {admin ? 'New Checklist' : 'Add Task'}
+            </Button>
+          )}
           </>
         }
       />
 
       {/* ── 2. KPI Stat Tiles ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/*
+        The HR Dashboard's Quick Access tile, carrying a count: same shell, same
+        40px toned chip, same label type, same `gap-3` grid. `StatTile` is that
+        component, shared with the other four Work Queue screens.
+
+        Compliance is a READ-OUT, not a filter — there is no list of "rate" rows
+        to drill into — so it gets no onClick and StatTile renders it inert.
+      */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {KPI_TILES.map((tile) => {
+          const drillable = tile.key !== 'complianceRate';
           const value = tile.key === 'complianceRate'
             ? `${summary[tile.key] || 0}%`
             : (summary[tile.key] ?? 0);
-          const isActive = activeKpi === tile.key;
 
           return (
-            <div
+            <StatTile
               key={tile.key}
-              onClick={() => tile.key !== 'complianceRate' && handleKpiClick(tile.key)}
-              className={`p-3.5 rounded-xl border bg-white transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group ${
-                isActive ? 'border-primary-600 ring-2 ring-primary-500/10' : 'border-slate-200 hover:border-primary-600'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
-                  {tile.label}
-                </span>
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${tile.accent}`} />
-              </div>
-
-              <div className="flex items-baseline justify-between mt-1">
-                <span className={`text-2xl font-semibold ${tile.textColor}`}>{value}</span>
-                {tile.key !== 'complianceRate' && (
-                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-                    {isActive ? 'Showing' : 'View →'}
-                  </span>
-                )}
-              </div>
-
-              {tile.key === 'pendingToday' && summary.carriedOver > 0 && (
-                <p className="text-[10px] font-bold text-slate-400 mt-1">
-                  {summary.carriedOver} carried over
-                </p>
-              )}
-            </div>
+              icon={tile.icon}
+              tone={tile.tone}
+              label={tile.label}
+              value={value}
+              active={activeKpi === tile.key}
+              note={
+                tile.key === 'pendingToday' && summary.carriedOver > 0
+                  ? `${summary.carriedOver} carried over`
+                  : undefined
+              }
+              title={drillable ? `Show ${tile.label.toLowerCase()}` : undefined}
+              onClick={drillable ? () => handleKpiClick(tile.key) : undefined}
+            />
           );
         })}
       </div>
@@ -555,7 +580,7 @@ export function ChecklistPage() {
       </div>
 
       {/* ── 4. Bulk Action Bar ───────────────────────────────────────── */}
-      {admin && selectedIds.length > 0 && (
+      {admin && canEdit && selectedIds.length > 0 && (
         <div className="flex items-center justify-between px-5 py-3 bg-primary-600 text-white rounded-xl shadow-enterprise-lg animate-in slide-in-from-top-2 duration-200">
           <span className="text-xs font-bold">{selectedIds.length} tasks selected</span>
           <div className="flex items-center gap-2">
@@ -579,6 +604,12 @@ export function ChecklistPage() {
       )}
 
       {/* ── 5. Content Area ──────────────────────────────────────────── */}
+      {/*
+        The four handlers below are WITHHELD rather than gated inside the row:
+        TasksTable renders each control only when it is handed a handler, so a
+        viewer's rows come back without the control rather than with one that
+        403s on click.
+      */}
       {view === 'tasks' && (
         <TasksTable
           tasks={tasks}
@@ -587,13 +618,13 @@ export function ChecklistPage() {
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleSelectAll={toggleSelectAll}
-          onComplete={(task) => setCompleteModal(task)}
-          onRemark={(task) => setRemarkModal([task._id])}
-          onReassign={(task) => setReassignModal(task)}
-          onNonFunctional={(task) => setNonFuncModal(task)}
+          onComplete={canComplete ? (task) => setCompleteModal(task) : undefined}
+          onRemark={canEdit ? (task) => setRemarkModal([task._id]) : undefined}
+          onReassign={canReassign ? (task) => setReassignModal(task) : undefined}
+          onNonFunctional={canComplete ? (task) => setNonFuncModal(task) : undefined}
           hasFilters={hasFilters}
           onClearFilters={clearFilters}
-          onCreateNew={() => setCreateDrawer(true)}
+          onCreateNew={canCreate ? () => setCreateDrawer(true) : undefined}
         />
       )}
 
@@ -601,8 +632,8 @@ export function ChecklistPage() {
         <RoutinesTable
           routines={routines}
           loading={loading}
-          onEdit={(routine) => setEditModal(routine)}
-          onStop={handleStopRoutine}
+          onEdit={canEdit ? (routine) => setEditModal(routine) : undefined}
+          onStop={canStopRoutine ? handleStopRoutine : undefined}
         />
       )}
 
@@ -622,7 +653,31 @@ export function ChecklistPage() {
       )}
 
       {/* ── 7. Modals & Drawers ──────────────────────────────────────── */}
-      {completeModal && (
+      {/*
+        A MIRRORED O2D task gets the ORDER's completion form, not this one.
+
+        Stage 8 will not close without an invoice number, stage 9 without an AWB
+        and a box count. The ordinary Checklist form has nowhere to type those,
+        so completing a mirror through it could only ever end in the server
+        refusing for a field the screen never asked for. `CompleteStageModal`
+        renders whatever that stage's specification declares — the same form
+        Order Tracker shows, built from the same spec the server validates
+        against — and completes through the O2D route, whose own hook then marks
+        this occurrence done. One form, one completion, two places to reach it.
+      */}
+      {completeModal && isO2dMirror(completeModal) && (
+        <CompleteStageModal
+          order={{ _id: completeModal.sourceOrderId }}
+          stage={{
+            stageNumber: completeModal.sourceStageNumber,
+            stageName: completeModal.taskName,
+          }}
+          onClose={() => setCompleteModal(null)}
+          onCompleted={handleSuccess}
+        />
+      )}
+
+      {completeModal && !isO2dMirror(completeModal) && (
         <CompleteChecklistModal
           isOpen={!!completeModal}
           onClose={() => setCompleteModal(null)}

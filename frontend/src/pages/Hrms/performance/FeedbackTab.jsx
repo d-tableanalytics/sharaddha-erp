@@ -16,6 +16,12 @@ import {
 } from "../../../services/hrms/performance";
 import { giveFeedbackSchema } from "@shared/schemas/performance.js";
 import { FEEDBACK_KINDS, FEEDBACK_KIND_LABELS } from "@shared/constants/performance.js";
+import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
+import {
+  HRMS_MODULES as M,
+  HRMS_ACTIONS as A,
+  SCOPES as S,
+} from "@shared/permissions/constants.js";
 
 const CELL = "px-4 py-2.5 align-top";
 const HEAD = "px-4 py-2.5";
@@ -43,6 +49,13 @@ const VISIBILITY_OPTIONS = [
  * exactly what that does and does not hide.
  */
 export function FeedbackTab() {
+  const { can } = useHrmsPermissions();
+  // POST /feedback shares `canSubmit` with POST /goals: `submit:self` OR
+  // `approve:org`. Every role but the read-only auditor holds `submit:self`
+  // via the baseline, so this is a no-op except for the one role it exists
+  // to protect from a button that can only 403.
+  const canGive = can(M.PERFORMANCE, A.SUBMIT, S.SELF) || can(M.PERFORMANCE, A.APPROVE, S.ORG);
+
   const [sub, setSub] = useState("received");
   const [giving, setGiving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -59,10 +72,12 @@ export function FeedbackTab() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <TabNav tabs={tabs} activeKey={sub} onChange={setSub} className="flex-1" />
-        <Button size="sm" variant="primary" onClick={() => setGiving(true)}>
-          <Plus size={14} className="mr-1.5" />
-          Give feedback
-        </Button>
+        {canGive && (
+          <Button size="sm" variant="primary" onClick={() => setGiving(true)}>
+            <Plus size={14} className="mr-1.5" />
+            Give feedback
+          </Button>
+        )}
       </div>
 
       <FeedbackList key={`${sub}-${reloadKey}`} direction={sub} />

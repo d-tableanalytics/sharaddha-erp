@@ -38,6 +38,11 @@ import {
   upsertSsoConfigSchema,
   upsertIntegrationConfigSchema,
 } from '../../../shared/schemas/settings.js';
+import {
+  createRoleSchema,
+  updateRoleSchema,
+  objectIdParamSchema,
+} from '../../../shared/schemas/role.js';
 import { uploadLogoFile, handleLogoUploadErrors } from './logoUpload.js';
 import * as controller from './settings.controller.js';
 
@@ -90,19 +95,45 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
-// Roles and permissions — READ ONLY
+// Roles and permissions
 //
-// There is no POST, PATCH or DELETE here, and that is the point. The reference
-// offers a custom-role builder whose checkboxes really do change authorization,
-// because its ActorLoader reads permissions from Role/RolePermission tables.
-// Shraddha's matrix is code-defined (AD-3) and every module resolves against
-// it, so the same screen here would be 532 controls that grant nothing.
+// The GET returns BOTH kinds of role: the eight built-in ones, which are
+// code-defined (AD-3), carry `isSystem: true` and have no write route here at
+// all — and any CUSTOM roles, which are rows in `hrms_roles` and whose grants
+// really are enforced, because rbac/customRole.middleware.js unions them onto
+// the actor the guards read.
 //
-// Role MEMBERSHIP is changed where it already can be:
+// So the three writes below can only ever address a custom role. "A system
+// role cannot be edited or deleted" needs no check on these routes: a built-in
+// role has no id in that collection to address. The reference needs three
+// explicit `isSystem` refusals for the same guarantee.
+//
+// Role MEMBERSHIP is still changed where it already was:
 // PATCH /hrms/employees/:id/roles, which enforces AD-4's Customer exclusion.
 // ---------------------------------------------------------------------------
 
 router.get('/roles', canView, controller.getRoles);
+
+router.post(
+  '/roles',
+  canEdit,
+  validate({ body: createRoleSchema }),
+  controller.createRole,
+);
+
+router.patch(
+  '/roles/:id',
+  canEdit,
+  validate({ params: objectIdParamSchema, body: updateRoleSchema }),
+  controller.updateRole,
+);
+
+router.delete(
+  '/roles/:id',
+  canEdit,
+  validate({ params: objectIdParamSchema }),
+  controller.deleteRole,
+);
 
 // ---------------------------------------------------------------------------
 // SSO and integrations

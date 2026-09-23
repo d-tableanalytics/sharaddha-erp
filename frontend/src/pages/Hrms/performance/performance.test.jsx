@@ -409,6 +409,56 @@ describe("goals", () => {
       expect(post.data).toEqual({ title: "Reduce build time", weight: 1 });
     });
   });
+
+  it("🔴 hides New goal from a role with no submit:self — POST would 403", async () => {
+    // The auditor is the one HRMS role with no SELF_BASELINE: it holds
+    // performance:view:org but neither submit:self nor approve:org, so the
+    // server's `canSubmit` guard refuses it. Before this fix the button
+    // rendered for every role reaching this tab regardless.
+    signIn([R.AUDITOR]);
+    at("/hrms/performance/goals");
+
+    await screen.findByText("Ship the P6 modules");
+    expect(screen.queryByRole("button", { name: /New goal/ })).toBeNull();
+  });
+
+  it("🔴 hides row controls on a goal that isn't the viewer's own, for a non-admin", async () => {
+    // deleteGoal / updateGoal both require being the goal's owner or an
+    // approve:org holder. A manager with only view:team could reach this list
+    // (a wider grant satisfying `canViewSelf`) and see a report's goal, whose
+    // row controls must not be offered.
+    signIn([R.MANAGER]);
+    installTransport({
+      "GET /hrms/performance/goals": () =>
+        envelope({ ...GOALS, data: [goal({ employeeId: "someone-else" })] }),
+    });
+    at("/hrms/performance/goals");
+
+    const row = (await screen.findByText("Ship the P6 modules")).closest("tr");
+    expect(within(row).queryByRole("button", { name: /Delete/ })).toBeNull();
+    expect(within(row).queryByText("Set status")).toBeNull();
+  });
+
+  it("still offers row controls on the viewer's OWN goal", async () => {
+    signIn([R.EMPLOYEE]); // employeeId "e1", matching the fixture goal
+    at("/hrms/performance/goals");
+
+    const row = (await screen.findByText("Ship the P6 modules")).closest("tr");
+    expect(within(row).getByRole("button", { name: /Delete Ship the P6 modules/ })).toBeTruthy();
+  });
+
+  it("an HR admin (approve:org) sees every row's controls regardless of owner", async () => {
+    signIn([R.HR_ADMIN]);
+    installTransport({
+      "GET /hrms/performance/goals": () =>
+        envelope({ ...GOALS, data: [goal({ employeeId: "someone-else" })] }),
+    });
+    at("/hrms/performance/goals");
+
+    const row = (await screen.findByText("Ship the P6 modules")).closest("tr");
+    expect(within(row).getByRole("button", { name: /Delete/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /New goal/ })).toBeTruthy();
+  });
 });
 
 // ===========================================================================
@@ -598,6 +648,16 @@ describe("feedback", () => {
         tags: ["ownership", "clarity"],
       });
     });
+  });
+
+  it("🔴 hides Give feedback from a role with no submit:self — POST would 403", async () => {
+    // Same server rule as goal creation: POST /feedback requires
+    // submit:self or approve:org, which the auditor role holds neither of.
+    signIn([R.AUDITOR]);
+    at("/hrms/performance/feedback");
+
+    await screen.findByText("Anonymous");
+    expect(screen.queryByRole("button", { name: /Give feedback/ })).toBeNull();
   });
 });
 

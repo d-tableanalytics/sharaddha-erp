@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   ChevronUp,
@@ -21,6 +21,12 @@ import { Select } from "../../../components/ui/Select";
 import { Textarea } from "../../../components/ui/Textarea";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
+import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
+import {
+  HRMS_MODULES as M,
+  HRMS_ACTIONS as A,
+  SCOPES as S,
+} from "@shared/permissions/constants.js";
 import { HRMS_ROUTE_PREFIX } from "@shared/constants/hrms.js";
 import { DEFAULT_VIDEO_COMPLETION_PERCENT } from "@shared/constants/academy.js";
 import {
@@ -53,6 +59,27 @@ const LESSON_ICONS = { video: Film, pdf: FileText, document: FileText, quiz: Cli
 export function PathBuilderPage() {
   const { pathId } = useParams();
   const navigate = useNavigate();
+
+  /**
+   * ADMIN ONLY, AND NOT ENFORCED UNTIL NOW.
+   *
+   * `HrmsProtectedRoute module="academy"` — the guard on the ROUTE this page
+   * sits behind — asks only "does this account use Academy at all", because
+   * `learn/:assignmentId` beside it is a LEARNER'S OWN path and almost every
+   * academy user reaches that one, not this one. This is the course builder:
+   * add a course, add or remove a lesson, reorder either. Every one of those
+   * writes already demanded `canManage` on the server (see
+   * modules/hrms/academy/academy.routes.js) — what was missing is that the
+   * PAGE offered them to anyone who could navigate here, which is any
+   * employee holding academy self-service. The buttons rendered, and every
+   * click 403'd.
+   *
+   * Same rule AcademyPage's own Content Library tab uses — `can(ACADEMY,
+   * EDIT, ORG)` — so a learner who guesses or is linked this URL is bounced
+   * exactly where the tab strip would have sent them.
+   */
+  const { can } = useHrmsPermissions();
+  const canManage = can(M.ACADEMY, A.EDIT, S.ORG);
 
   const [path, setPath] = useState(undefined);
   const [error, setError] = useState(null);
@@ -169,6 +196,10 @@ export function PathBuilderPage() {
    */
   const target =
     (path?.courses ?? []).find((c) => c.id === targetCourseId) ?? path?.courses?.[0] ?? null;
+
+  if (!canManage) {
+    return <Navigate to={`${HRMS_ROUTE_PREFIX}/academy/catalogue`} replace />;
+  }
 
   return (
     <HrmsPageLayout

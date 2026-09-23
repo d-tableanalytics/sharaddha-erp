@@ -20,6 +20,7 @@ import { api } from "../../../services/api";
 import { AcademyPage } from "./AcademyPage";
 import { LessonPlayerPage } from "./LessonPlayerPage";
 import { LearningPathPage } from "./LearningPathPage";
+import { PathBuilderPage } from "./PathBuilderPage";
 import { useHrmsStore } from "../../../store/hrmsStore";
 import { buildHrmsActor } from "@shared/permissions/has-permission.js";
 import { HRMS_ROLES as R, HRMS_MODULES as M } from "@shared/permissions/constants.js";
@@ -293,6 +294,7 @@ const at = (path) =>
       <Routes>
         <Route path="/hrms/academy/:tab" element={<AcademyPage />} />
         <Route path="/hrms/academy/learn/:assignmentId/lesson/:lessonId" element={<LessonPlayerPage />} />
+        <Route path="/hrms/academy/paths/:pathId" element={<PathBuilderPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -1222,5 +1224,47 @@ describe("the dashboard panels", () => {
     expect(event.textContent).toBe("Rohit Mehta failed Product Quiz");
     expect(meta.textContent).toContain("Attempt 1");
     expect(meta.textContent).toContain("40%");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The course builder is admin-only, not just "any academy user"
+// ---------------------------------------------------------------------------
+
+describe("PathBuilderPage — reachable by URL, but not by everyone", () => {
+  const PATH_ID = "652f0000000000000000c001";
+
+  const testPath = {
+    id: PATH_ID,
+    name: "Compliance Refresher",
+    sequential: false,
+    assignedCount: 0,
+    courses: [],
+  };
+
+  it("bounces a plain employee back to the catalogue instead of rendering the editor", async () => {
+    installTransport({
+      [`GET /hrms/academy/paths/${PATH_ID}`]: () => envelope(testPath),
+    });
+    // An ordinary employee: SELF_BASELINE only, no ACADEMY EDIT ORG.
+    signIn([R.EMPLOYEE]);
+
+    at(`/hrms/academy/paths/${PATH_ID}`);
+
+    // Redirected, not merely hiding a button — the route itself refuses.
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Add course/i })).toBeNull();
+    });
+  });
+
+  it("an HR admin (ACADEMY EDIT ORG) reaches the real editor", async () => {
+    installTransport({
+      [`GET /hrms/academy/paths/${PATH_ID}`]: () => envelope(testPath),
+    });
+    signIn([R.HR_ADMIN]);
+
+    at(`/hrms/academy/paths/${PATH_ID}`);
+
+    expect(await screen.findByRole("button", { name: /Add course/i })).toBeTruthy();
   });
 });

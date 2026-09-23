@@ -10,9 +10,12 @@
  * who reaches these routes has that permission.
  */
 
-import { ChecklistRoutine, ChecklistOccurrence } from '../../models/Checklist.js';
+import {
+  ChecklistRoutine, ChecklistOccurrence, OCCURRENCE_REASSIGNED_AWAY,
+} from '../../models/Checklist.js';
 import User from '../../models/User.js';
 import { isSuperAdmin } from '../../middlewares/rbac.js';
+import { completeMirroredTask } from '../o2d/o2dDelegationSync.service.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +23,26 @@ const ADMIN_ROLES = ['Super Admin', 'Admin', 'Management', 'HR'];
 
 const isManager = (user) =>
   isSuperAdmin(user) || ADMIN_ROLES.includes(user?.role);
+
+/**
+ * Is this row a mirror of an O2D stage rather than a checklist item of its own?
+ *
+ * A mirror is a VIEW of work that lives somewhere else. It shows up here so the
+ * assignee sees everything they owe in one place — not so this screen can
+ * decide the work's fate. Completion is forwarded to the real stage; the other
+ * lifecycle verbs below are refused outright, because there is no way to honour
+ * them here that leaves the two sides agreeing.
+ */
+const isO2dMirror = (row) => row?.sourceType === 'o2d_stage';
+
+/** Refuse an edit that only Order Tracker can make, and say where to make it. */
+const refuseMirrorEdit = (res, what) =>
+  res.status(400).json({
+    success: false,
+    message: `This task mirrors an O2D stage, so it cannot be ${what} here. `
+      + 'Open the order in Order Tracker — the change will flow back to this list.',
+    code: 'O2D_MIRROR_READ_ONLY',
+  });
 
 const startOfDay = (d) => {
   const dt = new Date(d);
@@ -83,6 +106,22 @@ function buildOccurrenceFilter(query, user) {
     filter.doer = query.doer;
   }
 
+  /**
+   * A PERSONAL list drops an occurrence whose O2D order is parked.
+   *
+   * O2D's own My Tasks already stops showing the stage the moment its order
+   * goes on hold or is cancelled, so a mirror left live here would have the
+   * two screens disagreeing about what this person owes today — which is the
+   * one thing the mirror exists to make impossible.
+   *
+   * Only when the list is scoped to a doer. An unscoped manager view is a
+   * compliance surface, and silently dropping rows from a compliance count is
+   * how a report starts under-reporting. `null` matches a MISSING field, so
+   * manual occurrences and everything written before this flag existed are
+   * untouched.
+   */
+  if (filter.doer && query.includeHeld !== 'true') filter.heldAt = null;
+
   // Status
   const now = new Date();
   if (query.status === 'overdue') {
@@ -110,6 +149,26 @@ function buildOccurrenceFilter(query, user) {
     if (query.toDate) {
       filter.plannedDate = { ...filter.plannedDate, $lte: endOfDay(query.toDate) };
     }
+  }
+
+  /**
+   * And a row this doer no longer owns never appears as their work.
+   *
+   * Applied to EVERY list, not only the doer-scoped ones: a reassigned-away
+   * occurrence is the historical shadow of a task that is live somewhere else
+   * on the same screen, so leaving it in a manager's unscoped list would show
+   * one piece of work twice, once under each person. The trail is on the row
+   * itself — `reassigned`, `reassignedTo`, `reassignedBy` and the remark — and
+   * `?includeHeld=true` brings the parked and handed-away rows back for anybody
+   * who needs them.
+   *
+   * LAST, and through `$and` rather than `filter.status`, because every branch
+   * above is free to assign `filter.status` or `filter.$or` outright. Written
+   * as a plain field it would be silently overwritten by `?status=pending`,
+   * which is exactly the sort of filter that looks applied and is not.
+   */
+  if (query.includeHeld !== 'true') {
+    filter.$and = [...(filter.$and ?? []), { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } }];
   }
 
   return filter;
@@ -170,9 +229,16 @@ export async function getTasks(req, res, next) {
  */
 export async function getSummary(req, res, next) {
   try {
-    const baseFilter = {};
+    const baseFilter = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
     if (req.query.site) baseFilter.site = req.query.site;
     if (!isManager(req.user)) baseFilter.doer = req.user._id;
+    // The tiles sit directly above the list, and must count exactly what the
+    // list shows — `buildOccurrenceFilter` drops a parked mirror from a
+    // personal view, so a tile that still counted it would read "5 pending"
+    // over four rows. A handed-away row is excluded above for the same reason,
+    // and additionally because `total` is the compliance DENOMINATOR: counting
+    // work somebody no longer owns drags their rate down for a hand-off.
+    if (baseFilter.doer) baseFilter.heldAt = null;
 
     const now = new Date();
     const todayStart = startOfDay(now);
@@ -262,7 +328,9 @@ export async function getDepartmentReport(req, res, next) {
       return res.status(403).json({ success: false, message: 'Only managers can view department scoreboards.' });
     }
 
-    const matchFilter = {};
+    // A handed-away row is not this doer's `total` and not their `completed`.
+    // It is the other person's row now, and they have their own.
+    const matchFilter = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
     if (req.query.site) matchFilter.site = req.query.site;
 
     const now = new Date();
@@ -426,6 +494,11 @@ export async function updateRoutine(req, res, next) {
     const routine = await ChecklistRoutine.findById(req.params.id);
     if (!routine) return res.status(404).json({ success: false, message: 'Routine not found.' });
 
+    // Every editable field below — the name, the doer, the dates — is one the
+    // stage owns and re-writes on its next sync. Accepting the edit would look
+    // like it worked until the stage moved and silently undid it.
+    if (isO2dMirror(routine)) return refuseMirrorEdit(res, 'edited');
+
     const allowed = ['taskName', 'frequency', 'doer', 'department', 'site', 'startDate', 'endDate', 'proofRequired'];
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) routine[key] = req.body[key];
@@ -456,12 +529,18 @@ export async function stopRoutine(req, res, next) {
       return res.status(403).json({ success: false, message: 'Only managers can stop routines.' });
     }
 
+    const existing = await ChecklistRoutine.findById(req.params.id).select('sourceType').lean();
+    if (!existing) return res.status(404).json({ success: false, message: 'Routine not found.' });
+
+    // Stopping the routine would not stop the WORK — the stage stays open and
+    // the occurrence stays on the assignee's list. Unassign the stage instead.
+    if (isO2dMirror(existing)) return refuseMirrorEdit(res, 'stopped');
+
     const routine = await ChecklistRoutine.findByIdAndUpdate(
       req.params.id,
       { isActive: false },
       { new: true },
     );
-    if (!routine) return res.status(404).json({ success: false, message: 'Routine not found.' });
     res.json({ success: true, data: routine });
   } catch (err) {
     next(err);
@@ -482,6 +561,45 @@ export async function completeTask(req, res, next) {
     }
 
     if (task.status === 'completed') return res.status(400).json({ success: false, message: 'Task already completed.' });
+
+    /**
+     * A MIRRORED task is completed by completing the STAGE, never by writing
+     * 'completed' here.
+     *
+     * `completeStage` runs the ordering checks, the required-evidence rules and
+     * the SLA math, and its own hook then updates THIS SAME document (see
+     * `markChecklistMirrorDone`). Setting the status directly would let a stage
+     * that O2D would have refused — a missing invoice number, an unfinished
+     * predecessor — read as done on one screen and open on the other.
+     *
+     * Any proof file the user attached is kept afterwards, once the completion
+     * has actually been accepted. It is extra, not the gate: the stage's own
+     * required fields are the gate, which is why the mirror is created with
+     * `proofRequired: false`.
+     */
+    if (isO2dMirror(task)) {
+      await completeMirroredTask(task, {
+        actor: req.user,
+        evidence: req.body.evidence ?? null,
+        remarks: req.body.remarks ?? null,
+        req,
+      });
+
+      if (req.body.proofUrl) {
+        await ChecklistOccurrence.updateOne(
+          { _id: task._id },
+          {
+            $set: {
+              proofUrl: req.body.proofUrl,
+              ...(req.body.proofFileName ? { proofFileName: req.body.proofFileName } : {}),
+            },
+          },
+        );
+      }
+
+      const refreshed = await ChecklistOccurrence.findById(task._id);
+      return res.json({ success: true, data: refreshed });
+    }
 
     if (task.proofRequired && !req.body.proofUrl) {
       return res.status(400).json({ success: false, message: 'Proof document URL is required to complete this task.' });
@@ -514,6 +632,14 @@ export async function markNonFunctional(req, res, next) {
       return res.status(403).json({ success: false, message: 'Not authorized to modify this task.' });
     }
 
+    /**
+     * "Not needed" on a mirrored task is an O2D SKIP, and skipping a stage is
+     * a decision O2D guards with its own authority check and a mandatory
+     * reason (§7). Closing the mirror here would leave the real stage sitting
+     * open forever with nobody looking at it.
+     */
+    if (isO2dMirror(task)) return refuseMirrorEdit(res, 'marked non-functional');
+
     task.status = 'non-functional';
     task.nonFunctionalReason = req.body.reason || '';
     await task.save();
@@ -536,6 +662,14 @@ export async function reassignTask(req, res, next) {
 
     const task = await ChecklistOccurrence.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
+
+    /**
+     * Reassigning here would move the doer on the mirror while the stage still
+     * named the old person — and `stage.assignedTo` is what decides who may
+     * actually complete it. The new doer would be looking at a task they are
+     * not permitted to finish. Order Tracker's own assign control moves both.
+     */
+    if (isO2dMirror(task)) return refuseMirrorEdit(res, 'reassigned');
 
     const newDoer = await User.findById(req.body.newDoer).select('user email').lean();
     if (!newDoer) return res.status(400).json({ success: false, message: 'New doer not found.' });
@@ -591,7 +725,9 @@ export async function addRemark(req, res, next) {
 export async function drilldown(req, res, next) {
   try {
     const { kpi, site } = req.query;
-    const filter = {};
+    // Drill-down opens the rows BEHIND a tile, so it has to exclude exactly
+    // what the tile excluded or the list will not add up to the number clicked.
+    const filter = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
     if (site) filter.site = site;
     if (!isManager(req.user)) filter.doer = req.user._id;
 

@@ -17,6 +17,14 @@ const fmtDate = (d) => {
   return `${day} ${months[dt.getMonth()]} ${dt.getFullYear()}`;
 };
 
+/**
+ * Recurring checklist definitions.
+ *
+ * `onEdit` and `onStop` arrive undefined when the actor may not edit or stop a
+ * routine - ChecklistPage decides, this renders. Stopping is separately
+ * grantable from editing because it ends every future occurrence, which is the
+ * destructive end of the module rather than a change of wording.
+ */
 export function RoutinesTable({ routines, loading, onEdit, onStop }) {
   if (loading) {
     return (
@@ -113,6 +121,7 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                   {/* Actions */}
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      {onEdit && (
                       <button
                         type="button"
                         onClick={() => onEdit(routine)}
@@ -120,7 +129,8 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                       >
                         <Edit3 size={12} /> Edit
                       </button>
-                      {routine.isActive && (
+                      )}
+                      {routine.isActive && onStop && (
                         <button
                           type="button"
                           onClick={() => onStop(routine)}

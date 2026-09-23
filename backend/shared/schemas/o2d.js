@@ -190,6 +190,11 @@ export const skipStageSchema = z.object({
   actualCompletion: isoDateTime.nullish(),
 });
 
+/** Hand a stage to one named person — see o2dDelegationSync.service.js. */
+export const assignStageSchema = z.object({
+  userId: objectId,
+});
+
 export const holdOrderSchema = z.object({
   reason: z.enum(HOLD_REASONS),
   note: optionalText(500),
@@ -331,6 +336,7 @@ export default {
   completeStageSchema,
   advanceDecisionSchema,
   skipStageSchema,
+  assignStageSchema,
   holdOrderSchema,
   resumeOrderSchema,
   uploadO2dDocumentSchema,

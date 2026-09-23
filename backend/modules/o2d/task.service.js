@@ -86,7 +86,34 @@ export async function roleStageMap(role) {
  * would leave the most privileged account with an empty task list.
  */
 async function visibilityFilter(user) {
-  if (isSuperAdmin(user)) return { all: true, actionable: null, watching: null };
+  if (isSuperAdmin(user)) {
+    /**
+     * ⚠ `actionable: null` used to answer here, and it broke a real screen.
+     *
+     * `null` is exactly right for the FILTER built below — `vis.all` already
+     * lets every stage number through, so nothing there ever reads
+     * `vis.actionable`. But `myTasks()` also hands `actionable` back at the
+     * TOP LEVEL, because `OrderDrawer.jsx` asks it "which of this order's
+     * stages may I close right now?" rather than duplicating O2D's role→stage
+     * mapping in the browser (see the comment at the top of that file — a
+     * copy of the mapping there would go stale the moment an administrator
+     * edits it, per §37).
+     *
+     * `null` answered that question with nothing. The drawer's `tasks?.
+     * actionable ?? []` cannot tell "everything" from "nothing" apart in a
+     * `null`, so it read as "nothing" — an Admin or Super Admin could open any
+     * order and find no Complete button anywhere, on a screen the permission
+     * layer had already let them onto.
+     *
+     * Every ENABLED stage, not a hardcoded count or the caller's own role
+     * lookup — an org-level grant is not necessarily one of the roles any
+     * stage master happens to name in `alsoAllowedRoles` (a custom role
+     * marked `['*']` per the note on `isSuperAdmin` is exactly this case), so
+     * this cannot piggy-back on `roleStageMap` the way the branch below does.
+     */
+    const allStageNumbers = await O2dStageMaster.distinct('stageNumber', { enabled: true });
+    return { all: true, actionable: allStageNumbers, watching: [] };
+  }
   const { actionable, watching } = await roleStageMap(user?.role);
   return { all: false, actionable, watching };
 }
@@ -121,8 +148,16 @@ export async function myTasks(user, query = {}) {
 
   const vis = await visibilityFilter(user);
   const mine = vis.all ? null : [...vis.actionable, ...vis.watching];
+  /**
+   * A stage personally assigned to THIS user is theirs to see regardless of
+   * role — see `canWorkStage`. Without this, somebody handed a stage their
+   * role does not normally own could complete it (that permission is already
+   * correct) but would never find it in their own My Tasks to DO so, which is
+   * the one screen this whole feature exists to make work.
+   */
+  const myUserId = user?._id ? String(user._id) : null;
 
-  if (mine && mine.length === 0) {
+  if (!vis.all && (!mine || mine.length === 0) && !myUserId) {
     return { data: [], total: 0, page, pageSize, actionable: [], watching: [] };
   }
 
@@ -161,17 +196,70 @@ export async function myTasks(user, query = {}) {
     ? { $in: status.filter((x) => allowedByView.includes(x)) }
     : { $in: allowedByView };
 
-  // The stage filter NARROWS the caller's own stages; it never replaces them.
-  // Assigning `filter.stageNumber` from the query directly would turn My Tasks
-  // into "any task" for anyone who guessed a stage number.
-  let visible = mine;
-  if (stageNumber) {
-    visible = mine ? mine.filter((n) => n === Number(stageNumber)) : [Number(stageNumber)];
-    if (visible.length === 0) {
-      return { data: [], total: 0, page, pageSize, actionable: vis.actionable ?? [], watching: vis.watching ?? [] };
+  /**
+   * WHICH ROWS ARE "MINE" — and, just as importantly, which are somebody
+   * else's.
+   *
+   * Two ways in, and only two:
+   *
+   *   MY ROLE, NOBODY NAMED    the role queue. Stage 3 is Billing's, no
+   *                            individual has been put on this one, so it sits
+   *                            in every Billing user's list until one of them
+   *                            takes it.
+   *   NAMED ME                 the assignment. Visible on a stage number my
+   *                            ROLE may not hold at all — that is the entire
+   *                            point of naming somebody — so it has to stay a
+   *                            separate branch rather than fold into the list
+   *                            of allowed numbers.
+   *
+   * ⚠ WHAT CHANGED, AND WHY IT IS THE POINT OF THE SCREEN.
+   *
+   * The role branch used to match a stage whatever its `assignedTo`, so naming
+   * one person ADDED the task to their list without removing it from anyone
+   * else's: five Billing users all kept "Send SOR + PI — PO-4471" in My Tasks
+   * after it had been handed to exactly one of them. A to-do list that shows
+   * four people work that is demonstrably not theirs is a list people stop
+   * reading, and it made the two Work Queue screens disagree — the mirror only
+   * ever existed for the ONE person named, so the Work Queue showed it to one
+   * user and My Tasks to five.
+   *
+   * Naming somebody now MOVES the task rather than copying it. Note that this
+   * is a VISIBILITY rule only: `canWorkStage` is untouched, so a colleague or a
+   * manager covering for an absent assignee can still complete the stage — from
+   * Order Tracker, which is the all-orders screen and still shows everything.
+   * Nothing becomes unreachable; it stops being mistaken for your own to-do.
+   */
+  const notSomebodyElses = myUserId
+    // `assignedTo: null` matches a MISSING field too, which is what an
+    // unassigned stage actually looks like on disk.
+    ? [{ assignedTo: null }, { assignedTo: myUserId }]
+    : [{ assignedTo: null }];
+
+  if (vis.all) {
+    /*
+     * Super Admin holds the wildcard on WHICH STAGES, not on whose to-do list
+     * this is. They see every stage nobody was named on, plus their own
+     * assignments — the same sentence as everybody else, with the role clause
+     * removed. Order Tracker remains their unrestricted view.
+     */
+    filter.$or = notSomebodyElses;
+  } else {
+    const branches = [];
+    if (mine && mine.length > 0) {
+      branches.push({ stageNumber: { $in: mine }, $or: notSomebodyElses });
     }
+    if (myUserId) branches.push({ assignedTo: myUserId });
+    // Both empty only when neither role nor assignment grants anything, which
+    // the early return above already caught — reaching here with an empty
+    // array would mean "match nothing", so this is a safety net, not the path.
+    filter.$or = branches.length > 0 ? branches : [{ _id: null }];
   }
-  if (visible) filter.stageNumber = { $in: visible };
+
+  // An explicit `?stageNumber=` NARROWS whatever the caller may already see; it
+  // never widens it. Layered as an ordinary AND alongside `$or` above — it
+  // never replaces the visibility check, or `?stageNumber=9` would turn My
+  // Tasks into "any task" for anyone who guessed a number.
+  if (stageNumber) filter.stageNumber = Number(stageNumber);
 
   const rows = await O2dOrderStage.find(filter)
     .sort({ [sortBy === 'poDate' ? 'plannedCompletion' : sortBy]: sortDir === 'desc' ? -1 : 1 })
@@ -194,10 +282,19 @@ export async function myTasks(user, query = {}) {
       // The flag the UI needs to decide between a "Complete" button and a
       // "waiting on Billing" label. A finished stage is never actionable,
       // whatever the caller's role — otherwise a retained row would offer a
-      // Complete button for work already done.
+      // Complete button for work already done. Personal assignment grants it
+      // exactly like `canWorkStage` does, for the same reason.
+      //
+      // `Boolean(...)` on the last branch is load-bearing, not decoration:
+      // `null && x` evaluates to `null`, not `false`, and without it a caller
+      // with no `myUserId` (a system actor, a test double) could turn this
+      // whole field into `null` instead of `false` the moment the first two
+      // branches were also false.
       actionable:
         !TERMINAL_STAGE_STATUSES.includes(stage.status)
-        && (vis.all || vis.actionable.includes(stage.stageNumber)),
+        && (vis.all
+          || vis.actionable.includes(stage.stageNumber)
+          || Boolean(myUserId && String(stage.assignedTo ?? '') === myUserId)),
       /** True for a row retained as history rather than offered as work. */
       completed: TERMINAL_STAGE_STATUSES.includes(stage.status),
       /** In Progress / Done — the two-state name the screens show. */
@@ -294,9 +391,25 @@ export async function myTaskCounts(user) {
  * works O2D stages at all; it cannot say WHICH, because that mapping lives in
  * the stage master and an administrator can change it (§37). Without this check
  * anyone holding the permission could close anyone else's stage.
+ *
+ * ---------------------------------------------------------------------------
+ * `assignedTo` — THE ONE OTHER DOOR IN
+ * ---------------------------------------------------------------------------
+ * A stage can also be handed to one named person on top of its role (see
+ * `o2dDelegationSync.service.js`), and that assignment IS the grant for that
+ * one stage instance — the entire point of naming somebody rather than leaving
+ * it to the role queue. This is the single place that answer lives, so it
+ * cannot drift between "can I complete it from Order Tracker", "can I complete
+ * it from my Work Queue" and "does it show up in My Tasks at all" — all three
+ * call this same function.
+ *
+ * `assignedTo` is OPTIONAL and caller-supplied because this function has no
+ * order context of its own — a stage NUMBER is not a stage INSTANCE, and only
+ * the caller holding the actual row knows who it is assigned to.
  */
-export async function canWorkStage(user, stageNumber) {
+export async function canWorkStage(user, stageNumber, { assignedTo } = {}) {
   if (isSuperAdmin(user)) return true;
+  if (assignedTo && user?._id && String(assignedTo) === String(user._id)) return true;
   const { actionable } = await roleStageMap(user?.role);
   return actionable.includes(Number(stageNumber));
 }

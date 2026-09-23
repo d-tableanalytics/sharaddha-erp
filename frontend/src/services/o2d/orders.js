@@ -68,6 +68,16 @@ export const o2dApi = {
     o2dClient.post(`/orders/${id}/stages/${stageNumber}/skip`, dto),
   advanceDecision: (id, dto) => o2dClient.post(`/orders/${id}/advance-decision`, dto),
 
+  /**
+   * Hand a stage to one named person — the same person's Work Queue picks it
+   * up automatically as a real Delegation task, kept in sync from both sides.
+   * See `o2dDelegationSync.service.js` on the backend.
+   */
+  assignStage: (id, stageNumber, userId) =>
+    o2dClient.post(`/orders/${id}/stages/${stageNumber}/assign`, { userId }),
+  unassignStage: (id, stageNumber) =>
+    o2dClient.delete(`/orders/${id}/stages/${stageNumber}/assign`),
+
   hold: (id, dto) => o2dClient.post(`/orders/${id}/hold`, dto),
   resume: (id, dto = {}) => o2dClient.post(`/orders/${id}/resume`, dto),
 

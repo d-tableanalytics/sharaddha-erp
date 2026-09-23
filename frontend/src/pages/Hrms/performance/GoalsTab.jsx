@@ -17,6 +17,12 @@ import {
   formatPerfDay,
   formatMeasure,
 } from "../../../services/hrms/performance";
+import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
+import {
+  HRMS_MODULES as M,
+  HRMS_ACTIONS as A,
+  SCOPES as S,
+} from "@shared/permissions/constants.js";
 import { ProgressMeter } from "./ProgressMeter";
 import { createGoalSchema } from "@shared/schemas/performance.js";
 import {
@@ -48,6 +54,21 @@ const STATUS_OPTIONS = GOAL_STATUSES.map((value) => ({
  *     that fires a PATCH on every keystroke.
  */
 export function GoalsTab() {
+  const { can, actor } = useHrmsPermissions();
+
+  /*
+   * Mirrors the ROUTE guards exactly, not a guess at them.
+   *
+   * `canSubmit` on POST /goals is `{SUBMIT,SELF}` OR `{APPROVE,ORG}` -
+   * `submit:self` is in every role's baseline except `auditor`'s, so this is
+   * normally a no-op that only starts mattering for a read-only role. Without
+   * it, "New goal" was offered to everyone this tab is reachable by, and an
+   * auditor's click always came back 403 - the exact "visible control that
+   * cannot work" this codebase's own Settings screen was rebuilt to stop doing.
+   */
+  const canManage = can(M.PERFORMANCE, A.APPROVE, S.ORG);
+  const canCreate = canManage || can(M.PERFORMANCE, A.SUBMIT, S.SELF);
+
   const [result, setResult] = useState({ data: [], total: 0, page: 1, pageSize: 25 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -198,9 +219,13 @@ export function GoalsTab() {
            * choices come straight back as an error.
            */
           const next = GOAL_TRANSITIONS[row.status] ?? [];
+          // PATCH /goals/:id shares `canActOnOwn` with DELETE - the same
+          // owner-or-HR rule, so status changes and progress updates are
+          // offered under the same condition as the delete control below.
+          const canEditRow = canManage || (actor.employeeId && row.employeeId === actor.employeeId);
           return (
             <div className="flex flex-wrap items-center gap-1.5">
-              {next.length > 0 && (
+              {canEditRow && next.length > 0 && (
                 <SearchableSelect
                   className="w-[124px]"
                   value={null}
@@ -214,32 +239,43 @@ export function GoalsTab() {
                   placeholder="Set status"
                 />
               )}
-              {row.targetValue !== null && (
+              {canEditRow && row.targetValue !== null && (
                 <Button size="xs" variant="outline" onClick={() => setProgressOn(row)}>
                   Progress
                 </Button>
               )}
-              <Button
-                size="xs"
-                variant="ghost"
-                className="text-error-500"
-                aria-label={`Delete ${row.title}`}
-                title={
-                  row.childCount > 0
-                    ? "Goals cascade from this one. Cancel it instead."
-                    : undefined
-                }
-                disabled={row.childCount > 0}
-                onClick={() => setDeleting(row)}
-              >
-                <Trash2 size={13} />
-              </Button>
+              {/*
+                `deleteGoal` in goal.service.js refuses anyone but the goal's
+                owner or an APPROVE:ORG holder - an identity check, not a wider
+                permission, so it is matched by comparing employeeId directly
+                rather than asking `can()` a question it cannot answer.
+                Without this, a wide-scoped viewer (an auditor reading every
+                goal org-wide, or a manager reading a report's) saw a delete
+                control on records that were never theirs to remove.
+              */}
+              {canEditRow && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  className="text-error-500"
+                  aria-label={`Delete ${row.title}`}
+                  title={
+                    row.childCount > 0
+                      ? "Goals cascade from this one. Cancel it instead."
+                      : undefined
+                  }
+                  disabled={row.childCount > 0}
+                  onClick={() => setDeleting(row)}
+                >
+                  <Trash2 size={13} />
+                </Button>
+              )}
             </div>
           );
         },
       },
     ],
-    [busy, expanded, setGoalStatus],
+    [busy, expanded, setGoalStatus, canManage, actor.employeeId],
   );
 
   const expandedRow = result.data.find((r) => r.id === expanded) ?? null;
@@ -261,10 +297,12 @@ export function GoalsTab() {
             placeholder="Any status"
           />
         </div>
-        <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
-          <Plus size={14} className="mr-1.5" />
-          New goal
-        </Button>
+        {canCreate && (
+          <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
+            <Plus size={14} className="mr-1.5" />
+            New goal
+          </Button>
+        )}
       </div>
 
       {failure && (

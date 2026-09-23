@@ -13,7 +13,7 @@ import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 import { UserAccessModal } from '../../../components/admin/UserAccessModal';
 import toast from 'react-hot-toast';
 import {
-  canOpenUserManagement, canManageAllUsers, canManageAccount, assignableRolesFor, canManageRoles,
+  canOpenUserManagement, canManageAllUsers, canManageAccount, assignableRolesFor, canManageRoles, canAction,
 } from '../../../utils/permissions';
 
 /**
@@ -213,6 +213,15 @@ export const UserManagement = ({ audience = 'internal' }) => {
   // server enforces both — this decides what the screen offers.
   const mayOpen = canOpenUserManagement(user);
   const isAdmin = canManageAllUsers(user);
+
+  /**
+   * View, create and edit used to be one question - `mayOpen` - because a
+   * single key (`manage_users`) backed all three. It is now three: opening the
+   * screen, adding an account, and changing one. A Super Admin can grant
+   * View alone, and Add User / Edit must not appear for that grant.
+   */
+  const mayCreate = canAction(user, 'administration', 'users', 'create');
+  const mayEdit = canAction(user, 'administration', 'users', 'edit');
 
   /**
    * Who may hand one account access beyond its role.
@@ -494,6 +503,11 @@ export const UserManagement = ({ audience = 'internal' }) => {
               setShowAdd(true);
             }}
             className="shrink-0"
+            // Rendered disabled rather than removed: this button sits in a
+            // fixed header slot next to the search bar, and pulling it out
+            // would shift that bar for the one grant (view-only) that lacks it.
+            disabled={!mayCreate}
+            title={mayCreate ? undefined : 'You do not have permission to create users'}
           >
             <UserPlus size={16} className="mr-2" />
             Add User
@@ -636,7 +650,7 @@ export const UserManagement = ({ audience = 'internal' }) => {
                                 salesperson sees staff rows (never, in fact —
                                 the API scopes them out) but could not act on
                                 one, so no button is offered for it. */}
-                            {canManageAccount(user, u) && (
+                            {canManageAccount(user, u) && mayEdit && (
                               <>
                                 <Button size="sm" variant="outline" onClick={() => openEdit(u)}>
                                   <Pencil size={14} className="mr-1.5" />
@@ -650,7 +664,7 @@ export const UserManagement = ({ audience = 'internal' }) => {
                                     for an archived row - that account is not in
                                     the users collection, so there is nothing to
                                     write to until it is restored. */}
-                                {mayGrantExtraAccess && !u.archived && (
+                                {mayGrantExtraAccess && mayEdit && !u.archived && (
                                   <Button
                                     size="sm"
                                     variant="outline"

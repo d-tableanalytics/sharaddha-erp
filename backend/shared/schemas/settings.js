@@ -23,22 +23,29 @@ import { objectId, isoDay } from '../validation/common.js';
 // ---------------------------------------------------------------------------
 
 /**
- * The brand tokens the reference's Company Profile tab edits.
+ * The brand tokens the Company Profile tab edits.
  *
  * An ALLOW-LIST, not a free record. The reference stores `brand` as
  * `Record<string, any>` and writes whatever the request carried straight into
  * the column, so the branding blob is an unbounded key/value store on a
  * privileged endpoint.
  *
- * The defaults are the reference's own, which it applies in the BROWSER
- * (`org.brand?.primary || '#4338CA'`) and therefore never persists — every
- * client re-invents the palette and `GET` keeps returning `{}`.
+ * ---------------------------------------------------------------------------
+ * THE DEFAULTS ARE THIS PRODUCT'S PALETTE, NOT THE REFERENCE'S
+ * ---------------------------------------------------------------------------
+ * They used to be the reference's indigo (`#4338CA` and family), which it
+ * applies in the BROWSER and therefore never persists. Carrying them here meant
+ * an untouched install opened the Branding card showing four indigo swatches
+ * while every screen behind it rendered blue - the picker described a theme
+ * that was not running. These are the real values from
+ * `frontend/tailwind.config.js`: `primary.600`, `primary.900`, `primary.500`
+ * and the amber accent.
  */
 export const BRAND_TOKENS = Object.freeze({
-  primary: '#4338CA',
-  primaryDark: '#312E81',
-  primaryLight: '#6366F1',
-  accent: '#F59E0B',
+  primary: '#2563eb',
+  primaryDark: '#1e3a8a',
+  primaryLight: '#3b82f6',
+  accent: '#f59e0b',
 });
 
 export const BRAND_TOKEN_KEYS = Object.freeze(Object.keys(BRAND_TOKENS));
@@ -212,13 +219,46 @@ export const upsertIntegrationConfigSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    const allowed = new Set(fieldsFor(value.kind).map((f) => f.key));
-    for (const key of Object.keys(value.config ?? {})) {
+    const fields = fieldsFor(value.kind);
+    const allowed = new Set(fields.map((f) => f.key));
+    const config = value.config ?? {};
+
+    for (const key of Object.keys(config)) {
       if (!allowed.has(key)) {
         ctx.addIssue({
           code: 'custom',
           path: ['config', key],
           message: `"${key}" is not a field of the ${value.kind} integration`,
+        });
+      }
+    }
+
+    /*
+     * An ACTIVE integration must actually be configured.
+     *
+     * Nothing required anything, in either direction, so `{kind:'slack',
+     * active:true}` with an empty config saved happily and reported itself as
+     * Active - a green badge for an integration that could not connect to
+     * anything. (The reference has the opposite bug: it marks its SECRET fields
+     * required and its ordinary ones optional.)
+     *
+     * Only the NON-SECRET fields are checked. A secret is write-once and
+     * deliberately omitted on a later save to mean "leave the stored one
+     * alone", so requiring it here would make every edit demand the webhook URL
+     * again - which is the behaviour the SSO tab has to apologise for.
+     * Deactivating is always allowed: `active: false` is how you park a
+     * half-finished integration.
+     */
+    if (value.active === false) return;
+
+    for (const field of fields) {
+      if (field.secret) continue;
+      const supplied = config[field.key];
+      if (supplied === undefined || supplied === null || supplied === '') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['config', field.key],
+          message: `${field.label} is required to activate the ${value.kind} integration.`,
         });
       }
     }

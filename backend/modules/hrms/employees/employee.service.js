@@ -19,9 +19,16 @@ import { isDuplicateKeyError, isTransactionUnsupported } from '../../../utils/mo
 import { hasHrmsPermission } from '../../../shared/permissions/has-permission.js';
 import { assertHrmsRolesAssignable } from '../../../utils/hrmsRoleGuard.js';
 import {
+  customRoleKeysForUser,
+  resolveCustomRoleKeys,
+  setCustomRolesForUser,
+} from '../rbac/customRole.service.js';
+import { requiresOptions } from '../../../shared/schemas/employee.js';
+import {
   HRMS_MODULES as M,
   HRMS_ACTIONS as A,
   SCOPES as S,
+  HRMS_ROLES as R,
   isHrmsRoleKey,
   HRMS_ROLE_LIST,
 } from '../../../shared/permissions/constants.js';
@@ -615,7 +622,7 @@ export async function updateEmployee(id, dto, actor) {
     dto.probationMonths !== undefined ||
     dto.probationStartDate !== undefined ||
     dto.probationEndDate !== undefined;
-  if (touchingProbation && isSelf && !actor.roleKeys.includes('hrms_super_admin')) {
+  if (touchingProbation && isSelf && !actor.roleKeys.includes(R.SUPER_ADMIN)) {
     throw new HrmsForbiddenError('Only a super admin can change your own probation window.');
   }
 
@@ -790,10 +797,23 @@ export async function getEmployeeRoles(id, actor) {
   // Roles live on the account, so an employee with no login holds none. That is
   // an empty list, not an error: the screen shows "no roles" rather than
   // failing to load.
-  if (!emp.userId) return { roleKeys: [] };
+  if (!emp.userId) return { roleKeys: [], customRoleKeys: [] };
 
   const user = await User.findById(emp.userId).select('roles role').lean();
-  return { roleKeys: (user?.roles ?? []).filter(isHrmsRoleKey) };
+
+  /*
+   * Two lists, because they are stored in two places and for a reason.
+   *
+   * The eight built-in keys live in `User.roles[]`, which both portals
+   * validate against a fixed allow-list. Custom role keys cannot go there -
+   * that validation would reject them - so they live in `hrms_user_roles`.
+   * Reporting them separately also lets the screen show which grants come from
+   * code and which from a role somebody built.
+   */
+  return {
+    roleKeys: (user?.roles ?? []).filter(isHrmsRoleKey),
+    customRoleKeys: await customRoleKeysForUser(emp.userId),
+  };
 }
 
 export async function assignEmployeeRoles(id, roleKeys, actor) {
@@ -801,9 +821,32 @@ export async function assignEmployeeRoles(id, roleKeys, actor) {
     throw new HrmsForbiddenError('Only org-level editors can change role assignments.');
   }
 
-  const unknown = roleKeys.filter((k) => !HRMS_ROLE_LIST.includes(k));
-  if (unknown.length > 0) {
-    throw new HrmsValidationError(`Unknown HRMS role key(s): ${unknown.join(', ')}`);
+  /*
+   * One list in, two destinations out.
+   *
+   * A key is either one of the eight built-in roles or the key of a custom
+   * role somebody built in Settings. `resolveCustomRoleKeys` refuses anything
+   * that is neither, BEFORE any write happens - validating after the first
+   * write is how half an assignment lands.
+   */
+  const builtInKeys = roleKeys.filter((k) => HRMS_ROLE_LIST.includes(k));
+  const customKeys = roleKeys.filter((k) => !HRMS_ROLE_LIST.includes(k));
+  await resolveCustomRoleKeys(customKeys);
+
+  /*
+   * A custom role EXTENDS HRMS access; it cannot be the whole of it.
+   *
+   * Custom grants are unioned onto the actor after the AD-4 choke point has
+   * already decided whether this account reaches HRMS at all (see
+   * rbac/customRole.middleware.js), so an account holding nothing but a custom
+   * role would be refused at the door and its grants would never be consulted.
+   * Refusing here, with the reason, is the alternative to that surfacing later
+   * as a 403 nobody can explain.
+   */
+  if (customKeys.length > 0 && builtInKeys.length === 0) {
+    throw new HrmsValidationError(
+      'A custom role extends a built-in HRMS role rather than replacing it. Assign at least one built-in role as well.',
+    );
   }
 
   const emp = await Employee.findOne({ _id: id, deletedAt: null }).select('userId').lean();
@@ -825,13 +868,17 @@ export async function assignEmployeeRoles(id, roleKeys, actor) {
   // run document validation, so this is the real control on this path.
   // The LIVE portal-only question, not the literal name 'Customer': a role a
   // Super Admin invented and marked portalOnly is as fenced as a Customer is.
-  assertHrmsRolesAssignable(user.role, roleKeys);
+  assertHrmsRolesAssignable(user.role, builtInKeys);
 
   // Replace only the HRMS half; portal roles on the same account are untouched.
   const portalRoles = (user.roles ?? []).filter((k) => !isHrmsRoleKey(k));
-  await User.updateOne({ _id: emp.userId }, { $set: { roles: [...portalRoles, ...roleKeys] } });
+  await User.updateOne({ _id: emp.userId }, { $set: { roles: [...portalRoles, ...builtInKeys] } });
 
-  return { roleKeys };
+  // Custom roles live in their own collection - see getEmployeeRoles above for
+  // why they cannot share `User.roles[]`.
+  const customRoleKeys = await setCustomRolesForUser(emp.userId, customKeys);
+
+  return { roleKeys: builtInKeys, customRoleKeys };
 }
 
 /**
@@ -841,7 +888,7 @@ export async function assignEmployeeRoles(id, roleKeys, actor) {
  * plaintext ONCE — it is never stored or logged.
  */
 export async function resetEmployeePassword(id, actor) {
-  if (!actor.roleKeys.includes('hrms_super_admin')) {
+  if (!actor.roleKeys.includes(R.SUPER_ADMIN)) {
     throw new HrmsForbiddenError('Only a super admin can reset an employee password.');
   }
 
@@ -882,18 +929,20 @@ export async function listCustomFields() {
   }));
 }
 
+const customFieldShape = (row) => ({
+  id: idStr(row._id),
+  name: row.name,
+  label: row.label,
+  type: row.type,
+  options: row.options ?? [],
+  required: row.required,
+  order: row.order,
+});
+
 export async function createCustomField(dto) {
   try {
     const row = await EmployeeCustomField.create(dto);
-    return {
-      id: idStr(row._id),
-      name: row.name,
-      label: row.label,
-      type: row.type,
-      options: row.options,
-      required: row.required,
-      order: row.order,
-    };
+    return customFieldShape(row);
   } catch (err) {
     if (isDuplicateKeyError(err)) {
       throw new HrmsConflictError('A custom field with that name already exists.');
@@ -903,20 +952,30 @@ export async function createCustomField(dto) {
 }
 
 export async function updateCustomField(id, dto) {
+  const existing = await EmployeeCustomField.findById(id).lean();
+  if (!existing) throw new HrmsNotFoundError('Custom field');
+
+  /*
+   * The MERGED document has to satisfy the options rule, not just the payload.
+   *
+   * `updateCustomFieldSchema` catches `{type:'select', options:[]}` sent
+   * together, but it cannot judge `{type:'select'}` on its own - whether that
+   * is legal depends on what is already stored. Checking the merge is what
+   * closes the remaining path to an optionless dropdown, and it is checked
+   * HERE rather than by the model because `findByIdAndUpdate` does not run
+   * document `pre('validate')` hooks.
+   */
+  const merged = { ...existing, ...dto };
+  if (requiresOptions(merged.type) && (merged.options ?? []).length === 0) {
+    throw new HrmsValidationError(`A "${merged.type}" field needs at least one option.`);
+  }
+
   const row = await EmployeeCustomField.findByIdAndUpdate(id, { $set: dto }, {
     new: true,
     runValidators: true,
   }).lean();
   if (!row) throw new HrmsNotFoundError('Custom field');
-  return {
-    id: idStr(row._id),
-    name: row.name,
-    label: row.label,
-    type: row.type,
-    options: row.options ?? [],
-    required: row.required,
-    order: row.order,
-  };
+  return customFieldShape(row);
 }
 
 /**

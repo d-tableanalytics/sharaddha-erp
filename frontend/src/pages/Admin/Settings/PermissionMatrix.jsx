@@ -12,10 +12,11 @@ import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
-import { canManageRoles } from '../../../utils/permissions';
+import { canManageRoles, canAction } from '../../../utils/permissions';
 import {
   ACTION_LABELS, mapToGrants, sameGrants, toggleCell, mergeGrantLists,
 } from '../../../utils/grants';
+import { HrmsRolesPanel } from './HrmsRolesPanel';
 
 /**
  * The Super Admin's control panel for access - requirement 3.
@@ -185,7 +186,7 @@ function RoleBadge({ role, className = '' }) {
  * narrowed. It is always interactive — there is no locked or disabled state
  * anywhere in this matrix.
  */
-function TriCheckbox({ state, onChange, title, className = '' }) {
+function TriCheckbox({ state, onChange, title, className = '', disabled = false }) {
   const ref = useRef(null);
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = state === 'some';
@@ -197,8 +198,9 @@ function TriCheckbox({ state, onChange, title, className = '' }) {
       type="checkbox"
       checked={state === 'all'}
       onChange={onChange}
+      disabled={disabled}
       title={title}
-      className={`w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 cursor-pointer ${className}`}
+      className={`w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 cursor-pointer disabled:cursor-default ${className}`}
     />
   );
 }
@@ -208,8 +210,10 @@ function TriCheckbox({ state, onChange, title, className = '' }) {
 // ---------------------------------------------------------------------------
 
 export const PermissionMatrix = () => {
-  const { roles, registry, users, loading, fetchRoleMatrix, fetchUsers, updateRole, createRole, deleteRole } =
-    useAdminStore();
+  const {
+    roles, registry, users, loading, error, fetchRoleMatrix, fetchUsers, updateRole, createRole, deleteRole,
+    hrmsRoles, hrmsRolesLoading, fetchHrmsRoles,
+  } = useAdminStore();
   const { user, fetchUser } = useUserStore();
 
   const [selectedId, setSelectedId] = useState(null);
@@ -219,6 +223,8 @@ export const PermissionMatrix = () => {
   const [newRoleName, setNewRoleName] = useState('');
 
   // ---- presentation only -------------------------------------------------
+  /** 'portal' (the matrix below) or 'hrms' (the eight code-defined roles). */
+  const [view, setView] = useState('portal');
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('permissions');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -269,6 +275,11 @@ export const PermissionMatrix = () => {
   useEffect(() => {
     if (tab === 'users' && users.length === 0) fetchUsers();
   }, [tab, users.length, fetchUsers]);
+
+  /** HRMS roles are fetched only once that view is actually opened. */
+  useEffect(() => {
+    if (view === 'hrms') fetchHrmsRoles();
+  }, [view, fetchHrmsRoles]);
 
   /**
    * Every cell in the matrix is an ordinary, freely-toggleable checkbox — see
@@ -343,6 +354,19 @@ export const PermissionMatrix = () => {
   const dirty = selected
     ? !sameGrants(mapToGrants(draft), mapToGrants(mergedInitialGrants(selected)))
     : false;
+
+  /**
+   * `canManageRoles(user)`, checked once near the top of this component,
+   * decides whether the screen renders AT ALL - that is `view`, i.e.
+   * `manage_roles`. It used to be the only question this screen asked: the
+   * same key backed create, rename, delete and every checkbox in the grid, so
+   * a Super Admin granting View here handed over the whole matrix.
+   *
+   * These three back each write with its own cell.
+   */
+  const mayCreateRole = canAction(user, 'administration', 'roles', 'create');
+  const mayEditRole = canAction(user, 'administration', 'roles', 'edit');
+  const mayDeleteRole = canAction(user, 'administration', 'roles', 'delete');
 
   const handleSave = async () => {
     if (!selected) return;
@@ -455,15 +479,55 @@ export const PermissionMatrix = () => {
         </p>
       </div>
 
+      {/*
+        Two views on one screen, not two screens: portal roles are a matrix an
+        admin edits, HRMS roles are eight code-defined tiers (AD-3) an admin
+        only needs to read. Keeping both here means Roles & Permissions is the
+        one place to answer "what can this account do", instead of splitting
+        that question across Administration and HRMS Settings.
+      */}
+      <div role="tablist" aria-label="Role system" className="flex gap-1 border-b border-slate-200">
+        {[
+          { key: 'portal', label: 'Portal Roles' },
+          { key: 'hrms', label: 'HRMS Roles' },
+        ].map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={view === t.key}
+            onClick={() => setView(t.key)}
+            className={`px-3 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              view === t.key
+                ? 'border-primary-600 text-primary-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'hrms' && (
+        <HrmsRolesPanel
+          data={{ roles: hrmsRoles }}
+          loading={hrmsRolesLoading}
+          error={hrmsRoles.length === 0 ? error : null}
+        />
+      )}
+
+      {view === 'portal' && (
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 items-start">
         {/* ---- Roles ----------------------------------------------------- */}
         <Card>
           <CardContent className="p-0">
             <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-900">Roles</h3>
-              <Button size="xs" variant="primary" onClick={() => setCreating(true)}>
-                <Plus size={13} className="mr-1" /> New Role
-              </Button>
+              {mayCreateRole && (
+                <Button size="xs" variant="primary" onClick={() => setCreating(true)}>
+                  <Plus size={13} className="mr-1" /> New Role
+                </Button>
+              )}
             </header>
 
             <div className="p-3 border-b border-slate-100">
@@ -577,7 +641,7 @@ export const PermissionMatrix = () => {
 
                       {/* The overflow sits OUTSIDE the button — a button inside
                           a button is invalid and the inner one stops working. */}
-                      {!role.isSystem && (
+                      {!role.isSystem && (mayEditRole || mayDeleteRole) && (
                         <button
                           type="button"
                           onClick={() => setMenuFor(menuFor === role._id ? null : role._id)}
@@ -588,22 +652,26 @@ export const PermissionMatrix = () => {
                         </button>
                       )}
 
-                      {menuFor === role._id && (
+                      {menuFor === role._id && (mayEditRole || mayDeleteRole) && (
                         <div className="absolute right-1 top-full z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white shadow-enterprise-lg py-1">
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedId(role._id); setEditing(true); setMenuFor(null); }}
-                            className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                          >
-                            Edit role
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedId(role._id); setMenuFor(null); handleDelete(); }}
-                            className="w-full text-left px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-50"
-                          >
-                            Delete role
-                          </button>
+                          {mayEditRole && (
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedId(role._id); setEditing(true); setMenuFor(null); }}
+                              className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              Edit role
+                            </button>
+                          )}
+                          {mayDeleteRole && (
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedId(role._id); setMenuFor(null); handleDelete(); }}
+                              className="w-full text-left px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-50"
+                            >
+                              Delete role
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -637,11 +705,13 @@ export const PermissionMatrix = () => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                    <Pencil size={13} className="mr-1.5" />
-                    Edit Role
-                  </Button>
-                  {!selected.isSystem && (
+                  {mayEditRole && (
+                    <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                      <Pencil size={13} className="mr-1.5" />
+                      Edit Role
+                    </Button>
+                  )}
+                  {!selected.isSystem && mayDeleteRole && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -678,7 +748,7 @@ export const PermissionMatrix = () => {
                   ))}
                 </div>
 
-                {tab === 'permissions' && roles.length > 1 && (
+                {tab === 'permissions' && roles.length > 1 && mayEditRole && (
                   <label className="flex items-center gap-1.5 py-2 text-[11px] font-bold text-primary-700">
                     <Copy size={12} />
                     <span className="sr-only sm:not-sr-only">Copy from role</span>
@@ -766,6 +836,14 @@ export const PermissionMatrix = () => {
                               isChecked={isChecked}
                               toggle={toggle}
                               toggleRow={toggleRow}
+                              // The grid writes only to the local DRAFT - Save
+                              // is the actual write, and is already disabled
+                              // without edit. Disabling every checkbox too is
+                              // what stops a view-only grant from LOOKING
+                              // editable: expanding a row and ticking boxes
+                              // that quietly go nowhere is not "view only",
+                              // it is a UI that lies about what it will do.
+                              readOnly={!mayEditRole}
                             />
                           );
                         })}
@@ -788,7 +866,7 @@ export const PermissionMatrix = () => {
                     >
                       Cancel
                     </Button>
-                    <Button size="sm" variant="primary" onClick={handleSave} disabled={saving || !dirty}>
+                    <Button size="sm" variant="primary" onClick={handleSave} disabled={saving || !dirty || !mayEditRole}>
                       {saving ? (
                         <Loader2 className="animate-spin mr-2" size={15} />
                       ) : (
@@ -803,8 +881,9 @@ export const PermissionMatrix = () => {
           </Card>
         )}
       </div>
+      )}
 
-      {editing && selected && (
+      {view === 'portal' && editing && selected && (
         <EditRoleModal
           role={selected}
           onClose={() => setEditing(false)}
@@ -837,7 +916,7 @@ export const PermissionMatrix = () => {
  */
 function ModuleRows({
   mod, actions, open, onToggleOpen, portalFenced,
-  moduleState, toggleModuleAction, isChecked, toggle, toggleRow,
+  moduleState, toggleModuleAction, isChecked, toggle, toggleRow, readOnly = false,
 }) {
   // `portalFenced` is informational, not a restriction — a portal-only role's
   // grants outside the Customer Portal are simply ignored at authorization
@@ -881,6 +960,7 @@ function ModuleRows({
               <TriCheckbox
                 state={state}
                 onChange={() => toggleModuleAction(mod, action)}
+                disabled={readOnly}
                 title={`${ACTION_LABELS[action] || action} across all of ${mod.label}`}
               />
             </td>
@@ -892,13 +972,23 @@ function ModuleRows({
         mod.submodules.map((sub) => (
           <tr key={sub.key} className={`hover:bg-slate-50/70 transition-colors ${muted}`}>
             <td className="px-5 py-2">
-              <button
-                type="button"
-                onClick={() => toggleRow(mod.key, sub)}
-                className="ml-[30px] text-left text-[13px] font-semibold text-slate-600 hover:text-primary-700"
-              >
-                {sub.label}
-              </button>
+              {/*
+                The row label doubles as "tick every action on this
+                sub-module" - readOnly turns it back into a label.
+              */}
+              {readOnly ? (
+                <span className="ml-[30px] text-[13px] font-semibold text-slate-600">
+                  {sub.label}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggleRow(mod.key, sub)}
+                  className="ml-[30px] text-left text-[13px] font-semibold text-slate-600 hover:text-primary-700"
+                >
+                  {sub.label}
+                </button>
+              )}
               {!sub.path && (
                 // Says plainly why there is no menu entry for this row, so its
                 // absence from the sidebar does not read as a bug.
@@ -924,8 +1014,9 @@ function ModuleRows({
                     type="checkbox"
                     checked={isChecked(mod.key, sub.key, action)}
                     onChange={() => toggle(mod.key, sub.key, action)}
+                    disabled={readOnly}
                     aria-label={`${ACTION_LABELS[action] || action} — ${mod.label} / ${sub.label}`}
-                    className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 cursor-pointer"
+                    className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 cursor-pointer disabled:cursor-default"
                   />
                 </td>
               );

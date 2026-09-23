@@ -16,6 +16,7 @@ import {
   menuFor,
 } from '../../utils/roleResolver.js';
 import { hasPermission } from '../../middlewares/rbac.js';
+import { getRoleMatrix } from '../hrms/settings/settings.service.js';
 
 /**
  * Role administration - requirement 3, and the screen behind requirements 1-4.
@@ -114,6 +115,26 @@ export const getRegistry = async (req, res, next) => {
        */
       data: { actions: ACTIONS, modules: registryForClient(currentPortal()) },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * The eight HRMS roles, read-only, on the SAME screen as everything else.
+ *
+ * Not a second permission system: this calls the one function the HRMS
+ * settings screen already uses (`getRoleMatrix`, sourced from
+ * shared/permissions/matrix.js — the live, code-defined HRMS RBAC). AD-3
+ * fixes those eight roles in code, so there is nothing here to create, rename
+ * or delete; this exists so an administrator configuring Roles & Permissions
+ * does not have to leave the screen to see what HRMS access actually is, or
+ * how many people hold each tier. Role MEMBERSHIP is still changed at
+ * `PATCH /hrms/employees/:id/roles`.
+ */
+export const getHrmsRoles = async (req, res, next) => {
+  try {
+    res.status(200).json({ success: true, data: await getRoleMatrix() });
   } catch (error) {
     next(error);
   }
@@ -347,6 +368,7 @@ export const getMyAccess = async (req, res, next) => {
 export default {
   getRoles,
   getRegistry,
+  getHrmsRoles,
   createRole,
   updateRole,
   updateRolePermissions,

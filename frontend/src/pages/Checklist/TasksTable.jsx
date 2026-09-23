@@ -54,7 +54,27 @@ const FrequencyPill = ({ frequency }) => (
 
 // ── Context Menu ─────────────────────────────────────────────────────────────
 
+/**
+ * Is this row a mirror of an O2D stage rather than a checklist item of its own?
+ *
+ * It is here so the assignee sees everything they owe in one place — but the
+ * work itself belongs to the order, and the verbs that would move it somewhere
+ * else (reassign it, declare it unnecessary) are the order's to perform. The
+ * server refuses them for exactly this reason; hiding them is what keeps the
+ * screen from offering a button whose only outcome is a refusal.
+ */
+export const isO2dMirror = (task) => task?.sourceType === 'o2d_stage';
+
+/**
+ * The per-row action menu.
+ *
+ * Each entry appears only when its HANDLER was passed. ChecklistPage withholds
+ * the handler for anything the actor may not do, so "may I?" is answered once,
+ * on the page, rather than re-derived in every row - and a row cannot offer a
+ * control the page decided against.
+ */
 function ActionMenu({ task, isAdmin, onRemark, onReassign, onNonFunctional }) {
+  const mirrored = isO2dMirror(task);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -65,8 +85,25 @@ function ActionMenu({ task, isAdmin, onRemark, onReassign, onNonFunctional }) {
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
 
+  /*
+   * Nothing to offer, so no trigger.
+   *
+   * AFTER the hooks, not before: an early return above `useState` would make
+   * this component call a different number of hooks depending on its props,
+   * which React forbids and which breaks the moment a permission resolves and
+   * the props change.
+   *
+   * A mirrored row is the exception - it has no controls but does carry a note
+   * saying where its controls actually live, which is worth opening for.
+   */
+  if (!onRemark && !onReassign && !onNonFunctional && !mirrored) return null;
+
   return (
     <div className="relative" ref={ref}>
+      {/*
+        No entries, no menu. A viewer clicking a MoreHorizontal that opens an
+        empty popover learns nothing except that the product is broken.
+      */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -79,14 +116,16 @@ function ActionMenu({ task, isAdmin, onRemark, onReassign, onNonFunctional }) {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-enterprise-lg border border-slate-200 z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onRemark(task); }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <MessageSquare size={14} className="text-slate-400" /> Add remark
-            </button>
-            {isAdmin && (
+            {onRemark && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onRemark(task); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <MessageSquare size={14} className="text-slate-400" /> Add remark
+              </button>
+            )}
+            {isAdmin && !mirrored && onReassign && (
               <button
                 type="button"
                 onClick={() => { setOpen(false); onReassign(task); }}
@@ -95,13 +134,20 @@ function ActionMenu({ task, isAdmin, onRemark, onReassign, onNonFunctional }) {
                 <UserCog size={14} className="text-slate-400" /> Reassign
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onNonFunctional(task); }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs font-bold text-warning-600 hover:bg-warning-50 transition-colors cursor-pointer"
-            >
-              <Ban size={14} /> Mark non-functional
-            </button>
+            {!mirrored && onNonFunctional && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onNonFunctional(task); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs font-bold text-warning-600 hover:bg-warning-50 transition-colors cursor-pointer"
+              >
+                <Ban size={14} /> Mark non-functional
+              </button>
+            )}
+            {mirrored && (
+              <p className="px-3 py-2 text-[11px] font-semibold text-slate-400">
+                Reassigning and skipping this task are done from Order Tracker.
+              </p>
+            )}
           </div>
         </>
       )}
@@ -234,6 +280,20 @@ export function TasksTable({
                           <UserCog size={10} /> reassigned
                         </span>
                       )}
+                      {/*
+                        Says where this row came from, so a completed-on-one-
+                        screen-but-not-the-other confusion never starts: the PO
+                        and stage number are the same identifiers Order Tracker
+                        shows, and the two lists are the same task.
+                      */}
+                      {isO2dMirror(task) && (
+                        <span
+                          className="inline-flex items-center gap-0.5 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-primary-700"
+                          title={`Stage ${task.sourceStageNumber} of order ${task.sourcePoNumber} — kept in sync with Order Tracker`}
+                        >
+                          O2D · {task.sourcePoNumber}
+                        </span>
+                      )}
                     </div>
                   </td>
 
@@ -291,6 +351,7 @@ export function TasksTable({
                       <span className="text-xs text-success-600 font-bold">{fmtDate(task.completedDate)}</span>
                     ) : (
                       <div className="flex items-center justify-end gap-1">
+                        {onComplete && (
                         <button
                           type="button"
                           onClick={() => onComplete(task)}
@@ -298,6 +359,7 @@ export function TasksTable({
                         >
                           <CheckCircle2 size={13} /> Complete
                         </button>
+                        )}
                         <ActionMenu
                           task={task}
                           isAdmin={isAdmin}

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   Search,
-  RotateCcw,
   ChevronDown,
   PlusCircle,
   CheckCircle2,
@@ -26,7 +25,6 @@ import activityService from '../../services/activity';
 import delegationService from '../../services/delegation';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Button } from '../../components/ui/Button';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorState } from '../../components/hrms/ErrorState';
 
@@ -177,7 +175,6 @@ export function Activities() {
   const [activities, setActivities] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   // Task Details Drawer States
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -206,7 +203,6 @@ export function Activities() {
   // Fetch Activities with Active Filters
   const fetchActivities = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
-    setRefreshing(true);
 
     try {
       const filters = {};
@@ -267,7 +263,6 @@ export function Activities() {
       console.error(err);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [dateRange, customStartDate, customEndDate, activityType, updatedBy, search]);
 
@@ -508,18 +503,6 @@ export function Activities() {
         eyebrow="Audit Log"
         title="Activities"
         subtitle="Centralized administrative timeline, task mutations & forensic accountability ledger"
-        actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => fetchActivities()}
-            disabled={loading || refreshing}
-            title="Refresh activities"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        }
       />
 
       {/* ── 2. TOP CONTRIBUTORS RIBBON ─────────────────────────────────── */}

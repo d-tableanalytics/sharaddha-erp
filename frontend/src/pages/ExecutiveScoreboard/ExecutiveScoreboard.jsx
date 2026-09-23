@@ -17,6 +17,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { scoreboardApi } from '../../services/scoreboard';
 import { useUserStore } from '../../store/userStore';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useHrmsStore } from '../../store/hrmsStore';
 
 // Medals for top 3
@@ -245,7 +246,25 @@ export function ExecutiveScoreboard() {
     return /\b(ceo|managing director|md)\b/i.test(des);
   }, [user, actor]);
 
-  const canEdit = data?.canEdit !== undefined ? data.canEdit : localCanEdit;
+  /**
+   * TWO CONDITIONS, AND BOTH MUST HOLD.
+   *
+   * `data.canEdit` (with `localCanEdit` standing in until the API answers) is a
+   * BUSINESS rule: score goals and MD adjustments are the CEO/MD's to set. It
+   * was the only condition, and it is derived from a hardcoded list of role
+   * NAMES plus a regex over a designation string - so it could not be granted,
+   * could not be revoked, and said nothing about what the Super Admin had
+   * ticked.
+   *
+   * `can('work_queue', 'scoreboard', 'edit')` is the PERMISSION, and it is what
+   * `POST /scoreboard/goals` now enforces. Requiring both means the matrix can
+   * take goal-setting away from someone whose designation says CEO, and cannot
+   * hand it to someone the business rule excludes.
+   */
+  const { can } = usePermissions();
+  const mayEditGoals = can('work_queue', 'scoreboard', 'edit');
+  const businessCanEdit = data?.canEdit !== undefined ? data.canEdit : localCanEdit;
+  const canEdit = mayEditGoals && businessCanEdit;
 
   const loadData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);

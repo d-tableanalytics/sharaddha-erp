@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import User from '../../models/User.js';
-import Delegation from '../../models/Delegation.js';
-import { ChecklistOccurrence } from '../../models/Checklist.js';
+import Delegation, { DELEGATION_REASSIGNED_AWAY } from '../../models/Delegation.js';
+import { ChecklistOccurrence, OCCURRENCE_REASSIGNED_AWAY } from '../../models/Checklist.js';
 import ScoreboardGoal from '../../models/ScoreboardGoal.js';
 import Employee from '../../models/hrms/Employee.js';
 import { isSuperAdmin } from '../../middlewares/rbac.js';
@@ -197,7 +197,22 @@ export async function getScoreboard(req, res, next) {
 
     // 2. Query Delegations
     // Check site scope if scope is not 'all'
-    const delegationQuery = { isDeleted: { $ne: true } };
+    /**
+     * A task somebody was RELIEVED of is not their score, either way.
+     *
+     * Excluded from the query rather than handled inside the loop below,
+     * because the loop counts each row twice — once into `nowPlanned` and again
+     * into `nowDone` — and a reassigned-away row is wrong in both. Left in, it
+     * used to read as a completed, on-time task for the person who gave it up
+     * (its status was literally `Completed`); merely stopping THAT would flip
+     * it into a planned-but-unfinished row, which punishes them for a hand-off
+     * instead. The row belongs to whoever holds the work now, and that person
+     * has their own live mirror carrying it.
+     */
+    const delegationQuery = {
+      isDeleted: { $ne: true },
+      status: { $ne: DELEGATION_REASSIGNED_AWAY },
+    };
 
     const delegations = await Delegation.find(delegationQuery)
       .select('doerId doerFirstName doerLastName dueDate completedAt status')
@@ -242,7 +257,8 @@ export async function getScoreboard(req, res, next) {
     });
 
     // 3. Query Checklist Occurrences
-    const occurrenceQuery = {};
+    // Same rule on the other surface — see the delegation query above.
+    const occurrenceQuery = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
     if (scope !== 'all') {
       occurrenceQuery.site = new RegExp(`^${scope}$`, 'i');
     }

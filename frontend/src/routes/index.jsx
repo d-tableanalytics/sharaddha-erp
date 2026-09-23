@@ -6,6 +6,7 @@ import { ProtectedRoute } from "../components/layout/ProtectedRoute";
 import { HomeRoute } from "../components/layout/HomeRoute";
 import { HrmsProtectedRoute } from "../components/hrms/HrmsProtectedRoute";
 import { O2dProtectedRoute } from "../components/o2d/O2dProtectedRoute";
+import { ModuleProtectedRoute } from "../components/auth/ModuleProtectedRoute";
 import { REPORTS_ENTRY_GRANTS } from "../components/hrms/navItems";
 
 /**
@@ -434,8 +435,8 @@ export const router = createBrowserRouter([
                 children: [{ index: true, element: <HrmsAuditLogsPage /> }],
               },
               {
-                // Settings: company profile and branding, the read-only role
-                // matrix, SSO providers and integrations.
+                // Settings: company profile and branding, the role matrix and
+                // its custom-role builder, SSO providers and integrations.
                 path: "settings",
                 element: <HrmsProtectedRoute module="settings" />,
                 children: [
@@ -456,12 +457,21 @@ export const router = createBrowserRouter([
           },
           {
             /**
-              * Work Queue — My Work ("My Day"), Delegation & Checklist.
+              * WORK QUEUE.
               *
-              * Guarded by O2dProtectedRoute: the Work Queue sidebar
-              * group is gated on `view_o2d`.
+              * Every route here used to sit under one `<O2dProtectedRoute />`,
+              * which asks for `view_o2d` — FMS's permission. So the Trash Bin,
+              * the Executive Scoreboard and the Activities audit log opened for
+              * anyone who could see an order, and none of them opened for
+              * somebody granted the Work Queue on its own.
+              *
+              * Each screen is now behind the cell that describes it, which is
+              * the cell its sidebar row asks about and the cell its endpoints
+              * enforce. Four separately-grantable groups, because they are
+              * separately sensitive: the task screens, the bin of other
+              * people's deleted work, everybody's targets, and the audit log.
               */
-            element: <O2dProtectedRoute />,
+            element: <ModuleProtectedRoute module="work_queue" submodule="tasks" action="view" />,
             children: [
               { path: "work-queue", element: <MyDay /> },
               { path: "work-queue/:taskId", element: <MyDay /> },
@@ -474,7 +484,6 @@ export const router = createBrowserRouter([
               { path: "in-loop-tasks/:taskId", element: <InLoopTasks /> },
               { path: "all-tasks", element: <AllTasks /> },
               { path: "all-tasks/:taskId", element: <AllTasks /> },
-              { path: "deleted-tasks", element: <DeletedTasks /> },
               {
                 path: "wq",
                 children: [
@@ -484,15 +493,39 @@ export const router = createBrowserRouter([
                   { path: "looptasks/:taskId", element: <InLoopTasks /> },
                   { path: "alltasks", element: <AllTasks /> },
                   { path: "alltasks/:taskId", element: <AllTasks /> },
-                  { path: "deletedtasks", element: <DeletedTasks /> },
-                  { path: "checklist", element: <ChecklistPage /> },
-                  { path: "executivescoreboard", element: <ExecutiveScoreboard /> },
-                  { path: "activities", element: <Activities /> },
                 ],
               },
-              { path: "activities", element: <Navigate to="/wq/activities" replace /> },
+            ],
+          },
+          {
+            // The bin holds other people's deleted work, and restoring from it
+            // undoes their decision. `manage_work_queue`, the same key the
+            // restore and bulk-delete endpoints demand.
+            element: <ModuleProtectedRoute module="work_queue" submodule="trash" action="view" />,
+            children: [
+              { path: "deleted-tasks", element: <DeletedTasks /> },
+              { path: "wq/deletedtasks", element: <DeletedTasks /> },
+            ],
+          },
+          {
+            element: <ModuleProtectedRoute module="work_queue" submodule="checklist" action="view" />,
+            children: [
+              { path: "wq/checklist", element: <ChecklistPage /> },
+            ],
+          },
+          {
+            element: <ModuleProtectedRoute module="work_queue" submodule="scoreboard" action="view" />,
+            children: [
+              { path: "wq/executivescoreboard", element: <ExecutiveScoreboard /> },
               { path: "scoreboard", element: <Navigate to="/wq/executivescoreboard" replace /> },
               { path: "executive-scoreboard", element: <Navigate to="/wq/executivescoreboard" replace /> },
+            ],
+          },
+          {
+            element: <ModuleProtectedRoute module="work_queue" submodule="activity" action="view" />,
+            children: [
+              { path: "wq/activities", element: <Activities /> },
+              { path: "activities", element: <Navigate to="/wq/activities" replace /> },
             ],
           },
         ],

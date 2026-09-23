@@ -14,6 +14,7 @@ import * as orders from './order.service.js';
 import * as tasks from './task.service.js';
 import { completeStage, skipStage, holdOrder, resumeOrder, O2dWorkflowError } from './stage.engine.js';
 import { O2dStageMaster } from '../../models/o2d/O2dStageMaster.js';
+import { O2dOrderStage } from '../../models/o2d/O2dOrderStage.js';
 import * as documents from './document.service.js';
 import * as exits from './exit.service.js';
 import { dispatch, listForUser, markRead } from './notification.service.js';
@@ -24,6 +25,7 @@ import * as analytics from './analytics.service.js';
 import * as exporter from './export.service.js';
 import * as invoicing from './invoicing.service.js';
 import * as bookings from './booking.service.js';
+import { assignStageToUser, unassignStage } from './o2dDelegationSync.service.js';
 
 const ctx = (req) => ({ req });
 
@@ -50,7 +52,16 @@ const announce = (events) => dispatch(events);
  * route guard that was fixed at mount time.
  */
 async function assertCanWork(req, stageNumber) {
-  if (await tasks.canWorkStage(req.user, stageNumber)) return;
+  // Loaded so a stage personally ASSIGNED to this caller is also a door in —
+  // see `canWorkStage`. A miss here (order not found, stage not created yet)
+  // simply means no assignment to check; the role check below still applies
+  // and the real 404 surfaces from the engine a moment later.
+  const stage = await O2dOrderStage.findOne({ order: req.params.id, stageNumber })
+    .select('assignedTo')
+    .lean()
+    .catch(() => null);
+
+  if (await tasks.canWorkStage(req.user, stageNumber, { assignedTo: stage?.assignedTo })) return;
 
   const master = await O2dStageMaster.findOne({ stageNumber }).select('stageName ownerRole completedByRole name').lean();
   const owner = master?.completedByRole || master?.ownerRole || 'another role';
@@ -221,6 +232,48 @@ export const complete = async (req, res, next) => {
 
     await announce(events);
     res.status(200).json({ success: true, data: { stage, order, events } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/o2d/orders/:id/stages/:stageNumber/assign
+ *
+ * Hands the stage to one named person. That person's Work Queue picks it up
+ * automatically — see `o2dDelegationSync.service.js` — with no separate step.
+ */
+export const assignStage = async (req, res, next) => {
+  try {
+    const stageNumber = Number(req.params.stageNumber);
+    const { stage, mirrorKind, mirror, delegation } = await assignStageToUser({
+      orderId: req.params.id,
+      stageNumber,
+      userId: req.body.userId,
+      actor: req.user,
+      req,
+    });
+    // `mirrorKind` tells the screen WHERE the task landed — Checklist or
+    // Delegation — so the confirmation can name the place rather than say
+    // "somewhere in their Work Queue". `delegation` is kept for the callers
+    // written before Checklist routing existed; it is null for a Checklist one.
+    res.status(200).json({ success: true, data: { stage, mirrorKind, mirror, delegation } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** DELETE /api/v1/o2d/orders/:id/stages/:stageNumber/assign — take it back. */
+export const unassignStageHandler = async (req, res, next) => {
+  try {
+    const stageNumber = Number(req.params.stageNumber);
+    const { stage } = await unassignStage({
+      orderId: req.params.id,
+      stageNumber,
+      actor: req.user,
+      req,
+    });
+    res.status(200).json({ success: true, data: { stage } });
   } catch (error) {
     next(error);
   }

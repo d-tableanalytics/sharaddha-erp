@@ -21,6 +21,7 @@ import express from 'express';
 
 import { protect } from '../../middlewares/auth.js';
 import { hrmsAuthorizationChain } from '../../middlewares/hrmsAuth.js';
+import { attachCustomHrmsGrants } from './rbac/customRole.middleware.js';
 import { getHrmsMe, getHrmsStatus } from './hrms.controller.js';
 import companyRoutes from './company/company.routes.js';
 import employeeRoutes from './employees/employee.routes.js';
@@ -90,6 +91,16 @@ router.use('/careers', careersRoutes);
 
 router.use(protect);
 router.use(hrmsAuthorizationChain);
+
+/**
+ * Custom-role grants, unioned onto the actor the chain above just built.
+ *
+ * AFTER `requireHrmsAccess`, not inside the chain, and that ordering is the
+ * security property: a custom role can only extend an account that already
+ * holds HRMS access through one of the eight code-defined roles, so no row in
+ * a database can widen who reaches HRMS at all. See the file's own header.
+ */
+router.use(attachCustomHrmsGrants);
 
 /**
  * The actor for the signed-in user: HRMS role keys, resolved permissions and

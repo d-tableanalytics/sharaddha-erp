@@ -43,16 +43,22 @@ const COMPANY = {
 };
 
 const ROLES = {
-  editable: false,
+  // Every role is a database row now — the eight seeded built-ins included —
+  // so one flag says the whole surface is editable. See getRoleMatrix in
+  // settings.service.js.
+  editable: true,
   assignmentPath: "/hrms/employees",
-  modules: ["employees", "settings"],
+  // Including a sub-module, so the grid's parent/child grouping is exercised.
+  modules: ["employees", "employees:compensation", "settings"],
   actions: ["view", "edit"],
   scopes: ["self", "org"],
   roles: [
     {
+      id: "r-super",
       key: R.SUPER_ADMIN,
       label: "HRMS Super Admin",
-      isSystem: true,
+      protected: true,
+      active: true,
       userCount: 1,
       permissions: [
         { module: "settings", action: "edit", scope: "org" },
@@ -60,11 +66,23 @@ const ROLES = {
       ],
     },
     {
+      id: "r-employee",
       key: R.EMPLOYEE,
       label: "Employee",
-      isSystem: true,
+      protected: false,
+      active: true,
       userCount: 42,
       permissions: [{ module: "employees", action: "view", scope: "self" }],
+    },
+    {
+      id: "c1",
+      key: "hrms_regional_manager",
+      label: "Regional Manager",
+      description: "Approves leave company-wide.",
+      protected: false,
+      active: true,
+      userCount: 0,
+      permissions: [{ module: "employees", action: "view", scope: "org" }],
     },
   ],
 };
@@ -398,7 +416,9 @@ describe("company profile", () => {
     );
   });
 
-  it("uploads a PNG as multipart", async () => {
+  it("uploads a PNG as multipart, once the replacement is confirmed", async () => {
+    // The fixture already HAS a logo, so this is a replacement — which
+    // overwrites the stored object with no undo and therefore asks first.
     signIn([R.SUPER_ADMIN]);
     at("/hrms/settings/company");
     await screen.findByDisplayValue("Shraddha Impex");
@@ -406,12 +426,31 @@ describe("company profile", () => {
     const file = new File(["\x89PNG"], "logo.png", { type: "image/png" });
     await userEvent.upload(screen.getByLabelText("Choose a logo"), file);
 
+    // Nothing is sent until the dialog is answered.
+    expect(lastCallTo("/hrms/settings/company/logo")).toBeFalsy();
+    await userEvent.click(await screen.findByRole("button", { name: /replace logo/i }));
+
     await waitFor(() => {
       const call = lastCallTo("/hrms/settings/company/logo");
       expect(call).toBeTruthy();
       expect(call.data instanceof FormData).toBe(true);
       expect(call.data.get("logo")).toBeTruthy();
     });
+  });
+
+  it("does NOT ask before the FIRST logo upload — nothing is being destroyed", async () => {
+    installTransport({
+      "GET /hrms/settings/company": () => envelope({ ...COMPANY, logoKey: null, logoUrl: null }),
+    });
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/company");
+    await screen.findByDisplayValue("Shraddha Impex");
+
+    const file = new File(["\x89PNG"], "logo.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText("Choose a logo"), file);
+
+    await waitFor(() => expect(lastCallTo("/hrms/settings/company/logo")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /replace logo/i })).toBeNull();
   });
 
   it("has no danger-zone reset", async () => {
@@ -444,28 +483,246 @@ describe("company profile", () => {
 // ===========================================================================
 
 describe("roles and permissions", () => {
-  it("lists the code-defined roles with their counts", async () => {
+  it("lists all eight built-in roles alongside any custom ones, with their counts", async () => {
     signIn([R.SUPER_ADMIN]);
     at("/hrms/settings/roles");
 
     expect(await screen.findByText("HRMS Super Admin")).toBeTruthy();
     expect(screen.getByText("Employee")).toBeTruthy();
     expect(screen.getByText("42")).toBeTruthy();
-    expect(screen.getAllByText("In code").length).toBe(2);
   });
 
-  it("offers NO editing affordance at all", async () => {
-    // The reference's drawer writes Role/RolePermission rows its actor loader
-    // really reads. Shraddha resolves from the code matrix, so the same grid
-    // would be 532 controls that grant nothing.
+  it("marks the super admin role Protected, and disables its delete and deactivate", async () => {
+    /*
+     * Every role is an editable database row now, the eight built-ins
+     * included — except `hrms_super_admin`, which the server refuses to
+     * delete or deactivate so an admin can never lock everyone out of this
+     * screen with no way back in. Edit still works, so its permissions can be
+     * grown; the server separately refuses an edit that strips
+     * `settings:edit:org`.
+     */
     signIn([R.SUPER_ADMIN]);
     at("/hrms/settings/roles");
     await screen.findByText("HRMS Super Admin");
 
-    expect(screen.queryByRole("button", { name: /new role|create role|add role/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^edit/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^delete/i })).toBeNull();
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByText("Protected")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /edit hrms super admin/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /delete hrms super admin/i }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /deactivate hrms super admin/i }).disabled).toBe(
+      true,
+    );
+  });
+
+  it("offers full edit, deactivate and delete for a non-protected built-in role", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Employee");
+
+    expect(screen.getByRole("button", { name: /edit employee/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /delete employee/i }).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: /deactivate employee/i }).disabled).toBe(false);
+  });
+
+  it("offers create, edit and delete for a CUSTOM role", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    expect(screen.getByRole("button", { name: /new role/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /edit regional manager/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /delete regional manager/i })).toBeTruthy();
+  });
+
+  it("lists roles as Key / Label / Status / Users / Permissions", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent.trim());
+    expect(headers.slice(0, 5)).toEqual(["Key", "Label", "Status", "Users", "Permissions"]);
+
+    // A count reads as "{n} rules".
+    expect(screen.getByText("42")).toBeTruthy();
+    expect(screen.getAllByText(/^\d+ rules$/).length).toBe(3);
+  });
+
+  it("has no Duplicate control on any role", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    expect(screen.queryByRole("button", { name: /duplicate/i })).toBeNull();
+  });
+
+  it("deactivates a custom role from the list, and reports it plainly", async () => {
+    const patched = [];
+    let active = true;
+    installTransport({
+      "GET /hrms/settings/roles": () =>
+        envelope({ ...ROLES, roles: [ROLES.roles[0], ROLES.roles[1], { ...ROLES.roles[2], active }] }),
+      "PATCH /hrms/settings/roles/c1": (config) => {
+        patched.push(config.data);
+        active = config.data.active;
+        return envelope({ ...ROLES.roles[2], active });
+      },
+    });
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    await userEvent.click(screen.getByRole("button", { name: /deactivate regional manager/i }));
+
+    // The toggle sends ONLY `active` — never the permission set, so a stale
+    // draft elsewhere on the page could never leak into it.
+    await waitFor(() => expect(patched).toEqual([{ active: false }]));
+    expect(await screen.findByText("Inactive")).toBeTruthy();
+  });
+
+  it("Edit implies View at the same scope, and clearing View clears what depended on it", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    await userEvent.click(screen.getByRole("button", { name: /new role/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^employees/i }));
+
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "edit employees at org scope" }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "view employees at org scope" }).checked,
+    ).toBe(true);
+
+    // Clearing View takes the dependent Edit with it — an edit-without-view
+    // role is not a stricter role, it is a broken one.
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "view employees at org scope" }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "edit employees at org scope" }).checked,
+    ).toBe(false);
+  });
+
+  it("filters the module list without touching what is already ticked", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    await userEvent.click(screen.getByRole("button", { name: /new role/i }));
+    await userEvent.type(screen.getByLabelText(/filter modules/i), "settings");
+
+    // Module headers are `role="button"`; scoped to those so the page's own
+    // "Settings" breadcrumb (outside the drawer) cannot make this ambiguous.
+    const moduleNames = screen
+      .getAllByRole("button", { expanded: false })
+      .map((el) => el.textContent.trim());
+    expect(moduleNames).not.toContain("Employees");
+    expect(moduleNames.some((t) => t.startsWith("Settings"))).toBe(true);
+  });
+
+  it("blocks the delete outright while the role is still assigned", async () => {
+    // The server refuses it independently; disabling the button is what stops
+    // the round trip that was never going to succeed.
+    installTransport({
+      "GET /hrms/settings/roles": () =>
+        envelope({
+          ...ROLES,
+          roles: [{ ...ROLES.roles[2], userCount: 3 }],
+        }),
+    });
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    await userEvent.click(screen.getByRole("button", { name: /delete regional manager/i }));
+
+    expect(await screen.findByText(/3 user\(s\) are assigned to this role/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /delete role/i }).disabled).toBe(true);
+  });
+
+  it("reports missing required fields inline rather than silently refusing", async () => {
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    await userEvent.click(screen.getByRole("button", { name: /new role/i }));
+    await userEvent.click(screen.getByRole("button", { name: /create role/i }));
+
+    expect(await screen.findByText("Key required")).toBeTruthy();
+    expect(screen.getByText("Label required")).toBeTruthy();
+    // Nothing was sent.
+    expect(urlsHit()).not.toContain("POST /hrms/settings/roles");
+
+    // And the message clears as soon as the field is filled in.
+    await userEvent.type(screen.getByLabelText(/^key/i), "hrms_x");
+    expect(screen.queryByText("Key required")).toBeNull();
+  });
+
+  it("builds a role from the vocabulary the SERVER sent, sub-modules included", async () => {
+    /*
+     * The grid iterates `modules`/`actions`/`scopes` from the response rather
+     * than a list of its own. The reference hardcodes them and has drifted
+     * from its own union, so its builder cannot express `payroll/run` or any
+     * sub-module at all.
+     */
+    const posted = [];
+    installTransport({
+      "POST /hrms/settings/roles": (config) => {
+        posted.push(config.data);
+        return envelope({ ...ROLES.roles[2], ...config.data });
+      },
+    });
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("HRMS Super Admin");
+
+    await userEvent.click(screen.getByRole("button", { name: /new role/i }));
+
+    await userEvent.type(screen.getByLabelText(/^key/i), "hrms_floor_lead");
+    await userEvent.type(screen.getByLabelText(/display label/i), "Floor Lead");
+
+    // The sub-module is grouped under its parent, not listed separately.
+    await userEvent.click(screen.getByRole("button", { name: /^employees/i }));
+    expect(screen.getByText("employees:compensation")).toBeTruthy();
+
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "edit employees:compensation at org scope" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /create role/i }));
+
+    await waitFor(() => expect(posted.length).toBe(1));
+    expect(posted[0].key).toBe("hrms_floor_lead");
+    // Ticking `edit` implies `view` at the same scope — see permissionKeys.js
+    // — so both triples are sent for the one checkbox that was clicked.
+    expect(posted[0].permissions.sort((a, b) => a.action.localeCompare(b.action))).toEqual([
+      { module: "employees:compensation", action: "edit", scope: "org" },
+      { module: "employees:compensation", action: "view", scope: "org" },
+    ]);
+  });
+
+  it("round-trips an existing role's ticks unchanged through edit -> save", async () => {
+    const patched = [];
+    installTransport({
+      "PATCH /hrms/settings/roles/c1": (config) => {
+        patched.push(config.data);
+        return envelope({ ...ROLES.roles[2], ...config.data });
+      },
+    });
+    signIn([R.SUPER_ADMIN]);
+    at("/hrms/settings/roles");
+    await screen.findByText("Regional Manager");
+
+    await userEvent.click(screen.getByRole("button", { name: /edit regional manager/i }));
+    // The key is the identity the assignments point at, so it is not editable.
+    expect(screen.getByLabelText(/^key/i).disabled).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(patched.length).toBe(1));
+    expect(patched[0].permissions).toEqual([
+      { module: "employees", action: "view", scope: "org" },
+    ]);
+    expect(patched[0].key).toBeUndefined();
   });
 
   it("says where roles ARE changed", async () => {
@@ -477,14 +734,12 @@ describe("roles and permissions", () => {
     expect(link.getAttribute("href")).toBe("/hrms/employees");
   });
 
-  it("expands a role to show its real permissions", async () => {
+  it("has no View control on any role", async () => {
     signIn([R.SUPER_ADMIN]);
     at("/hrms/settings/roles");
     await screen.findByText("HRMS Super Admin");
 
-    await userEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
-    expect(await screen.findByText(/2 permissions/)).toBeTruthy();
-    expect(screen.getByText("settings")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
   });
 });
 

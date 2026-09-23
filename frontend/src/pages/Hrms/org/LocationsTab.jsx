@@ -245,9 +245,18 @@ export function LocationsTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
+        {/*
+          This claimed the timezone was "used when attendance and shifts are
+          displayed". It is not: attendance formats against one company-wide
+          constant (`shared/constants/attendance.js`), and nothing reads a
+          LOCATION's timezone. Recording it now is still worth doing — it is
+          what a per-location attendance view would resolve against — but the
+          caption has to say which of those two it is.
+        */}
         <p className="text-xs text-slate-500 max-w-xl">
-          Locations carry the timezone used when attendance and shifts are displayed. Assigning one
-          to an employee is optional, and a location cannot be deleted while anyone is assigned.
+          Assigning a location to an employee is optional, and a location cannot be deleted while
+          anyone is assigned. Its timezone is recorded for future per-location attendance display;
+          attendance currently formats against the company timezone.
         </p>
         <PermissionGate module={M.ORG_STRUCTURE} action={A.EDIT} scope={S.ORG}>
           <Button onClick={openCreate}>

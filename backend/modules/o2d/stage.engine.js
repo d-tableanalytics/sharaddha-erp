@@ -38,6 +38,10 @@ import {
 } from './stageHistory.service.js';
 import { validateStageEvidence } from './stageFields.service.js';
 import {
+  resyncMirrorForStage, markMirrorForStageDone, markMirrorForStageSkipped,
+  holdMirrorsForOrder, releaseMirrorsForOrder,
+} from './stageMirror.service.js';
+import {
   STAGES,
   STAGE_STATUS,
   ORDER_STATUS,
@@ -46,6 +50,28 @@ import {
   LAST_STAGE,
   TERMINAL_STAGE_STATUSES,
 } from '../../shared/constants/o2d.js';
+
+/**
+ * Catch a stage's mirrored task up with a transition, without ever letting a
+ * sync problem block the transition itself.
+ *
+ * WHICH task — a Delegation or a Checklist occurrence — is not this file's
+ * business; `stageMirror.service.js` routes it. The engine says what happened,
+ * once.
+ *
+ * The O2D stage is the source of truth (§53) — a mirror failing to save (a bad
+ * connection, a validation edge case nobody hit before) must not roll back a
+ * dispatch that physically happened. The mismatch is logged rather than
+ * swallowed silently, so it can be found and re-synced by hand rather than
+ * discovered three weeks later as "why does this person still see it as open".
+ */
+export async function syncMirror(fn, ...args) {
+  try {
+    await fn(...args);
+  } catch (error) {
+    console.error('[o2d] task mirror sync failed:', error.message);
+  }
+}
 
 /**
  * Write an audit row for a transition.
@@ -186,6 +212,13 @@ async function unlockStage(stage, { from, calendar, order }) {
     },
   );
   await stage.save();
+
+  // The deadline just computed above is the real one — if somebody was
+  // assigned to this stage while it was still LOCKED, their mirrored task was
+  // seeded with a placeholder due date. Correct it now that the truth is
+  // known, on whichever surface the mirror lives.
+  await syncMirror(resyncMirrorForStage, stage, { order });
+
   return stage;
 }
 
@@ -413,6 +446,11 @@ export async function completeStage({
     },
   );
 
+  // If somebody specific was assigned to this stage, their mirrored Work Queue
+  // task is done too — from HERE, not from the Delegation screen, in the
+  // common case where the stage was completed from Order Tracker directly.
+  await syncMirror(markMirrorForStageDone, stage, { actor, at: done });
+
   return { stage, order, events };
 }
 
@@ -497,6 +535,8 @@ export async function skipStage({ orderId, stageNumber, reason, actor = null, no
       excludedFromKpi: true,
     });
 
+  await syncMirror(markMirrorForStageSkipped, stage, { actor, reason: stage.skipReason, at: now });
+
   return { stage, order, events };
 }
 
@@ -560,6 +600,26 @@ export async function holdOrder({ orderId, reason, note = null, actor = null, no
     source: STAGE_EVENT_SOURCES.ORDER,
     actor,
     reason: `${reason}${note ? `: ${note.trim()}` : ''}`,
+  });
+
+  /*
+   * The same freeze, on the other screen.
+   *
+   * These stages have just left My Tasks — that is the whole point of moving
+   * them to ON_HOLD, and the comment above says so. A mirrored task that stays
+   * live in its assignee's Work Queue would have that person chasing the exact
+   * work the hold exists to stop, off a screen that never heard about the hold.
+   * One event, both surfaces.
+   *
+   * Every mirror on the ORDER, not just the rows `toFreeze` happened to name:
+   * a stage still LOCKED behind its predecessor was never PENDING, so it is not
+   * in that list, and it can still have been assigned to somebody in advance.
+   * The order is frozen, so nothing on it is workable.
+   */
+  await syncMirror(holdMirrorsForOrder, order._id, {
+    actor,
+    at: now,
+    reason: `${order.poNumber} was put on hold (${reason}${note ? `: ${note.trim()}` : ''})`,
   });
 
   await audit(actor, O2D_AUDIT_ACTIONS.ORDER_HELD,
@@ -630,7 +690,29 @@ export async function resumeOrder({ orderId, actor = null, now = new Date(), cal
       meta: { heldWorkingMinutes: frozen, plannedCompletion: stage.plannedCompletion },
     });
     await stage.save();
+
+    /*
+     * Correct the mirror's date while the moved deadline is in hand.
+     *
+     * The release itself happens below, over the whole order. This part cannot:
+     * the deadline MOVED a few lines up, by the working minutes the hold froze,
+     * and only this loop knows the new one. A mirror handed back with its
+     * pre-hold date comes back to its assignee already overdue, reporting a
+     * miss that §19 exists to prevent — the Work Queue would be punishing
+     * somebody for a pause the business asked for.
+     */
+    await syncMirror(resyncMirrorForStage, stage, { order });
   }
+
+  // Dated first, released second, and in that order deliberately: a mirror is
+  // never visible in anybody's Work Queue carrying the stale deadline, however
+  // briefly. Order-level for the same reason the hold was — the LOCKED stages
+  // it parked are not in `paused`.
+  await syncMirror(releaseMirrorsForOrder, order._id, {
+    actor,
+    at: now,
+    reason: `${order.poNumber} resumed after ${frozen} working minute(s) on hold`,
+  });
 
   await audit(actor, O2D_AUDIT_ACTIONS.ORDER_RESUMED,
     `${order.poNumber} resumed after ${frozen} working minute(s) on hold`,

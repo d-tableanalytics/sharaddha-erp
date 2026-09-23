@@ -38,6 +38,20 @@ export function SettingsPage() {
 
   const canIntegrations = can(M.SETTINGS_INTEGRATIONS, A.EDIT, S.ORG);
 
+  /**
+   * Belt-and-braces, matching `canIntegrations` above rather than the route
+   * gate below.
+   *
+   * `PATCH /hrms/settings/company` demands `settings:edit:org`, one step
+   * narrower than the `settings:view:org` the ROUTE requires to reach this
+   * page at all. The two happen to be granted together to every role today -
+   * which is exactly the situation this file's own header warns can change
+   * without anyone touching this screen. Company Profile is a live save-and
+   * upload form, so it gets the same defensive check SSO and Integrations
+   * already have, for the same reason.
+   */
+  const canEditCompany = can(M.SETTINGS, A.EDIT, S.ORG);
+
   const tabs = useMemo(() => {
     const items = [
       { key: "company", label: "Company Profile" },
@@ -53,7 +67,9 @@ export function SettingsPage() {
   if (!tab) return <Navigate to={`${HRMS_ROUTE_PREFIX}/settings/company`} replace />;
 
   const active = TAB_KEYS.includes(tab) ? tab : "company";
-  const gated = (active === "sso" || active === "integrations") && !canIntegrations;
+  const gated =
+    (active === "company" && !canEditCompany) ||
+    ((active === "sso" || active === "integrations") && !canIntegrations);
 
   return (
     <HrmsPageLayout
@@ -71,7 +87,9 @@ export function SettingsPage() {
         className="mb-5"
       />
 
-      {active === "company" && <CompanyProfileTab />}
+      {active === "company" && canEditCompany && <CompanyProfileTab />}
+      {/* The tab READS for anyone who reached this page; its write controls
+          gate themselves on `settings:edit:org` internally. */}
       {active === "roles" && <RolesTab />}
       {active === "sso" && canIntegrations && <SsoTab />}
       {active === "integrations" && canIntegrations && <IntegrationsTab />}
@@ -83,8 +101,8 @@ export function SettingsPage() {
       */}
       {gated && (
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-          You do not have access to this view. Sign-on providers and integrations hold
-          credentials, so they need the integrations permission specifically.
+          You do not have access to this view. Editing it needs a permission
+          narrower than the one that opened Settings.
         </p>
       )}
     </HrmsPageLayout>

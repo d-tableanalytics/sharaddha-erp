@@ -47,6 +47,34 @@ export const getRoles = async (req, res, next) => {
   }
 };
 
+/** POST /api/v1/hrms/settings/roles — a custom role. */
+export const createRole = async (req, res, next) => {
+  try {
+    const role = await settings.createCustomRole(req.body, req.hrmsActor, req);
+    return res.status(201).json({ success: true, data: role });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/** PATCH /api/v1/hrms/settings/roles/:id */
+export const updateRole = async (req, res, next) => {
+  try {
+    return ok(res, await settings.updateCustomRole(req.params.id, req.body, req.hrmsActor, req));
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/** DELETE /api/v1/hrms/settings/roles/:id */
+export const deleteRole = async (req, res, next) => {
+  try {
+    return ok(res, await settings.deleteCustomRole(req.params.id, req.hrmsActor, req));
+  } catch (error) {
+    return next(error);
+  }
+};
+
 /** GET /api/v1/hrms/settings/sso */
 export const listSso = async (req, res, next) => {
   try {
@@ -88,6 +116,9 @@ export default {
   updateCompany,
   uploadLogo,
   getRoles,
+  createRole,
+  updateRole,
+  deleteRole,
   listSso,
   upsertSso,
   listIntegrations,

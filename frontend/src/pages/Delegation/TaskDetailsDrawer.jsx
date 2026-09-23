@@ -24,6 +24,8 @@ import {
 } from './DelegationModals';
 import toast from 'react-hot-toast';
 import delegationService from '../../services/delegation';
+import { usePermissions } from '../../hooks/usePermissions';
+import { isO2dMirror } from './TaskListView';
 
 function getInitials(first = '', last = '') {
   const f = first ? first.charAt(0) : '';
@@ -52,6 +54,31 @@ export function TaskDetailsDrawer({
   onAddFollowUp,
   onDeleteTask,
 }) {
+  /**
+   * WHAT THIS DRAWER OFFERS, DECIDED ONCE.
+   *
+   * This component is the task detail view for FOUR screens - Delegation, All
+   * Tasks, Loop Tasks and My Work - so gating it here is what stops the same
+   * Delete button being permitted on one screen and not another. None of the
+   * four checked anything before: every control below rendered for anybody who
+   * could open a task.
+   *
+   * Three cells, because three different grants are involved:
+   *
+   *   edit      the ordinary content of a task - subtasks, remarks, the due
+   *             date, reminders, follow-ups, and nudging the status along.
+   *   complete  Verify & Complete. Closing somebody else's task out is the
+   *             approval end of this module, not editing.
+   *   delete    moving a task to the Trash Bin.
+   *
+   * The server enforces all three on every route these call. This decides what
+   * is on screen.
+   */
+  const { can } = usePermissions();
+  const canEdit = can('work_queue', 'tasks', 'edit');
+  const canVerify = can('work_queue', 'completion', 'edit');
+  const canDelete = can('work_queue', 'tasks', 'delete');
+
   const [remarkText, setRemarkText] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [submittingRemark, setSubmittingRemark] = useState(false);
@@ -63,6 +90,15 @@ export function TaskDetailsDrawer({
   const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  /*
+   * A task mirrored from an O2D stage is a VIEW of work that lives in the
+   * order. Deleting it here would leave the real stage untouched — still open,
+   * still assigned, still counting against its SLA — with nobody looking at it,
+   * which is why the server refuses. Offering the button anyway would make
+   * "Delete" a thing that only ever produces an error toast.
+   */
+  const mirrored = isO2dMirror(task);
   const [isDeleting, setIsDeleting] = useState(false);
 
   if (!isOpen || !task) return null;
@@ -141,15 +177,17 @@ export function TaskDetailsDrawer({
             </div>
 
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(true)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-error-600 hover:bg-error-50 transition-colors cursor-pointer"
-                title="Delete Task"
-                aria-label="Delete Task"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
+              {!mirrored && canDelete && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-error-600 hover:bg-error-50 transition-colors cursor-pointer"
+                  title="Delete Task"
+                  aria-label="Delete Task"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -228,8 +266,15 @@ export function TaskDetailsDrawer({
               </div>
 
               {/* Status Action Buttons for Delegator */}
+              {/*
+                A viewer sees the lifecycle track above and no way to move it.
+                The whole row goes rather than rendering an empty bordered strip
+                where the buttons used to be.
+              */}
+              {(canVerify || canEdit) && (
               <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                 {task.status === 'Awaiting Verification' ? (
+                  canVerify ? (
                   <button
                     type="button"
                     onClick={() => setIsVerifyOpen(true)}
@@ -238,7 +283,12 @@ export function TaskDetailsDrawer({
                     <ShieldCheck className="w-4 h-4" />
                     <span>Review & Verify Completion</span>
                   </button>
-                ) : (
+                  ) : (
+                    <p className="text-xs font-medium text-slate-500">
+                      Waiting on the assigner to verify this task.
+                    </p>
+                  )
+                ) : canEdit ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500">Quick status:</span>
                     {['In Progress', 'Completed'].map((st) => (
@@ -257,11 +307,13 @@ export function TaskDetailsDrawer({
                       </button>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
+              )}
             </div>
 
             {/* Quick Action Pills: Revise Date, Reminder, Follow Up */}
+            {canEdit && (
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
@@ -307,6 +359,7 @@ export function TaskDetailsDrawer({
                 </span>
               </button>
             </div>
+            )}
 
             {/* Description */}
             {task.description && (
@@ -385,11 +438,16 @@ export function TaskDetailsDrawer({
                     key={st._id}
                     className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 cursor-pointer transition-colors"
                   >
+                    {/*
+                      Disabled rather than hidden: the tick is DATA - whether
+                      this step is done - so a viewer still needs to read it.
+                    */}
                     <input
                       type="checkbox"
                       checked={st.completed}
                       onChange={() => onToggleSubtask(task._id, st._id, !st.completed)}
-                      className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer"
+                      disabled={!canEdit}
+                      className="w-4 h-4 rounded border-slate-300 accent-primary-600 cursor-pointer disabled:cursor-default"
                     />
                     <span
                       className={`text-xs font-medium ${
@@ -403,6 +461,7 @@ export function TaskDetailsDrawer({
               </div>
 
               {/* Add Subtask Input */}
+              {canEdit && (
               <form onSubmit={handleAddSubtask} className="flex items-center gap-2 pt-1">
                 <input
                   type="text"
@@ -420,6 +479,7 @@ export function TaskDetailsDrawer({
                   <span>Add</span>
                 </button>
               </form>
+              )}
             </div>
 
             {/* Date Revision History */}
@@ -485,6 +545,12 @@ export function TaskDetailsDrawer({
               </div>
 
               {/* Add Remark Box */}
+              {/*
+                The FEED above stays for everyone - a remark is part of the
+                task's history and reading it is reading the task. Only posting
+                one is an edit.
+              */}
+              {canEdit && (
               <form onSubmit={handlePostRemark} className="space-y-2 pt-2">
                 <textarea
                   rows={2}
@@ -504,27 +570,46 @@ export function TaskDetailsDrawer({
                   </button>
                 </div>
               </form>
+              )}
             </div>
 
-            {/* Danger Zone / Delete Task */}
-            <div className="pt-4 border-t border-slate-200">
-              <div className="p-3.5 rounded-lg bg-error-50/60 border border-error-100/70 flex items-center justify-between gap-4">
-                <div>
-                  <h5 className="text-xs font-bold text-error-600">Delete Task</h5>
-                  <p className="text-[11px] text-error-600/80 mt-0.5">
-                    Move this task to the Trash Bin. You can restore it anytime later.
+            {/* Where a mirrored task actually lives */}
+            {mirrored && (
+              <div className="pt-4 border-t border-slate-200">
+                <div className="p-3.5 rounded-lg bg-primary-50/60 border border-primary-100/70">
+                  <h5 className="text-xs font-bold text-primary-700">
+                    Linked to O2D · {task.sourcePoNumber}
+                  </h5>
+                  <p className="text-[11px] text-primary-700/80 mt-0.5">
+                    This is stage {task.sourceStageNumber} of order {task.sourcePoNumber}, kept in
+                    step with Order Tracker in both directions. Completing it here completes the
+                    stage. Its title, deadline and deletion belong to the order.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteModal(true)}
-                  className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 text-xs gap-1.5 text-error-600 hover:text-error-600 shrink-0 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Task</span>
-                </button>
               </div>
-            </div>
+            )}
+
+            {/* Danger Zone / Delete Task */}
+            {!mirrored && canDelete && (
+              <div className="pt-4 border-t border-slate-200">
+                <div className="p-3.5 rounded-lg bg-error-50/60 border border-error-100/70 flex items-center justify-between gap-4">
+                  <div>
+                    <h5 className="text-xs font-bold text-error-600">Delete Task</h5>
+                    <p className="text-[11px] text-error-600/80 mt-0.5">
+                      Move this task to the Trash Bin. You can restore it anytime later.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 text-xs gap-1.5 text-error-600 hover:text-error-600 shrink-0 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Task</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

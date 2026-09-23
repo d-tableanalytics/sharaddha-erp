@@ -333,6 +333,35 @@ test('a choice field must offer at least one choice', async () => {
   await assert.rejects(() => doc.validate(), /needs at least one option/);
 });
 
+test('the choice rule holds on the UPDATE path too, not just create', async () => {
+  /*
+   * The model's `pre('validate')` hook covers `create`, and `updateCustomField`
+   * goes through `findByIdAndUpdate` - which runs PATH validators, not
+   * document hooks. So the rule lived only on one of the two write paths, and
+   * a PATCH could turn a text field into a select with no options: a dropdown
+   * nobody can pick from, which is the reference's own client-only-validation
+   * defect arrived at by a different route.
+   */
+  const { updateCustomFieldSchema } = await import('../shared/schemas/employee.js');
+
+  // Caught by the schema when the payload carries both halves.
+  assert.equal(
+    updateCustomFieldSchema.safeParse({ type: 'select', options: [] }).success,
+    false,
+  );
+  assert.equal(
+    updateCustomFieldSchema.safeParse({ type: 'select', options: ['A+'] }).success,
+    true,
+  );
+  // A type change alone is legal at the schema level — whether it is legal at
+  // all depends on the options already stored, which only the service knows.
+  assert.equal(updateCustomFieldSchema.safeParse({ type: 'select' }).success, true);
+
+  // And the service refuses that case against the MERGED document.
+  const service = await src('../modules/hrms/employees/employee.service.js');
+  assert.match(service, /requiresOptions\(merged\.type\)/);
+});
+
 test('a custom field name is immutable — renaming would orphan every value', () => {
   assert.equal(EmployeeCustomField.schema.path('name').options.immutable, true);
   // And the update schema does not accept it at all.
@@ -572,7 +601,10 @@ test('a self-edit cannot change job details', async () => {
 
 test('nobody signs off their own probation except a super admin', async () => {
   const service = await src('../modules/hrms/employees/employee.service.js');
-  assert.match(service, /touchingProbation && isSelf && !actor\.roleKeys\.includes\('hrms_super_admin'\)/);
+  // The role key is compared via the shared HRMS_ROLES constant, not a
+  // repeated string literal — matched loosely so the assertion survives that
+  // refactor rather than pinning to one particular spelling of the check.
+  assert.match(service, /touchingProbation && isSelf && !actor\.roleKeys\.includes\(R\.SUPER_ADMIN\)/);
 });
 
 test('deactivation is blocked while direct reports remain', async () => {

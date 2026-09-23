@@ -383,6 +383,8 @@ export const O2D_AUDIT_ACTIONS = Object.freeze({
   STAGE_SKIPPED: 'o2d.stage.skipped',
   STAGE_REOPENED: 'o2d.stage.reopened',
   STAGE_OVERRIDDEN: 'o2d.stage.overridden',
+  STAGE_ASSIGNED: 'o2d.stage.assigned',
+  STAGE_UNASSIGNED: 'o2d.stage.unassigned',
   ORDER_HELD: 'o2d.order.held',
   ORDER_RESUMED: 'o2d.order.resumed',
   ORDER_CANCELLED: 'o2d.order.cancelled',

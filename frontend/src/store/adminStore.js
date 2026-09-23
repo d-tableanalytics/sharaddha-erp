@@ -6,6 +6,9 @@ export const useAdminStore = create((set, get) => ({
   roles: [],
   /** { actions: [...], modules: [...] } - the catalogue the matrix renders. */
   registry: null,
+  /** The eight HRMS roles, read-only - fetched lazily when that view opens. */
+  hrmsRoles: [],
+  hrmsRolesLoading: false,
   // True by default: the admin screens fetch on mount, so their tables show
   // skeleton rows from first paint instead of a brief "no records" flash.
   loading: true,
@@ -209,6 +212,27 @@ export const useAdminStore = create((set, get) => ({
       return { success: true };
     } catch (err) {
       return { success: false, error: err.response?.data?.message || "Failed to delete role" };
+    }
+  },
+
+  /**
+   * The eight HRMS roles. Skipped if already in hand, same lazy pattern as
+   * `fetchRegistry` - this data changes only when the code does, and fetching
+   * it is only useful once an admin actually opens that view.
+   */
+  fetchHrmsRoles: async () => {
+    if (get().hrmsRoles.length) return true;
+    set({ hrmsRolesLoading: true });
+    try {
+      const data = await adminApi.getHrmsRoles();
+      set({ hrmsRoles: data.roles || [], hrmsRolesLoading: false });
+      return true;
+    } catch (err) {
+      set({
+        error: err.response?.data?.message || "Failed to load HRMS roles",
+        hrmsRolesLoading: false,
+      });
+      return false;
     }
   },
 }));

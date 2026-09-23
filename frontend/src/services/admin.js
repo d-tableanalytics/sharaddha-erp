@@ -44,6 +44,16 @@ export const adminApi = {
     return response.data.data;
   },
 
+  /**
+   * The eight HRMS roles, read-only — same screen, same data the HRMS
+   * settings page shows, fetched from the same server-side function so the
+   * two views can never disagree.
+   */
+  getHrmsRoles: async () => {
+    const response = await api.get('/roles/hrms');
+    return response.data.data;
+  },
+
   createRole: async (payload) => {
     const response = await api.post('/roles', payload);
     return response.data.data;

@@ -32,15 +32,19 @@ import { MemoryRouter } from "react-router-dom";
 vi.mock("../services/activity", () => ({
   default: { getActivities: vi.fn().mockResolvedValue({ data: [], total: 0 }) },
 }));
-vi.mock("../services/delegation", () => ({
-  default: {
+vi.mock("../services/delegation", () => {
+  const api = {
     getTasks: vi.fn().mockResolvedValue({ data: [], total: 0 }),
     getTaskStats: vi.fn().mockResolvedValue({}),
     getUsers: vi.fn().mockResolvedValue([]),
     getTags: vi.fn().mockResolvedValue([]),
     getActivities: vi.fn().mockResolvedValue({ data: [], total: 0 }),
-  },
-}));
+    // My Work reads the doer's own rows through the named export.
+    getDelegations: vi.fn().mockResolvedValue([]),
+    updateDelegation: vi.fn().mockResolvedValue({}),
+  };
+  return { default: api, delegationService: api };
+});
 vi.mock("../services/checklist", () => ({
   checklistApi: {
     getTasks: vi.fn().mockResolvedValue({ data: [], total: 0 }),
@@ -64,6 +68,9 @@ import { useUserStore } from "../store/userStore";
 
 const SCREENS = [
   { name: "Activities", title: /Activities/i, load: () => import("./Activities/Activities") },
+  // The screen the Work Queue menu actually opens, and the one whose cards
+  // carry the section grids.
+  { name: "My Work", title: /./, load: () => import("./MyDay/MyDay") },
   { name: "Checklist", title: /Checklist/i, load: () => import("./Checklist/ChecklistPage") },
   { name: "Delegation", title: /Delegation/i, load: () => import("./Delegation/DelegationPage") },
   { name: "In-Loop Tasks", title: /./, load: () => import("./InLoopTasks/InLoopTasks") },

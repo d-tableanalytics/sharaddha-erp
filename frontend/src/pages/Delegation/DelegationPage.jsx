@@ -25,6 +25,9 @@ import TaskDetailsDrawer from './TaskDetailsDrawer';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { TabNav } from '../../components/hrms/TabNav';
+import { usePermissions } from '../../hooks/usePermissions';
+import { StatTile } from '../../components/workqueue/StatTile';
+import { TASK_STATUS_TILES } from '../../components/workqueue/taskTiles';
 
 const STATUS_TABS = [
   { key: 'All', label: 'All', dot: 'bg-slate-400' },
@@ -38,6 +41,25 @@ const STATUS_TABS = [
 export function DelegationPage() {
   const { taskId: paramTaskId } = useParams();
   const navigate = useNavigate();
+
+  /**
+   * WHAT THIS SCREEN OFFERS.
+   *
+   * Nothing on this page asked a permission before: Assign Task, Change Status
+   * on a selection, Delete on a selection and the one-click verify in the row
+   * menu all rendered for anybody who could reach the route - and the route was
+   * gated on FMS's `view_o2d`, so "anybody" was wide.
+   *
+   * `manage` is the bulk cell deliberately. Changing the status of forty tasks
+   * at once, or binning them, is not the same grant as editing the one task you
+   * have open - it is the same authority the Trash Bin needs, which is why the
+   * server puts both behind `manage_work_queue`.
+   */
+  const { can } = usePermissions();
+  const canCreate = can('work_queue', 'tasks', 'create');
+  const canVerify = can('work_queue', 'completion', 'edit');
+  const canBulkEdit = can('work_queue', 'administration', 'approve');
+  const canBulkDelete = can('work_queue', 'administration', 'delete');
 
   // ── Data states ──────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState([]);
@@ -293,8 +315,20 @@ export function DelegationPage() {
     const count = selectedIds.length;
     const toastId = toast.loading(`Updating ${count} task(s) to "${newStatus}"...`);
     try {
-      await delegationService.bulkUpdateStatus(selectedIds, newStatus);
-      toast.success(`Successfully updated ${count} task(s) to "${newStatus}"`, { id: toastId });
+      const res = await delegationService.bulkUpdateStatus(selectedIds, newStatus);
+      /*
+       * The SERVER's count, not the selection's.
+       *
+       * Tasks mirrored from an O2D stage are skipped by the bulk endpoints on
+       * purpose — their status is the stage's to decide — and the response says
+       * how many. Reporting the number selected instead would tell somebody
+       * five tasks moved when four did, which is the one thing a bulk action
+       * must never do.
+       */
+      toast.success(
+        res?.message ?? `Successfully updated ${count} task(s) to "${newStatus}"`,
+        { id: toastId },
+      );
       setSelectedIds([]);
       setBulkStatusOpen(false);
       fetchData();
@@ -311,8 +345,12 @@ export function DelegationPage() {
     const count = selectedIds.length;
     const toastId = toast.loading(`Moving ${count} task(s) to Trash...`);
     try {
-      await delegationService.bulkDelete(selectedIds);
-      toast.success(`Successfully moved ${count} task(s) to Trash Bin`, { id: toastId });
+      const res = await delegationService.bulkDelete(selectedIds);
+      // The server's count — see the note in `handleBulkStatusUpdate`.
+      toast.success(
+        res?.message ?? `Successfully moved ${count} task(s) to Trash Bin`,
+        { id: toastId },
+      );
       setSelectedIds([]);
       fetchData();
     } catch (err) {
@@ -459,15 +497,6 @@ export function DelegationPage() {
     toast.success('Export downloaded successfully!');
   };
 
-  const KPI_CARDS = [
-    { key: 'All', label: 'Total', dot: 'bg-slate-400', textColor: 'text-slate-900' },
-    { key: 'Overdue', label: 'Overdue', dot: 'bg-error-500', textColor: 'text-error-600' },
-    { key: 'Pending', label: 'Pending', dot: 'border-2 border-slate-400 bg-transparent', textColor: 'text-slate-700' },
-    { key: 'In Progress', label: 'In Progress', dot: 'bg-warning-500', textColor: 'text-warning-500' },
-    { key: 'Awaiting Verification', label: 'Verification', dot: 'bg-primary-500', textColor: 'text-primary-600' },
-    { key: 'Completed', label: 'Completed', dot: 'bg-success-500', textColor: 'text-success-600' },
-  ];
-
   return (
     <div className="flex flex-col gap-6 pb-10">
       {/* ── 1. HEADER & PRIMARY ACTIONS ──────────────────────────────────── */}
@@ -483,44 +512,34 @@ export function DelegationPage() {
         title="Delegation"
         subtitle="Delegate, track, and verify assigned tasks across your team"
         actions={
-          <Button size="sm" onClick={() => setIsCreationDrawerOpen(true)}>
-            <CheckSquare className="w-4 h-4 mr-2" />
-            Assign Task
-          </Button>
+          canCreate ? (
+            <Button size="sm" onClick={() => setIsCreationDrawerOpen(true)}>
+              <CheckSquare className="w-4 h-4 mr-2" />
+              Assign Task
+            </Button>
+          ) : null
         }
       />
 
       {/* ── 2. QUICK STATS RIBBON (6 KPI Metric Cards) ────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {KPI_CARDS.map((card) => {
-          const isActive = activeTab === card.key;
-          const count = statusCounts[card.key] ?? 0;
-          return (
-            <div
-              key={card.key}
-              onClick={() => setActiveTab(card.key)}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group ${isActive
-                  ? 'border-primary-600 ring-2 ring-primary-500/20 bg-white'
-                  : 'border-slate-200 bg-white hover:border-primary-600'
-                }`}
-            >
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
-                  {card.label}
-                </span>
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${card.dot}`} />
-              </div>
-              <div className="flex items-baseline justify-between mt-1">
-                <span className={`text-2xl font-semibold ${card.textColor}`}>
-                  {count}
-                </span>
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-                  Filter →
-                </span>
-              </div>
-            </div>
-          );
-        })}
+      {/*
+        The HR Dashboard's Quick Access tile, carrying a count: same shell, same
+        40px toned chip, same label type, same `gap-3` grid. The six statuses
+        come from the list Loop Tasks reads too, so the two ribbons match.
+      */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {TASK_STATUS_TILES.map((card) => (
+          <StatTile
+            key={card.key}
+            icon={card.icon}
+            tone={card.tone}
+            label={card.label}
+            value={statusCounts[card.key] ?? 0}
+            active={activeTab === card.key}
+            title={`Show ${card.label.toLowerCase()} tasks`}
+            onClick={() => setActiveTab(card.key)}
+          />
+        ))}
       </div>
 
       {/* ── 3. TOOLBAR & MULTI-FACTOR FILTER CONTROLS ─────────────────────── */}
@@ -901,7 +920,11 @@ export function DelegationPage() {
       )}
 
       {/* ── BULK ACTION BAR ─────────────────────────────────────────────── */}
-      {selectedIds.length > 0 && (
+      {/*
+        The bar itself is gated, not just its buttons: a selection bar offering
+        nothing but "Clear" is a worse answer than no bar.
+      */}
+      {selectedIds.length > 0 && (canBulkEdit || canBulkDelete) && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-primary-600 text-white rounded-xl shadow-enterprise-lg animate-in slide-in-from-top-2 duration-200">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-success-500 animate-pulse" />
@@ -910,6 +933,7 @@ export function DelegationPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* Bulk status dropdown */}
+            {canBulkEdit && (
             <div className="relative">
               <button
                 type="button"
@@ -935,8 +959,10 @@ export function DelegationPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Bulk Delete */}
+            {canBulkDelete && (
             <button
               type="button"
               disabled={isBulkDeleting}
@@ -946,6 +972,7 @@ export function DelegationPage() {
               <Trash2 className="w-3.5 h-3.5" />
               <span>Delete ({selectedIds.length})</span>
             </button>
+            )}
 
             {/* Clear Selection */}
             <button
@@ -968,7 +995,10 @@ export function DelegationPage() {
           onToggleSelect={handleToggleSelect}
           onSelectAll={handleSelectAll}
           onOpenDetails={handleOpenDetails}
-          onQuickVerify={handleQuickVerify}
+          // Withheld rather than gated inside the row: TaskListView renders the
+          // verify control only when it is given a handler, so not passing one
+          // is how a viewer's rows come back without it.
+          onQuickVerify={canVerify ? handleQuickVerify : undefined}
           onClearFilters={handleClearAllFilters}
         />
       )}

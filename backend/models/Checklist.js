@@ -30,7 +30,28 @@ const routineSchema = new mongoose.Schema({
   proofRequired: { type: Boolean, default: false },
   isActive:      { type: Boolean, default: true },
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  /**
+   * Set when this routine exists only to carry an O2D stage — see
+   * `modules/o2d/checklistMirror.service.js`.
+   *
+   * ONE routine per stage, reused across reassignments so its `taskCode`
+   * (which is unique) stays stable and meaningful: `O2D-PO-4471-S8` is the
+   * same piece of work whoever is holding it this week. The OCCURRENCE is what
+   * gets closed and recreated when the stage changes hands.
+   */
+  sourceType:        { type: String, enum: ['manual', 'o2d_stage'], default: 'manual', index: true },
+  sourceOrderId:     { type: mongoose.Schema.Types.ObjectId, ref: 'O2dOrder', default: null },
+  sourceStageId:     { type: mongoose.Schema.Types.ObjectId, ref: 'O2dOrderStage', default: null },
+  sourceStageNumber: { type: Number, default: null },
+  sourcePoNumber:    { type: String, default: null, trim: true },
 }, { timestamps: true });
+
+/** One routine per O2D stage. Partial, so manual routines are unaffected. */
+routineSchema.index(
+  { sourceStageId: 1 },
+  { unique: true, partialFilterExpression: { sourceStageId: { $type: 'objectId' } } },
+);
 
 routineSchema.index({ site: 1, isActive: 1 });
 routineSchema.index({ doer: 1 });
@@ -62,7 +83,18 @@ const occurrenceSchema = new mongoose.Schema({
    * computed at query time by checking if a pending task's plannedDate < now,
    * but can also be stamped explicitly by a nightly job.
    */
-  status:        { type: String, enum: ['pending', 'completed', 'overdue', 'non-functional'], default: 'pending' },
+  /*
+   * `reassigned` is the counterpart of Delegation's `Reassigned` — the work was
+   * taken off this doer and given to somebody else, which is neither done nor
+   * still owed BY THEM. See DELEGATION_REASSIGNED_AWAY for why it cannot be
+   * `completed` (it would score a completion for the wrong person) and why it
+   * is not `non-functional` either: that means the work did not need doing, and
+   * this work very much does — just not by this doer.
+   *
+   * Written only by the O2D mirror detach. Checklist's OWN reassign endpoint
+   * moves the doer on the row in place and never produces one of these.
+   */
+  status:        { type: String, enum: ['pending', 'completed', 'overdue', 'non-functional', 'reassigned'], default: 'pending' },
   completedDate: { type: Date, default: null },
   completedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   proofRequired: { type: Boolean, default: false },
@@ -74,12 +106,54 @@ const occurrenceSchema = new mongoose.Schema({
   reassigned:    { type: Boolean, default: false },
   nonFunctionalReason: { type: String, default: null },
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  /**
+   * ── The live mirror of one assigned O2D stage ───────────────────────────
+   *
+   * An O2D stage whose completion means RECORDING SPECIFIC THINGS (an invoice
+   * number, an AWB, a UTR) is a checklist task, not a delegated one — that is
+   * the routing rule, and it comes from the stage's own required-field spec
+   * rather than from anybody's opinion. See `o2dDelegationSync.service.js`.
+   *
+   * Completing this occurrence does NOT just flip a status word: it runs the
+   * real stage completion, with the real evidence rules. See the interception
+   * in `checklist.controller.js#completeTask`.
+   */
+  sourceType:        { type: String, enum: ['manual', 'o2d_stage'], default: 'manual', index: true },
+  sourceOrderId:     { type: mongoose.Schema.Types.ObjectId, ref: 'O2dOrder', default: null },
+  sourceStageId:     { type: mongoose.Schema.Types.ObjectId, ref: 'O2dOrderStage', default: null },
+  sourceStageNumber: { type: Number, default: null },
+  sourcePoNumber:    { type: String, default: null, trim: true },
+
+  /**
+   * ── Parked, because the work behind it was parked ───────────────────────
+   *
+   * Set when the O2D order behind this occurrence goes on hold, or is
+   * cancelled or voided — the same moment `task.service.js` stops showing the
+   * stage in My Tasks. See the matching field on `Delegation` for why this is
+   * a flag rather than a fifth `status` value.
+   */
+  heldAt:     { type: Date, default: null },
+  holdReason: { type: String, default: null },
 }, { timestamps: true });
+
+/**
+ * One LIVE occurrence per stage. Cleared (not deleted) when the stage is
+ * reassigned, so the next assignee's occurrence can claim the link while the
+ * previous one survives as history — the same shape the Delegation mirror uses.
+ */
+occurrenceSchema.index(
+  { sourceStageId: 1 },
+  { unique: true, partialFilterExpression: { sourceStageId: { $type: 'objectId' } } },
+);
 
 occurrenceSchema.index({ site: 1, status: 1, plannedDate: -1 });
 occurrenceSchema.index({ doer: 1, status: 1 });
 occurrenceSchema.index({ routine: 1 });
 occurrenceSchema.index({ department: 1 });
 occurrenceSchema.index({ plannedDate: 1, status: 1 });
+
+/** The occurrence status meaning "handed to somebody else" — see the enum above. */
+export const OCCURRENCE_REASSIGNED_AWAY = 'reassigned';
 
 export const ChecklistOccurrence = mongoose.model('ChecklistOccurrence', occurrenceSchema);

@@ -34,11 +34,19 @@ import {
  *
  * Built here rather than imported from `stage.engine.js`, because the engine
  * now CALLS this module — importing its error back would be a cycle, and the
- * only thing needed from it is a plain object with `status` and `code`, which
- * the error handler reads structurally.
+ * only thing needed from it is a plain object the error handler reads
+ * structurally.
+ *
+ * BOTH `statusCode` and `status`, deliberately. `middlewares/errorHandler.js`
+ * reads `statusCode`, and it is the one that decides what the browser sees;
+ * `status` is kept because `O2dWorkflowError` takes its option by that name
+ * and callers already assert on it. Carrying only `status` is what made every
+ * missing-field refusal answer 500 Internal Server Error over HTTP while
+ * looking perfectly correct to a unit test — the message was right, the status
+ * was not, and nothing compared the two.
  */
 const fieldError = (message, code, field) =>
-  Object.assign(new Error(message), { status: 400, code, field });
+  Object.assign(new Error(message), { statusCode: 400, status: 400, code, field });
 
 /**
  * Is a submitted value actually present?

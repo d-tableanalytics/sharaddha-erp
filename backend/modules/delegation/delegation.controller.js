@@ -1,7 +1,8 @@
-import { Delegation } from '../../models/Delegation.js';
+import { Delegation, DELEGATION_REASSIGNED_AWAY } from '../../models/Delegation.js';
 import User from '../../models/User.js';
-import { isSuperAdmin } from '../../middlewares/rbac.js';
+import { isSuperAdmin, can } from '../../middlewares/rbac.js';
 import { logActivity } from '../activities/activity.controller.js';
+import { completeMirroredTask } from '../o2d/o2dDelegationSync.service.js';
 
 const ADMIN_ROLES = ['Super Admin', 'Admin', 'Management', 'HR'];
 const isManager = (user) => isSuperAdmin(user) || ADMIN_ROLES.includes(user?.role);
@@ -60,6 +61,25 @@ export async function getDelegations(req, res, next) {
           { 'inLoop.userId': currentUserId },
         ],
       });
+      /**
+       * A mirrored task whose O2D order is parked is not this person's work
+       * today, and O2D's own My Tasks already stops showing it — see the
+       * ON_HOLD note in `o2d/task.service.js`. This is the Work Queue saying
+       * the same thing, so the two screens cannot disagree about what is owed.
+       *
+       * `null` matches a MISSING field too, so every task written before this
+       * flag existed — and every manual one, which never sets it — is
+       * unaffected. Scoped to this branch on purpose: All Tasks and the
+       * delegator's own view are audit surfaces and keep showing everything.
+       */
+      conditions.push({ heldAt: null });
+      /**
+       * …and neither is a task that was taken off this person. It is live in
+       * somebody else's queue now; this row survives only as the record of
+       * where it went (`reassignedTo`, `reassignedBy`, and the remark), which
+       * All Tasks below still shows.
+       */
+      conditions.push({ status: { $ne: DELEGATION_REASSIGNED_AWAY } });
     } else if (req.query.scope === 'allTasks' || req.query.scope === 'all') {
       if (!isManager(req.user)) {
         conditions.push({
@@ -103,7 +123,10 @@ export async function getDelegations(req, res, next) {
     if (status) {
       if (status === 'Overdue') {
         filter.dueDate = { $lt: startOfDay(now) };
-        filter.status = { $nin: ['Completed', 'Awaiting Verification'] };
+        // A handed-away task is nobody's overdue work — the person who no
+        // longer has it cannot finish it, and the person who does has their own
+        // row with its own deadline.
+        filter.status = { $nin: ['Completed', 'Awaiting Verification', DELEGATION_REASSIGNED_AWAY] };
       } else {
         filter.status = status;
       }
@@ -305,8 +328,36 @@ export async function updateDelegation(req, res, next) {
     }
 
     const updates = req.body;
+    const isMirrored = task.sourceType === 'o2d_stage';
+
+    /**
+     * A MIRRORED task's status is not this screen's to set.
+     *
+     * "Completed" runs the real O2D stage completion — evidence, SLA, ordering,
+     * the lot — through `completeMirroredTask`, which updates THIS SAME
+     * document as a side effect of that succeeding (see `markMirrorDone` in
+     * `delegationMirror.service.js`). Any other requested status change for a
+     * mirrored task is silently a no-op below: the mirror's status only ever
+     * moves because the stage did, never because somebody dragged a card.
+     */
+    if (updates.status === 'Completed' && isMirrored) {
+      await completeMirroredTask(task, {
+        actor: req.user,
+        evidence: updates.evidence ?? null,
+        remarks: updates.remarks ?? null,
+        req,
+      });
+      const refreshed = await Delegation.findById(task._id);
+      return res.json({ success: true, data: refreshed });
+    }
+
     // Status update handling
-    if (updates.status && updates.status !== task.status) {
+    if (updates.status && updates.status !== task.status && !isMirrored) {
+      // Marking a task Completed straight from this endpoint is the same act
+      // /:id/verify performs one click at a time, so it needs the same grant.
+      if (updates.status === 'Completed' && !can(req.user, 'work_queue', 'completion', 'edit')) {
+        return res.status(403).json({ success: false, message: 'Forbidden. Insufficient permissions.' });
+      }
       task.status = updates.status;
       if (updates.status === 'Completed') {
         task.completedAt = task.completedAt || new Date();
@@ -315,13 +366,21 @@ export async function updateDelegation(req, res, next) {
       }
     }
 
-    if (updates.taskTitle) task.taskTitle = updates.taskTitle;
+    /**
+     * Identity fields on a mirrored task are the O2D stage's to own.
+     *
+     * `taskTitle` and `dueDate` are kept in step by
+     * `resyncMirrorSchedule`/`createMirrorDelegation` whenever the real stage's
+     * name or deadline changes — accepting an edit here would let this screen
+     * and Order Tracker disagree about which order and stage this even is.
+     */
+    if (updates.taskTitle && !isMirrored) task.taskTitle = updates.taskTitle;
     if (updates.description !== undefined) task.description = updates.description;
     if (updates.priority) task.priority = updates.priority;
     if (updates.category) task.category = updates.category;
     if (updates.categoryColor) task.categoryColor = updates.categoryColor;
     if (updates.tags) task.tags = updates.tags;
-    if (updates.dueDate) task.dueDate = new Date(updates.dueDate);
+    if (updates.dueDate && !isMirrored) task.dueDate = new Date(updates.dueDate);
     if (updates.recurrence) task.recurrence = updates.recurrence;
     if (updates.evidenceRequired !== undefined) task.evidenceRequired = updates.evidenceRequired;
     if (updates.verificationRequired !== undefined) task.verificationRequired = updates.verificationRequired;
@@ -344,6 +403,20 @@ export async function verifyAndComplete(req, res, next) {
     const task = await Delegation.findById(req.params.id);
     if (!task) {
       return res.status(404).json({ success: false, message: 'Delegated task not found' });
+    }
+
+    // Same door as `updateDelegation`'s status→Completed path: a mirrored
+    // task's one-click "Verify & Complete" has to run the real stage
+    // completion, or clicking it would tell the assignee they are done while
+    // Order Tracker still shows the stage open.
+    if (task.sourceType === 'o2d_stage') {
+      await completeMirroredTask(task, {
+        actor: req.user,
+        remarks: req.body.notes ?? null,
+        req,
+      });
+      const refreshed = await Delegation.findById(task._id);
+      return res.json({ success: true, data: refreshed });
     }
 
     task.status = 'Completed';
@@ -734,7 +807,7 @@ export async function getDeletedDelegations(req, res, next) {
       if (status === 'OverDue' || status === 'Overdue') {
         conditions.push({
           dueDate: { $lt: startOfDay(now) },
-          status: { $nin: ['Completed', 'Awaiting Verification'] },
+          status: { $nin: ['Completed', 'Awaiting Verification', DELEGATION_REASSIGNED_AWAY] },
         });
       } else {
         conditions.push({ status });
@@ -903,6 +976,22 @@ export async function deleteDelegation(req, res, next) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
+    /**
+     * A mirrored task cannot be deleted from here.
+     *
+     * Deleting the mirror would not touch the real O2D stage at all — it would
+     * still be sitting there, assigned, waiting — so the assignee would simply
+     * lose their only visible reminder of work Order Tracker still expects.
+     * Unassigning it on Order Tracker closes it out properly on both sides.
+     */
+    if (task.sourceType === 'o2d_stage') {
+      return res.status(400).json({
+        success: false,
+        message: 'This task is linked to an O2D stage. Unassign the stage from Order Tracker instead of deleting it here.',
+        code: 'O2D_MIRROR_NOT_DELETABLE',
+      });
+    }
+
     const userName = req.user.user || req.user.name || 'Admin';
     const nameParts = userName.trim().split(' ');
 
@@ -951,10 +1040,21 @@ export async function bulkUpdateStatus(req, res, next) {
       updateFields.verifiedBy = req.user._id;
     }
 
-    const result = await Delegation.updateMany(
-      { _id: { $in: ids }, isDeleted: false },
-      { $set: updateFields }
-    );
+    /**
+     * Bulk status is a direct write — it does not go through `updateDelegation`
+     * — so it has to exclude mirrored tasks itself. A bulk "Completed" over a
+     * mixed selection would otherwise flip an O2D-linked task's status without
+     * ever running the real stage completion, exactly the lying-UI state the
+     * single-task path exists to prevent. Manual tasks in the selection still
+     * update normally; mirrored ones are skipped and reported, so a bulk action
+     * against a filtered list never fails silently for part of it.
+     */
+    const filter = { _id: { $in: ids }, isDeleted: false, sourceType: { $ne: 'o2d_stage' } };
+    const skipped = await Delegation.countDocuments({
+      _id: { $in: ids }, isDeleted: false, sourceType: 'o2d_stage',
+    });
+
+    const result = await Delegation.updateMany(filter, { $set: updateFields });
 
     // Asynchronously log activities for each task
     for (const id of ids) {
@@ -969,8 +1069,11 @@ export async function bulkUpdateStatus(req, res, next) {
 
     res.json({
       success: true,
-      message: `Updated status for ${result.modifiedCount} task(s)`,
+      message: skipped
+        ? `Updated status for ${result.modifiedCount} task(s). ${skipped} linked to O2D stage(s) were skipped — complete those from Order Tracker or their own task card.`
+        : `Updated status for ${result.modifiedCount} task(s)`,
       modifiedCount: result.modifiedCount,
+      skipped,
     });
   } catch (err) {
     next(err);
@@ -991,8 +1094,13 @@ export async function bulkDeleteDelegations(req, res, next) {
     const userName = req.user.user || req.user.name || 'Admin';
     const nameParts = userName.trim().split(' ');
 
+    // Same exclusion as bulk-status, and for the same reason: deleting a
+    // mirror here leaves the real O2D stage untouched, still assigned, still
+    // waiting — see the single-task guard in `deleteDelegation`.
+    const skipped = await Delegation.countDocuments({ _id: { $in: ids }, sourceType: 'o2d_stage' });
+
     const result = await Delegation.updateMany(
-      { _id: { $in: ids } },
+      { _id: { $in: ids }, sourceType: { $ne: 'o2d_stage' } },
       {
         $set: {
           isDeleted: true,
@@ -1016,6 +1124,7 @@ export async function bulkDeleteDelegations(req, res, next) {
 
     res.json({
       success: true,
+      skipped,
       message: `Deleted ${result.modifiedCount} task(s)`,
       deletedCount: result.modifiedCount,
     });

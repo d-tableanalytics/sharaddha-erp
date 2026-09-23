@@ -31,11 +31,13 @@ import { putObject, getReadUrl } from '../../../utils/hrms/storage/index.js';
 import { recordAudit } from '../../../utils/auditLog.js';
 import { AUDIT_ACTIONS, STORAGE_CATEGORIES } from '../../../shared/constants/hrms.js';
 import { HrmsValidationError } from '../hrms.errors.js';
-import User from '../../../models/User.js';
-import { HRMS_PERMISSION_MATRIX } from '../../../shared/permissions/matrix.js';
 import {
-  HRMS_ROLE_LIST,
-  HRMS_ROLE_LABELS,
+  readCustomRoles,
+  createCustomRole,
+  updateCustomRole,
+  deleteCustomRole,
+} from '../rbac/customRole.service.js';
+import {
   HRMS_MODULE_LIST,
   HRMS_ACTIONS,
   SCOPES,
@@ -317,60 +319,62 @@ export async function upsertIntegrationConfig(dto, actor, req = null) {
 // ---------------------------------------------------------------------------
 
 /**
- * The permission matrix, as it actually is.
+ * Every role an administrator can see, in one list.
  *
- * The reference offers a 532-checkbox custom-role builder backed by `Role` /
- * `Permission` / `RolePermission` tables, and its `ActorLoader` really does
- * build `actor.permissions` from those tables — so there, editing a role
- * changes authorization.
+ * ---------------------------------------------------------------------------
+ * ONE KIND OF ROLE NOW
+ * ---------------------------------------------------------------------------
+ * All eight built-in roles are rows in `hrms_roles` too (see
+ * `rbac/seedRoles.js`), seeded once and never overwritten, so this used to be
+ * two lists — one read from code, one from the database — glued together here.
+ * `readCustomRoles()` already returns all of them, built-in and custom alike,
+ * each carrying its live (possibly edited) permissions and a `userCount` that
+ * accounts for both storage paths (`User.roles[]` for the eight, the
+ * `HrmsUserRole` join table for anything else). `isSystem` stays `false` on
+ * every row now; only `hrms_super_admin` comes back `protected: true`, which
+ * is the one restriction that still separates it from the rest.
  *
- * Here it cannot. AD-3 fixes eight HRMS roles and every module resolves
- * permissions from `matrix.js` at request time. Rendering the same grid over a
- * code-defined matrix would give an administrator 532 controls that appear to
- * grant access and silently change nothing, which is worse than not offering
- * them. So this returns the live matrix to be READ, and role membership is
- * changed where it already can be: `PATCH /hrms/employees/:id/roles`.
- *
- * Reported as the module's one deliberate parity reduction.
+ * `modules`, `actions` and `scopes` are served from the SAME constants the
+ * evaluator imports, rather than a list the browser keeps. The reference
+ * hardcodes 19 modules and 7 actions in its React component and has since
+ * drifted from its own 33-module, 10-action union - so its builder cannot
+ * grant `payroll/run`, `helpdesk/resolve` or any sub-module at all. Serving
+ * the vocabulary is what makes that class of drift impossible here.
  */
 export async function getRoleMatrix() {
-  const roles = HRMS_ROLE_LIST.map((key) => ({
-    key,
-    label: HRMS_ROLE_LABELS[key] ?? key,
-    // Every HRMS role is defined in code, so all of them are "system" roles in
-    // the reference's sense. Saying so is what tells an administrator why there
-    // is no edit button.
-    isSystem: true,
-    permissions: [...(HRMS_PERMISSION_MATRIX[key] ?? [])].map((p) => ({
-      module: p.module,
-      action: p.action,
-      scope: p.scope,
-    })),
-  }));
-
-  // How many accounts hold each role. One grouped query rather than one per
-  // role — the reference does this with a `_count` include.
-  const counts = await User.aggregate([
-    { $match: { roles: { $in: HRMS_ROLE_LIST } } },
-    { $unwind: '$roles' },
-    { $match: { roles: { $in: HRMS_ROLE_LIST } } },
-    { $group: { _id: '$roles', n: { $sum: 1 } } },
-  ]);
-  const byRole = new Map(counts.map((c) => [c._id, c.n]));
+  /*
+   * The plain read, not the permission-checked one: this function has never
+   * gated itself, and its two callers are gated differently at the route -
+   * `settings:view:org` here, `manage_roles` on the portal's Administration
+   * screen, which holds no HRMS grant at all.
+   */
+  const roles = await readCustomRoles();
 
   return {
-    // The screen states plainly that this cannot be edited here, and why.
-    editable: false,
+    editable: true,
     assignmentPath: '/hrms/employees',
     modules: [...HRMS_MODULE_LIST],
     actions: Object.values(HRMS_ACTIONS),
     scopes: Object.values(SCOPES),
-    roles: roles.map((r) => ({ ...r, userCount: byRole.get(r.key) ?? 0 })),
+    roles,
   };
 }
 
+/*
+ * The write half of Roles & Permissions.
+ *
+ * Re-exported rather than reimplemented: the rules live in
+ * rbac/customRole.service.js next to the model they guard, and Settings is the
+ * screen they are reached from. Two copies of "may this be deleted" is how the
+ * screen and the API start disagreeing.
+ */
+export { createCustomRole, updateCustomRole, deleteCustomRole };
+
 export default {
   getRoleMatrix,
+  createCustomRole,
+  updateCustomRole,
+  deleteCustomRole,
   getCompanySettings,
   updateCompanySettings,
   replaceLogo,

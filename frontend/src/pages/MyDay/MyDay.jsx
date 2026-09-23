@@ -21,14 +21,21 @@ import {
   Sparkles,
   Loader2,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 
 import { useUserStore } from "../../store/userStore";
 import { delegationService } from "../../services/delegation";
 import { checklistApi } from "../../services/checklist";
 import { CompleteTaskModal } from "./CompleteTaskModal";
+// Imported rather than re-declared: "is this row a mirrored O2D stage?" is one
+// question, and a second copy of the answer here is how the Work Queue's three
+// screens start disagreeing about which rows are mirrors.
+import { isO2dMirror } from "../Delegation/TaskListView";
 import { PageHeader } from '../../components/common/PageHeader';
 import { TabNav } from '../../components/hrms/TabNav';
+import { StatTile } from '../../components/workqueue/StatTile';
+import { usePermissions } from '../../hooks/usePermissions';
 
 // Helper: Normalize due date diff
 function getDueDiffDays(dueDate) {
@@ -77,6 +84,21 @@ function formatDueWords(task) {
     month: "short",
   })}`;
 }
+
+/**
+ * Sections stack their rows; they do not tile them.
+ *
+ * A card grid could not win here. What these rows hold - a title, a due word,
+ * three short chips and one button - is a LINE of information, and a grid cell
+ * is a column: the content filled the top of the card and left the rest empty,
+ * while a section holding one or two items left whole columns blank beside it.
+ * Narrowing the cells only made the blank area wider.
+ *
+ * As full-width rows the same content reads left to right and the width is
+ * spent on it, so a section with one item looks like one row rather than like a
+ * mostly empty shelf. The row itself folds back into a stack under `sm`.
+ */
+const CARD_LIST = "flex flex-col gap-2";
 
 // Helper: Parse loop IDs
 function parseLoopIds(inLoop) {
@@ -142,6 +164,22 @@ export function MyDay() {
   const [filterDateRange, setFilterDateRange] = useState("All Time");
 
   // Modal state
+  /**
+   * WHAT THIS SCREEN OFFERS.
+   *
+   * My Work is self-service - these are the actor's OWN tasks - but that is a
+   * statement about WHOSE records, not about what may be done to them. A role
+   * given the Work Queue to read still must not be able to start a task or
+   * close one, so Start and Done ask the same cells every other screen asks.
+   *
+   * Two cells, because the two Done buttons are two different acts: finishing a
+   * delegated task moves it along (edit), and ticking off a checklist
+   * occurrence closes it out (the checklist's approve).
+   */
+  const { can } = usePermissions();
+  const canEditTask = can('work_queue', 'tasks', 'edit');
+  const canCompleteChecklist = can('work_queue', 'checklist', 'approve');
+
   const [completeTask, setCompleteTask] = useState(null);
 
   // Deep link handling
@@ -742,95 +780,43 @@ export function MyDay() {
       </div>
 
       {/* 4. Quick-Jump Summary Band (4 KPI Metric Tiles) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* LATE */}
-        <div
-          onClick={() => scrollToSection("sec-late")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
-        >
-          <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors">
-              Late
-            </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-error-500 shrink-0" />
-          </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-error-600">{groups.late.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-              Jump ↓
-            </span>
-          </div>
-        </div>
-
-        {/* TODAY */}
-        <div
-          onClick={() => scrollToSection("sec-today")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
-        >
-          <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors">
-              Today
-            </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-warning-500 shrink-0" />
-          </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-warning-600">{groups.today.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-              Jump ↓
-            </span>
-          </div>
-        </div>
-
-        {/* UPCOMING */}
-        <div
-          onClick={() => scrollToSection("sec-upcoming")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
-        >
-          <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
-              Upcoming
-            </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-primary-500 shrink-0" />
-          </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-primary-600">{groups.upcoming.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-              Jump ↓
-            </span>
-          </div>
-        </div>
-
-        {/* DONE */}
-        <div
-          onClick={() => scrollToSection("sec-done")}
-          className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
-        >
-          <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors">
-              Done
-            </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-success-500 shrink-0" />
-          </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-semibold text-success-600">{groups.done.length}</span>
-            <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-              Jump ↓
-            </span>
-          </div>
-        </div>
+      {/*
+        The HR Dashboard's Quick Access tile, carrying a count: same shell, same
+        40px toned chip, same label type, same `gap-3` grid. `StatTile` is that
+        component, shared with the other four Work Queue screens.
+      */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {[
+          { id: "late", label: "Late", icon: AlertTriangle, tone: "danger", count: groups.late.length },
+          { id: "today", label: "Today", icon: Sun, tone: "warning", count: groups.today.length },
+          { id: "upcoming", label: "Upcoming", icon: CalendarClock, tone: "primary", count: groups.upcoming.length },
+          { id: "done", label: "Done", icon: CheckCircle2, tone: "success", count: groups.done.length },
+        ].map((tile) => (
+          <StatTile
+            key={tile.id}
+            icon={tile.icon}
+            tone={tile.tone}
+            label={tile.label}
+            value={tile.count}
+            title={`Jump to ${tile.label}`}
+            onClick={() => scrollToSection(`sec-${tile.id}`)}
+          />
+        ))}
       </div>
 
       {/* 5. Zero States & Celebration */}
       {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+        <div className={`${CARD_LIST} pt-2`}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div
               key={i}
-              className="h-36 rounded-xl bg-white border border-slate-200 p-4 animate-pulse space-y-3"
+              className="rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 animate-pulse flex items-center gap-4"
             >
-              <div className="h-4 bg-slate-200 rounded-md w-3/4" />
-              <div className="h-3 bg-slate-100 rounded-md w-1/2" />
-              <div className="h-10 bg-slate-100 rounded-xl w-full mt-4" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-slate-200 rounded-md w-1/3" />
+                <div className="h-3 bg-slate-100 rounded-md w-1/2" />
+              </div>
+              <div className="h-9 bg-slate-100 rounded-lg w-44 shrink-0" />
             </div>
           ))}
         </div>
@@ -905,7 +891,7 @@ export function MyDay() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={CARD_LIST}>
                 {groups.late.map((task) => (
                   <TaskCard
                     key={task.id}
@@ -916,6 +902,8 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    canEditTask={canEditTask}
+                    canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
                   />
                 ))}
@@ -940,7 +928,7 @@ export function MyDay() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={CARD_LIST}>
                 {groups.today.map((task) => (
                   <TaskCard
                     key={task.id}
@@ -951,6 +939,8 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    canEditTask={canEditTask}
+                    canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
                   />
                 ))}
@@ -975,7 +965,7 @@ export function MyDay() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={CARD_LIST}>
                 {groups.upcoming.map((task) => (
                   <TaskCard
                     key={task.id}
@@ -986,6 +976,8 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    canEditTask={canEditTask}
+                    canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
                   />
                 ))}
@@ -1010,7 +1002,7 @@ export function MyDay() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={CARD_LIST}>
                 {groups.waiting.map((task) => (
                   <TaskCard
                     key={task.id}
@@ -1021,6 +1013,8 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    canEditTask={canEditTask}
+                    canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
                   />
                 ))}
@@ -1045,7 +1039,7 @@ export function MyDay() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={CARD_LIST}>
                 {groups.done.map((task) => (
                   <TaskCard
                     key={task.id}
@@ -1056,6 +1050,8 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    canEditTask={canEditTask}
+                    canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
                   />
                 ))}
@@ -1082,6 +1078,24 @@ export function MyDay() {
  * TaskCard Component
  * Refined enterprise card with status accent and touch targets.
  */
+/**
+ * What sits where a card's action buttons would be, for an actor who may read
+ * the Work Queue but not work it.
+ *
+ * A strip rather than nothing: the card's footer is a fixed part of its
+ * layout, and removing it entirely would leave the grid uneven and say nothing
+ * about why. It matches the three states the card already renders this way -
+ * following, sent for approval, completed.
+ */
+function ViewOnlyFooter() {
+  return (
+    <div className="h-9 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs gap-2 select-none border border-slate-200">
+      <Eye className="w-3.5 h-3.5 text-slate-400" />
+      <span>View only</span>
+    </div>
+  );
+}
+
 function TaskCard({
   task,
   activeTab,
@@ -1091,6 +1105,8 @@ function TaskCard({
   onChecklistDone,
   onDelegationDone,
   onClick,
+  canEditTask = false,
+  canCompleteChecklist = false,
 }) {
   const isChecklist = task.kind === "checklist";
   const isLoop = activeTab === "loop";
@@ -1114,26 +1130,44 @@ function TaskCard({
 
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-white border-l-4 p-4.5 flex flex-col justify-between gap-3.5 shadow-enterprise hover:shadow-md transition-all ${borderStyles}`}
+      className={`rounded-xl border border-slate-200 bg-white border-l-4 px-3.5 py-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4 shadow-enterprise hover:shadow-md transition-all ${borderStyles}`}
     >
-      {/* Card Header & Title */}
-      <div className="space-y-2">
-        <div
-          onClick={() => onClick(task)}
-          className={`group flex items-start justify-between gap-2 ${
-            !isChecklist ? "cursor-pointer" : ""
-          }`}
-        >
-          <h3 className="text-sm font-bold text-slate-900 group-hover:text-primary-700 transition-colors line-clamp-2 leading-snug">
+      {/* Identity: title on one line, everything that qualifies it on the next */}
+      <div
+        onClick={() => onClick(task)}
+        className={`group min-w-0 flex-1 ${!isChecklist ? "cursor-pointer" : ""}`}
+      >
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-bold text-slate-900 group-hover:text-primary-700 transition-colors truncate leading-snug">
             {task.taskTitle}
           </h3>
+          {/*
+            Says where this row came from, carrying the PO and stage number
+            Order Tracker shows.
+
+            Without it this screen is the one place a mirrored task looks
+            like an ordinary one: the Delegation and Checklist lists both
+            badge it, and this — the screen the Work Queue menu actually
+            opens — did not. Somebody seeing the same work here and in O2D's
+            My Tasks had no way to tell it was ONE task rather than two, which
+            is the duplicate the mirror exists to avoid and the badge exists
+            to make visible.
+          */}
+          {isO2dMirror(task) && (
+            <span
+              className="shrink-0 inline-flex items-center gap-0.5 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-primary-700"
+              title={`Stage ${task.sourceStageNumber} of order ${task.sourcePoNumber} — the same task as O2D's My Tasks, kept in step both ways`}
+            >
+              O2D · {task.sourcePoNumber}
+            </span>
+          )}
           {!isChecklist && (
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary-700 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary-700 group-hover:translate-x-0.5 transition-all shrink-0" />
           )}
         </div>
 
-        {/* Due wording badge & Code */}
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+        {/* Due wording, code and the metadata chips - one wrapped line */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold">
           <span
             className={`${
               theme === "late"
@@ -1154,10 +1188,6 @@ function TaskCard({
               {taskCode}
             </span>
           )}
-        </div>
-
-        {/* Metadata Chips: Frequency & Site / Department */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
           <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
             {task.frequency || "One-off"}
           </span>
@@ -1172,56 +1202,66 @@ function TaskCard({
         </div>
       </div>
 
-      {/* Action Button Section: 44px (h-11) Touch Targets */}
-      <div className="pt-1">
+      {/* Action, pinned to the end of the row and full width once stacked */}
+      <div className="w-full sm:w-44 shrink-0">
         {/* CASE 1: In-Loop (Follower Mode) */}
         {isLoop ? (
-          <div className="h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs gap-2 select-none border border-slate-200">
+          <div className="h-9 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs gap-2 select-none border border-slate-200">
             <Radio className="w-3.5 h-3.5 text-slate-400 animate-pulse" />
             <span>Following this task</span>
           </div>
         ) : isWaiting ? (
           /* CASE 2: Waiting for Verification */
-          <div className="h-10 rounded-xl bg-primary-50 text-primary-700 border border-primary-200 flex items-center justify-center font-bold text-xs gap-2 select-none">
+          <div className="h-9 rounded-lg bg-primary-50 text-primary-700 border border-primary-200 flex items-center justify-center font-bold text-xs gap-2 select-none">
             <Hourglass className="w-3.5 h-3.5" />
             <span>Sent for approval</span>
           </div>
         ) : isDone ? (
           /* CASE 3: Finished */
-          <div className="h-10 rounded-xl bg-success-50 text-success-600 border border-success-100 flex items-center justify-center font-bold text-xs gap-2 select-none">
+          <div className="h-9 rounded-lg bg-success-50 text-success-600 border border-success-100 flex items-center justify-center font-bold text-xs gap-2 select-none">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Completed</span>
           </div>
         ) : isChecklist ? (
           /* CASE 4: Checklist Item (One-tap direct completion) */
+          !canCompleteChecklist ? (
+            <ViewOnlyFooter />
+          ) : (
           <button
             onClick={() => onChecklistDone(task)}
             disabled={busy}
             type="button"
-            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 w-full select-none cursor-pointer"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise h-9 px-3 text-xs gap-1.5 w-full select-none cursor-pointer"
           >
             {busy ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <Check className="w-4 h-4 stroke-[2.5]" />
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
             )}
             <span>Done</span>
           </button>
+          )
         ) : isInProgress ? (
           /* CASE 5: Delegation in progress -> Full-width Done */
+          !canEditTask ? (
+            <ViewOnlyFooter />
+          ) : (
           <button
             onClick={() => onDelegationDone(task)}
             disabled={busy}
             type="button"
-            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-4 py-2 text-sm gap-2 w-full select-none cursor-pointer"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise h-9 px-3 text-xs gap-1.5 w-full select-none cursor-pointer"
           >
             {busy ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <Check className="w-4 h-4 stroke-[2.5]" />
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
             )}
             <span>Done</span>
           </button>
+          )
+        ) : !canEditTask ? (
+          <ViewOnlyFooter />
         ) : (
           /* CASE 6: Delegation pending -> [Start] + [Done] side-by-side */
           <div className="flex items-center gap-2">
@@ -1229,7 +1269,7 @@ function TaskCard({
               onClick={() => onStart(task)}
               disabled={busy}
               type="button"
-              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-3 py-1.5 text-xs gap-1.5 flex-1 select-none cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise h-9 px-3 text-xs gap-1.5 flex-1 select-none cursor-pointer"
             >
               {busy ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1243,9 +1283,9 @@ function TaskCard({
               onClick={() => onDelegationDone(task)}
               disabled={busy}
               type="button"
-              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise px-3 py-1.5 text-xs gap-1.5 flex-1 select-none cursor-pointer"
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise h-9 px-3 text-xs gap-1.5 flex-1 select-none cursor-pointer"
             >
-              <Check className="w-4 h-4 stroke-[2.5]" />
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Done</span>
             </button>
           </div>

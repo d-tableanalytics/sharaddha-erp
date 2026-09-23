@@ -46,7 +46,8 @@ import {
   O2D_EVENTS,
   DISPATCH_STAGE,
 } from '../../shared/constants/o2d.js';
-import { O2dWorkflowError } from './stage.engine.js';
+import { O2dWorkflowError, syncMirror } from './stage.engine.js';
+import { holdMirrorsForOrder, releaseMirrorsForOrder } from './stageMirror.service.js';
 
 const EXITED = [ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID];
 
@@ -113,6 +114,21 @@ async function exitOrder(orderId, exitType, { reason, remarks = null, approvedBy
     { order: order._id, status: { $nin: TERMINAL_STAGE_STATUSES } },
     { $set: { status: STAGE_STATUS.ON_HOLD } },
   );
+
+  /*
+   * And park every mirrored task with them.
+   *
+   * This is the worst version of the divergence, not a tidier one: the order
+   * is GONE — cancelled or void — and without this its assignees keep an open
+   * task in their Work Queue for a PO nobody will ever ship, with no screen
+   * anywhere that would tell them otherwise. Held rather than completed,
+   * because a revive brings the order back and the work with it.
+   */
+  await syncMirror(holdMirrorsForOrder, order._id, {
+    actor,
+    at: now,
+    reason: `${order.poNumber} was ${exitType.toLowerCase()} (${reason.trim()})`,
+  });
 
   const entry = await O2dExitRegister.create({
     order: order._id,
@@ -236,6 +252,21 @@ export async function reviveOrder(orderId, { reason }, actor, { req = null, now 
     { order: order._id, status: STAGE_STATUS.ON_HOLD, stageNumber: { $gt: order.currentStage } },
     { $set: { status: STAGE_STATUS.LOCKED } },
   );
+
+  /*
+   * Hand every mirrored task back to whoever was holding it.
+   *
+   * Symmetrical with the exit: it parked exactly these rows, so reviving
+   * releases exactly these rows and the assignee's Work Queue reads the way it
+   * did before the cancellation. No deadline is touched here — a revived order
+   * keeps the dates it already missed (see `deadlinesRecomputed` below), and a
+   * resync would quietly grant it relief the audit row says it did not get.
+   */
+  await syncMirror(releaseMirrorsForOrder, order._id, {
+    actor,
+    at: now,
+    reason: `${order.poNumber} was revived from ${previousStatus.toLowerCase()}`,
+  });
 
   // Stamped on the most recent un-revived exit, so a twice-exited order reads
   // in the right order.

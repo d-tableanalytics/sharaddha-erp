@@ -555,6 +555,32 @@ export const AUDIT_ACTIONS = Object.freeze({
   SETTINGS_SSO_UPDATED: 'hrms.settings.sso.updated',
   SETTINGS_INTEGRATION_UPDATED: 'hrms.settings.integration.updated',
 
+  /**
+   * Custom roles.
+   *
+   * A role change is the highest-leverage write in the product - it decides
+   * what everybody else may do - so all three verbs are recorded, with the
+   * key and which fields moved. Not the permission list itself: a role can
+   * carry hundreds of triples and the trail is for answering "who changed
+   * this, when", which the count and the field list already do.
+   */
+  SETTINGS_ROLE_CREATED: 'hrms.settings.role.created',
+  SETTINGS_ROLE_UPDATED: 'hrms.settings.role.updated',
+  SETTINGS_ROLE_DELETED: 'hrms.settings.role.deleted',
+
+  /**
+   * Employee custom-field definitions.
+   *
+   * Departments and locations have audited their mutations since they were
+   * written; custom fields did not, although they are the same kind of change -
+   * an administrator altering the shape of every employee record. A definition
+   * whose type changed is the explanation for values that stopped rendering, so
+   * the trail has to carry it.
+   */
+  CUSTOM_FIELD_CREATED: 'hrms.custom_field.created',
+  CUSTOM_FIELD_UPDATED: 'hrms.custom_field.updated',
+  CUSTOM_FIELD_DELETED: 'hrms.custom_field.deleted',
+
   // -------------------------------------------------------------------------
   // SI Academy
   // -------------------------------------------------------------------------

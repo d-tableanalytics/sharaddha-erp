@@ -15,10 +15,11 @@ import { hrmsClient } from "./client";
  *      (`hasClientSecret`, `configuredSecrets`) and nothing else, so a form
  *      shows "configured" rather than a value it should never have received.
  *
- *   2. ROLES ARE READ-ONLY. The reference offers a custom-role builder backed
- *      by database tables its actor loader really reads. Shraddha resolves
- *      permissions from the code matrix (AD-3), so the same editor here would
- *      grant nothing. Role MEMBERSHIP is changed in Employees.
+ *   2. THE BUILT-IN EIGHT ARE READ-ONLY; CUSTOM ROLES ARE NOT. The eight roles
+ *      AD-3 fixes are code-defined and have no write route at all. A CUSTOM
+ *      role is a row, its grants are unioned onto the actor the guards read,
+ *      and its three write verbs are below. Role MEMBERSHIP for both kinds is
+ *      still changed in Employees.
  *
  *   3. THE FIELD CONTRACT COMES FROM THE SERVER. The reference keeps its
  *      per-integration field table in the browser only.
@@ -52,8 +53,31 @@ export const settingsApi = {
     return res.data?.data;
   },
 
-  // -- Roles (read-only) ----------------------------------------------------
+  // -- Roles ----------------------------------------------------------------
+  /**
+   * The eight built-in roles AND any custom ones, plus the module/action/scope
+   * vocabulary the builder draws its grid from.
+   *
+   * The vocabulary comes from the server on purpose: the reference keeps its
+   * own copy in the React component and it has drifted, so its builder cannot
+   * grant `payroll/run`, `helpdesk/resolve` or any sub-module at all.
+   */
   roles: () => hrmsClient.get("/settings/roles"),
+
+  /** Custom roles only — a built-in role has no id to address. */
+  createRole: (dto) => hrmsClient.post("/settings/roles", dto),
+  updateRole: (id, dto) => hrmsClient.patch(`/settings/roles/${id}`, dto),
+  deleteRole: (id) => hrmsClient.delete(`/settings/roles/${id}`),
+
+  /**
+   * Withdraw or restore a role's grants without touching who holds it.
+   *
+   * Its own method rather than a `updateRole` call at the call site, because
+   * the payload MUST be only `{active}`: sending the permission set alongside
+   * would make a toggle silently rewrite the matrix from whatever the list
+   * screen happened to be holding.
+   */
+  setRoleActive: (id, active) => hrmsClient.patch(`/settings/roles/${id}`, { active }),
 
   // -- SSO ------------------------------------------------------------------
   sso: () => hrmsClient.get("/settings/sso"),

@@ -99,6 +99,20 @@ export const BucketBadge = ({ bucket, className }) => (
 );
 
 /**
+ * Which Work Queue list an assigned stage's task actually appears on.
+ *
+ * Read from the stage's own link fields rather than recomputed from the
+ * stage number: the server decided this when it created the mirror, and a
+ * second opinion here could disagree with the row the assignee is looking at.
+ * Exactly one of the two is ever set — see O2dOrderStage.js.
+ */
+export const mirrorSurfaceOf = (stage) => {
+  if (stage?.checklistOccurrenceId) return 'Checklist';
+  if (stage?.delegationId) return 'Delegation list';
+  return 'Work Queue';
+};
+
+/**
  * The twelve stages as a vertical timeline — the heart of Order 360 (§22).
  *
  * Renders EVERY stage, including the ones still locked, because "where is this
@@ -113,7 +127,16 @@ export const BucketBadge = ({ bucket, className }) => (
  *   the REASON on a skipped one, since a skip with no reason is
  *     indistinguishable on screen from work that was never done.
  */
-export function StageTimeline({ stages = [], currentStage, onAct, actionableStages = [] }) {
+export function StageTimeline({
+  stages = [],
+  currentStage,
+  onAct,
+  actionableStages = [],
+  assignableUsers,
+  onAssign,
+  onUnassign,
+  assigningStage,
+}) {
   if (stages.length === 0) {
     return <p className="text-sm text-slate-500">No stages recorded for this order.</p>;
   }
@@ -221,15 +244,77 @@ export function StageTimeline({ stages = [], currentStage, onAct, actionableStag
                   )}
               </dl>
 
-              {canAct && onAct && (
-                <button
-                  type="button"
-                  onClick={() => onAct(stage)}
-                  className="mt-2 rounded-md bg-primary-600 px-3 py-1 text-xs font-medium text-white hover:bg-primary-700"
-                >
-                  Complete this stage
-                </button>
+              {stage.assignedToName && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+                  <span className="text-slate-400">Assigned to</span>
+                  <span className="font-medium text-slate-800">{stage.assignedToName}</span>
+                  {/*
+                    This is not just a label — the same person's Work Queue
+                    carries this exact task, kept in sync in both directions.
+                    WHICH list it landed on depends on the stage: one that needs
+                    evidence recorded becomes a Checklist item, one that needs a
+                    decision becomes a Delegation. Naming the actual list beats
+                    "somewhere in their Work Queue", because the next question
+                    after "assigned to whom" is always "where do they find it".
+                    See stageMirror.service.js.
+                  */}
+                  <span className="text-slate-400">· in their {mirrorSurfaceOf(stage)}</span>
+                </p>
               )}
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {canAct && onAct && (
+                  <button
+                    type="button"
+                    onClick={() => onAct(stage)}
+                    className="rounded-md bg-primary-600 px-3 py-1 text-xs font-medium text-white hover:bg-primary-700"
+                  >
+                    Complete this stage
+                  </button>
+                )}
+
+                {/*
+                  The assign control sits on the same row `canAct` governs —
+                  whoever can complete a stage themselves is exactly who may
+                  hand it to somebody else, per `assertMayAssign` on the
+                  backend. A LOCKED future stage cannot be pre-assigned from
+                  here yet, only the stage currently open for work.
+                */}
+                {canAct && onAssign && Array.isArray(assignableUsers) && (
+                  <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                    <span className="text-slate-400">
+                      {stage.assignedTo ? "Reassign to" : "Assign to"}
+                    </span>
+                    <select
+                      value=""
+                      disabled={assigningStage === stage.stageNumber}
+                      onChange={(e) => {
+                        if (e.target.value) onAssign(stage, e.target.value);
+                        e.target.value = "";
+                      }}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+                    >
+                      <option value="">Choose…</option>
+                      {assignableUsers.map((u) => (
+                        <option key={u._id} value={u._id}>
+                          {u.user || u.email}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {canAct && stage.assignedTo && onUnassign && (
+                  <button
+                    type="button"
+                    onClick={() => onUnassign(stage)}
+                    disabled={assigningStage === stage.stageNumber}
+                    className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700 disabled:opacity-50"
+                  >
+                    Unassign
+                  </button>
+                )}
+              </div>
             </div>
           </li>
         );

@@ -113,6 +113,41 @@ const o2dOrderStageSchema = new mongoose.Schema(
     dueSoonNotifiedAt: { type: Date, default: null },
     overdueNotifiedAt: { type: Date, default: null },
     escalatedAt: { type: Date, default: null },
+
+    /**
+     * ── Person assignment ───────────────────────────────────────────────
+     *
+     * `ownerRole` above says WHICH ROLE this stage belongs to — that is the
+     * permission ceiling and never changes because of this. This says which
+     * ONE PERSON in that role has actually been handed it, for exactly one
+     * reason: so it can appear on that person's own Work Queue, not their
+     * whole role's.
+     *
+     * The assignment produces exactly ONE mirrored task, in exactly one of the
+     * two places the Work Queue keeps work — never both, because two live
+     * copies of one stage is the duplicate this whole design exists to avoid:
+     *
+     *   delegationId          a stage whose completion is a confirmation
+     *   checklistOccurrenceId a stage whose completion is RECORDING specific
+     *                         evidence (an invoice number, an AWB, a UTR)
+     *
+     * Which one is decided by the stage's own required-field spec, in
+     * `mirrorKindForStage` — see `o2dDelegationSync.service.js`. Both are null
+     * until somebody is assigned, and the live one is cleared (not left
+     * dangling) the moment they are unassigned or reassigned, so "does this
+     * stage have a linked task, and where" is answerable from the stage row
+     * alone without a second query.
+     */
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+    assignedToName: { type: String, default: null, trim: true, maxlength: 200 },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedAt: { type: Date, default: null },
+    delegationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Delegation', default: null },
+    checklistOccurrenceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ChecklistOccurrence',
+      default: null,
+    },
   },
   { timestamps: true, collection: 'o2d_order_stages' },
 );

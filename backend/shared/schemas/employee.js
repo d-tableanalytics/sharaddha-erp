@@ -179,6 +179,39 @@ export const customFieldTypeSchema = z.enum([
   'multiselect',
 ]);
 
+/** The two types whose whole point is a fixed list of choices. */
+export const CHOICE_CUSTOM_FIELD_TYPES = Object.freeze(['select', 'multiselect']);
+
+export const requiresOptions = (type) => CHOICE_CUSTOM_FIELD_TYPES.includes(type);
+
+/**
+ * A `select` with no options is a dropdown nobody can pick from.
+ *
+ * The reference enforces this in its browser only, so a direct API call creates
+ * exactly that. Ours had it as a `pre('validate')` hook on the model, which
+ * covers `create` but NOT `findByIdAndUpdate` — `runValidators` runs path
+ * validators, not document hooks — so a PATCH could still turn a text field
+ * into an optionless select. Putting the rule in the schema covers both verbs
+ * and both sides, since the client resolves against this same object.
+ *
+ * On UPDATE the rule can only fire when the payload carries enough to judge:
+ * `.partial()` means `{type:'select'}` may arrive alone, and whether that is
+ * legal depends on the options already stored. The service re-checks the
+ * MERGED document for that case — see `updateCustomField`.
+ */
+const optionsMatchType = (dto, ctx) => {
+  if (dto.type === undefined) return;
+  if (!requiresOptions(dto.type)) return;
+  if (dto.options === undefined) return; // service checks against stored options
+  if (dto.options.length > 0) return;
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['options'],
+    message: `A "${dto.type}" field needs at least one option.`,
+  });
+};
+
 export const createCustomFieldSchema = z
   .object({
     name: z
@@ -193,12 +226,30 @@ export const createCustomFieldSchema = z
     required: z.boolean().default(false),
     order: z.number().int().default(0),
   })
-  .strict();
+  .strict()
+  .superRefine((dto, ctx) => {
+    // On create `options` always has a value (it defaults to []), so the
+    // absent-options escape above never applies here.
+    if (requiresOptions(dto.type) && (dto.options ?? []).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['options'],
+        message: `A "${dto.type}" field needs at least one option.`,
+      });
+    }
+  });
 
 /** `name` is immutable — renaming it would orphan every stored value. */
-export const updateCustomFieldSchema = createCustomFieldSchema
-  .omit({ name: true })
+export const updateCustomFieldSchema = z
+  .object({
+    label: z.string().trim().min(1).max(120),
+    type: customFieldTypeSchema,
+    options: z.array(z.string().trim().min(1)),
+    required: z.boolean(),
+    order: z.number().int(),
+  })
   .partial()
-  .strict();
+  .strict()
+  .superRefine(optionsMatchType);
 
 export { SENSITIVE_EMPLOYEE_FIELD_LIST, F as SENSITIVE_EMPLOYEE_FIELDS };

@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   LayoutGrid,
+  LayoutList,
+  AlertTriangle,
+  CheckCircle2,
+  PlayCircle,
+  ShieldCheck,
+  Ban,
+  Link2,
+  Timer,
   CheckSquare,
   RotateCcw,
   Search,
@@ -38,6 +46,8 @@ import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { TabNav } from '../../components/hrms/TabNav';
+import { StatTile } from '../../components/workqueue/StatTile';
+import { usePermissions } from '../../hooks/usePermissions';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 
@@ -229,6 +239,22 @@ export function AllTasks() {
 
   // ── Modals & Drawers states ──────────────────────────────────────────────
   const [showTaskDrawer, setShowTaskDrawer] = useState(false);
+  /**
+   * WHAT THIS SCREEN OFFERS.
+   *
+   * All Tasks shows EVERY user's work, which makes it the widest surface in the
+   * module and the one where an ungated bulk delete costs the most. Nothing
+   * here checked a permission before.
+   *
+   * The bulk controls answer to `administration`, not to `tasks`: setting the
+   * status of a selection, or binning it, is authority over other people's
+   * work rather than editing your own.
+   */
+  const { can } = usePermissions();
+  const canCreate = can('work_queue', 'tasks', 'create');
+  const canBulkEdit = can('work_queue', 'administration', 'approve');
+  const canBulkDelete = can('work_queue', 'administration', 'delete');
+
   const [selectedTaskId, setSelectedTaskId] = useState(paramTaskId || null);
   const [showDetails, setShowDetails] = useState(Boolean(paramTaskId));
   const [selectedTaskObj, setSelectedTaskObj] = useState(null);
@@ -490,8 +516,8 @@ export function AllTasks() {
         count: totalList.length,
         list: totalList,
         desc: 'Every task across all users.',
-        dot: 'bg-slate-400',
-        textColor: 'text-slate-900',
+        icon: LayoutList,
+        tone: 'neutral',
       },
       {
         id: 'overdue',
@@ -499,8 +525,8 @@ export function AllTasks() {
         count: overdueList.length,
         list: overdueList,
         desc: 'Past their due date and not yet completed.',
-        dot: 'bg-error-500',
-        textColor: 'text-error-600',
+        icon: AlertTriangle,
+        tone: 'danger',
       },
       {
         id: 'pending',
@@ -508,8 +534,8 @@ export function AllTasks() {
         count: pendingList.length,
         list: pendingList,
         desc: 'Assigned but not yet accepted.',
-        dot: 'border-2 border-slate-400 bg-transparent',
-        textColor: 'text-slate-600',
+        icon: Clock,
+        tone: 'neutral',
       },
       {
         id: 'accepted',
@@ -517,8 +543,8 @@ export function AllTasks() {
         count: acceptedList.length,
         list: acceptedList,
         desc: 'Accepted by the doer, work not started.',
-        dot: 'bg-primary-500',
-        textColor: 'text-primary-600',
+        icon: CheckSquare,
+        tone: 'primary',
       },
       {
         id: 'dependent',
@@ -526,8 +552,8 @@ export function AllTasks() {
         count: dependentList.length,
         list: dependentList,
         desc: 'Waiting on another person or team.',
-        dot: 'bg-warning-500',
-        textColor: 'text-warning-600',
+        icon: Link2,
+        tone: 'warning',
       },
       {
         id: 'blocked',
@@ -535,8 +561,8 @@ export function AllTasks() {
         count: blockedList.length,
         list: blockedList,
         desc: 'Flagged blocked by a person, vendor or dependency.',
-        dot: 'bg-warning-600',
-        textColor: 'text-warning-600',
+        icon: Ban,
+        tone: 'warning',
       },
       {
         id: 'in_progress',
@@ -544,8 +570,8 @@ export function AllTasks() {
         count: inProgressList.length,
         list: inProgressList,
         desc: 'Actively being worked on.',
-        dot: 'bg-warning-500',
-        textColor: 'text-warning-600',
+        icon: PlayCircle,
+        tone: 'warning',
       },
       {
         id: 'verification',
@@ -553,8 +579,8 @@ export function AllTasks() {
         count: verifyingList.length,
         list: verifyingList,
         desc: 'Submitted and awaiting the assigner’s approval.',
-        dot: 'bg-primary-500',
-        textColor: 'text-primary-600',
+        icon: ShieldCheck,
+        tone: 'primary',
       },
       {
         id: 'completed',
@@ -562,8 +588,8 @@ export function AllTasks() {
         count: completedList.length,
         list: completedList,
         desc: 'Finished and approved.',
-        dot: 'bg-success-500',
-        textColor: 'text-success-600',
+        icon: CheckCircle2,
+        tone: 'success',
       },
       {
         id: 'in_time',
@@ -571,8 +597,8 @@ export function AllTasks() {
         count: inTimeList.length,
         list: inTimeList,
         desc: 'Completed on or before the due date.',
-        dot: 'bg-success-500',
-        textColor: 'text-success-600',
+        icon: Timer,
+        tone: 'success',
       },
       {
         id: 'delayed',
@@ -580,8 +606,8 @@ export function AllTasks() {
         count: delayedList.length,
         list: delayedList,
         desc: 'Still open and past the due date.',
-        dot: 'bg-error-500',
-        textColor: 'text-error-600',
+        icon: AlertTriangle,
+        tone: 'danger',
       },
     ];
   }, [scopedTasks, baseFilteredTasks]);
@@ -639,8 +665,19 @@ export function AllTasks() {
     const count = selectedIds.length;
     const toastId = toast.loading(`Updating ${count} task(s) to "${newStatus}"...`);
     try {
-      await delegationService.bulkUpdateStatus(selectedIds, newStatus);
-      toast.success(`Successfully updated ${count} task(s) to "${newStatus}"`, { id: toastId });
+      const res = await delegationService.bulkUpdateStatus(selectedIds, newStatus);
+      /*
+       * The SERVER's count, not the selection's.
+       *
+       * Tasks mirrored from an O2D stage are skipped by the bulk endpoints on
+       * purpose — their status is the stage's to decide — and the response says
+       * how many. Reporting the number selected instead would tell somebody
+       * five tasks moved when four did.
+       */
+      toast.success(
+        res?.message ?? `Successfully updated ${count} task(s) to "${newStatus}"`,
+        { id: toastId },
+      );
       setSelectedIds([]);
       setIsStatusDropdownOpen(false);
       fetchAllData();
@@ -657,8 +694,12 @@ export function AllTasks() {
     const count = selectedIds.length;
     const toastId = toast.loading(`Deleting ${count} task(s)...`);
     try {
-      await delegationService.bulkDelete(selectedIds);
-      toast.success(`Successfully moved ${count} task(s) to Trash Bin`, { id: toastId });
+      const res = await delegationService.bulkDelete(selectedIds);
+      // The server's count — see the note in the bulk status handler above.
+      toast.success(
+        res?.message ?? `Successfully moved ${count} task(s) to Trash Bin`,
+        { id: toastId },
+      );
       setSelectedIds([]);
       setShowBulkDeleteModal(false);
       fetchAllData();
@@ -776,35 +817,33 @@ export function AllTasks() {
         title="All Tasks"
         subtitle="Every task across all users"
         actions={
-          <Button size="sm" onClick={() => setShowTaskDrawer(true)}>
-            <CheckSquare className="w-4 h-4 mr-2" />
-            Assign Task
-          </Button>
+          canCreate ? (
+            <Button size="sm" onClick={() => setShowTaskDrawer(true)}>
+              <CheckSquare className="w-4 h-4 mr-2" />
+              Assign Task
+            </Button>
+          ) : null
         }
       />
 
       {/* ── 2. QUICK STATS GRID (11 KPI Metric Cards) ────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      {/*
+        The HR Dashboard's Quick Access tile, carrying a count: same shell, same
+        40px toned chip, same label type, and the same `gap-3` grid — including
+        the 7-up `xl` step, which is what keeps eleven tiles from stranding a
+        near-empty row on a wide screen.
+      */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
         {kpiStats.map((s) => (
-          <div
+          <StatTile
             key={s.id}
-            onClick={() => setKpiDrill({ label: s.label, description: s.desc, list: s.list })}
-            className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-primary-600 transition-all cursor-pointer shadow-enterprise hover:shadow-md flex flex-col justify-between group"
+            icon={s.icon}
+            tone={s.tone}
+            label={s.label}
+            value={s.count}
             title={s.desc}
-          >
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 group-hover:text-primary-700 transition-colors truncate">
-                {s.label}
-              </span>
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
-            </div>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className={`text-2xl font-semibold ${s.textColor}`}>{s.count}</span>
-              <span className="text-[10px] font-bold text-slate-400 group-hover:text-primary-700 group-hover:underline">
-                View →
-              </span>
-            </div>
-          </div>
+            onClick={() => setKpiDrill({ label: s.label, description: s.desc, list: s.list })}
+          />
         ))}
       </div>
 
@@ -1277,6 +1316,7 @@ export function AllTasks() {
               {/* Bulk Action Controls */}
               <div className="flex items-center gap-2">
                 {/* 1. Status Update Dropdown */}
+                {canBulkEdit && (
                 <div className="relative" ref={statusDropdownRef}>
                   <button
                     type="button"
@@ -1339,8 +1379,10 @@ export function AllTasks() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* 2. Delete Button */}
+                {canBulkDelete && (
                 <button
                   type="button"
                   disabled={selectedIds.length === 0 || isBulkDeleting}
@@ -1355,6 +1397,7 @@ export function AllTasks() {
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}</span>
                 </button>
+                )}
               </div>
             </div>
 

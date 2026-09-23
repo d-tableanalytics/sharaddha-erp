@@ -19,6 +19,20 @@ async function post(path = '', data) {
   return res.data?.data;
 }
 
+/**
+ * The WHOLE response body, not just its `data`.
+ *
+ * The bulk endpoints answer `{ success, message, modifiedCount, skipped }` with
+ * nothing under `data`, because how many rows moved is not a row. `post` above
+ * would unwrap that to `undefined` and the screen would be left reporting the
+ * size of the selection instead of what actually happened — which matters here,
+ * since these endpoints deliberately skip tasks mirrored from an O2D stage.
+ */
+async function postEnvelope(path = '', data) {
+  const res = await api.post(`${PREFIX}${path}`, data);
+  return res.data;
+}
+
 async function put(path = '', data) {
   const res = await api.put(`${PREFIX}${path}`, data);
   return res.data?.data;
@@ -49,8 +63,8 @@ export const delegationService = {
   restoreDelegation:     (id)       => patch(`/${id}/restore`),
 
   // Bulk Operations
-  bulkUpdateStatus:      (ids, status) => post('/bulk-status', { ids, status }),
-  bulkDelete:            (ids)         => post('/bulk-delete', { ids }),
+  bulkUpdateStatus:      (ids, status) => postEnvelope('/bulk-status', { ids, status }),
+  bulkDelete:            (ids)         => postEnvelope('/bulk-delete', { ids }),
 
   // Lifecycle actions
   verifyAndComplete: (id, data) => post(`/${id}/verify`, data),
