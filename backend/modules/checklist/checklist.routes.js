@@ -44,6 +44,8 @@ import {
   getUsers,
   getLocations,
   getDepartmentsList,
+  getNewCount,
+  markSeen,
 } from './checklist.controller.js';
 
 const router = express.Router();
@@ -65,6 +67,10 @@ router.get('/summary',          canView, getSummary);
 router.get('/routines',         canView, getRoutines);
 router.get('/departments',      canView, getDepartmentReport);
 router.get('/tasks/drilldown',  canView, drilldown);
+// The sidebar's "N new" badge, and the visit that clears it. Marking your own
+// list as seen changes nothing anybody else sees, so it is part of viewing.
+router.get('/tasks/new-count',  canView, getNewCount);
+router.post('/seen',            canView, markSeen);
 // The three pickers below feed the filter bar and the reassign dialog. They
 // return names and locations, not checklist records, and a viewer needs them
 // to read the screen at all - so they are view, not a write in disguise.

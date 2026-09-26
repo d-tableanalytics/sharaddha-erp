@@ -237,8 +237,10 @@ describe('assigning a stage to a person', () => {
     // which is what the Checklist screens group and report by.
     assert.equal(mirror.department, stage.ownerRole);
 
-    // Found by the ordinary Checklist query that a non-manager list runs.
-    assert.equal(await ChecklistOccurrence.countDocuments({ doer: billing._id }), 1);
+    // Found by the ordinary Checklist query that a non-manager list runs. Only
+    // one LIVE row: the other row this user owns is the stage-2 team task they
+    // completed in `orderAtStage3`, credited to them as its doer.
+    assert.equal(await ChecklistOccurrence.countDocuments({ doer: billing._id, status: 'pending' }), 1);
   });
 
   test('refuses a stage that does not exist, and a user that does not exist', async () => {
@@ -341,7 +343,7 @@ describe('assigning a stage to a person', () => {
     assert.equal(closed.sourceStageId, null);
   });
 
-  test('unassigning a Checklist-mirrored stage clears both link fields and closes the occurrence', async () => {
+  test('unassigning a Checklist-mirrored stage closes the person’s occurrence and hands it back to the team', async () => {
     const billing = await account('Billing');
     const order = await orderAtStage3(billing);
     const { mirror } = await assignStageToUser({ orderId: order._id, stageNumber: CHECKLIST_STAGE, userId: billing._id, actor: billing });
@@ -350,12 +352,18 @@ describe('assigning a stage to a person', () => {
 
     const stage = await stageOf(order._id, CHECKLIST_STAGE);
     assert.equal(stage.assignedTo, null);
-    assert.equal(stage.checklistOccurrenceId, null);
     assert.equal(stage.delegationId, null);
 
     const closed = await ChecklistOccurrence.findById(mirror._id).lean();
     assert.equal(closed.sourceStageId, null);
     assert.ok(closed.remarks.some((r) => /Unassigned/.test(r.text)));
+
+    // Still open, so the whole role gets it back as a team task.
+    assert.ok(stage.checklistOccurrenceId, 'a fresh team task is linked');
+    assert.notEqual(String(stage.checklistOccurrenceId), String(mirror._id));
+    const team = await ChecklistOccurrence.findById(stage.checklistOccurrenceId).lean();
+    assert.equal(team.doer, null);
+    assert.equal(team.status, 'pending');
   });
 });
 
@@ -928,34 +936,46 @@ describe('a personal assignment shows up in the assignee\'s My Tasks, regardless
     assert.equal(await canWorkStage(otherBilling, STAGES.SEND_SOR_PI), true);
   });
 
-  test('a Super Admin does not carry other people\u2019s assignments in their own queue', async () => {
-    /*
-     * Super Admin holds the wildcard on WHICH STAGES, not on whose to-do list
-     * this is. Unassigned work still shows — their queue does not go empty —
-     * but a stage with somebody's name on it is that person's row.
-     */
+  test('a Super Admin keeps an open stage in their queue after it is named to somebody', async () => {
+    // So an admin can step in when the assignee is absent: the row stays,
+    // flagged as held by someone else, and remains theirs to complete.
     const billing = await account('Billing');
     const superAdmin = await account('Super Admin');
     const warehouseUser = await account('Warehouse User');
     const order = await orderAtStage3(billing);
 
-    const before = await myTasks(superAdmin, {});
-    assert.ok(before.data.some((r) => r.stageNumber === STAGES.SEND_SOR_PI), 'unassigned work still shows');
-
     await assignStageToUser({
       orderId: order._id, stageNumber: STAGES.SEND_SOR_PI, userId: warehouseUser._id, actor: billing,
     });
 
-    const after = await myTasks(superAdmin, {});
-    assert.ok(
-      !after.data.some(
-        (r) => r.stageNumber === STAGES.SEND_SOR_PI && String(r.order?._id) === String(order._id),
-      ),
-      'somebody else\u2019s assignment is not the Super Admin\u2019s to-do',
+    const { data } = await myTasks(superAdmin, {});
+    const row = data.find(
+      (r) => r.stageNumber === STAGES.SEND_SOR_PI && String(r.order?._id) === String(order._id),
     );
-    // Still theirs to complete, and still on Order Tracker — only the personal
-    // queue narrowed.
+    assert.ok(row, 'the admin still sees it');
+    assert.equal(row.actionable, true);
+    assert.equal(row.assignedToOther, true);
     assert.equal(await canWorkStage(superAdmin, STAGES.SEND_SOR_PI), true);
+  });
+
+  test('a cover role (Billing Head) sees a Billing stage named to one Billing user', async () => {
+    const billing = await account('Billing');
+    const assignee = await account('Billing');
+    const head = await account('Billing Head');
+    const order = await orderAtStage3(billing);
+
+    await assignStageToUser({
+      orderId: order._id, stageNumber: STAGES.SEND_SOR_PI, userId: assignee._id, actor: billing,
+    });
+
+    const { data } = await myTasks(head, { view: 'open' });
+    const mine = data.filter((r) => String(r.order?._id) === String(order._id));
+    const row = mine.find((r) => r.stageNumber === STAGES.SEND_SOR_PI);
+    assert.ok(row, 'Billing Head is a cover role on stage 3, so it stays on their list');
+    assert.equal(row.actionable, true);
+    assert.equal(row.assignedToOther, true);
+    // Locked later stages are still not offered, so the sequence holds.
+    assert.deepEqual(mine.map((r) => r.stageNumber), [STAGES.SEND_SOR_PI]);
   });
 
   test('a stage assigned to me stays mine even on a number my role does not own', async () => {
@@ -1300,10 +1320,12 @@ describe('a parked task is gone from the Work Queue, and only from the personal 
       );
 
       // The tiles sit directly above that list. Counting a row the list no
-      // longer shows is the same divergence one screen further down.
+      // longer shows is the same divergence one screen further down. (What is
+      // left is the stage-2 team task this user completed — theirs, and done.)
       const summary = await get(url, '/api/v1/checklist/summary');
       assert.equal(summary.body.data.pendingToday, 0, 'the tiles must count what the list shows');
-      assert.equal(summary.body.data.total, 0);
+      assert.equal(summary.body.data.total, after.body.data.tasks.length);
+      assert.ok(after.body.data.tasks.every((t) => t.status === 'completed'));
     });
   });
 

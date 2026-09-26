@@ -3,7 +3,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("../../services/o2d/orders", async (importOriginal) => ({
   ...(await importOriginal()),
-  o2dApi: { completeStage: vi.fn(), uploadDocument: vi.fn() },
+  o2dApi: {
+    completeStage: vi.fn(), uploadDocument: vi.fn(), documents: vi.fn(), advanceDecision: vi.fn(),
+  },
 }));
 
 import { o2dApi } from "../../services/o2d/orders";
@@ -34,6 +36,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   o2dApi.completeStage.mockResolvedValue({});
   o2dApi.uploadDocument.mockResolvedValue({});
+  o2dApi.documents.mockResolvedValue([]);
+  o2dApi.advanceDecision.mockResolvedValue({});
 });
 
 describe("each stage shows only its own fields", () => {
@@ -136,6 +140,62 @@ describe("the stages that need a file", () => {
     // succeeded and the completion then failed validation.
     await waitFor(() => expect(o2dApi.uploadDocument).toHaveBeenCalled());
     expect(await screen.findByText("po.pdf")).toBeTruthy();
+  });
+});
+
+describe("the same form, reached from a task list or during rework", () => {
+  test("a PO copy already on the order satisfies stage 2 — it is not asked for twice", async () => {
+    o2dApi.documents.mockResolvedValue([{ _id: "d1", docType: "PO", originalName: "po-4471.pdf" }]);
+    open(STAGES.SUBMIT_PO_TO_BILLING, "Submit PO to Billing");
+
+    expect(await screen.findByText("po-4471.pdf")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /complete stage/i }));
+    await waitFor(() => expect(o2dApi.completeStage).toHaveBeenCalled());
+  });
+
+  test("a stage sent back for rework opens with what it stored last time", async () => {
+    render(
+      <CompleteStageModal
+        order={ORDER}
+        stage={{
+          stageNumber: STAGES.SEND_SOR_PI, stageName: "Send SOR + PI",
+          evidence: { piNumber: "PI-OLD", sorReference: "SOR-OLD" }, remarks: "first pass",
+        }}
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/PI Number/i).value).toBe("PI-OLD");
+    fireEvent.change(screen.getByLabelText(/PI Number/i), { target: { value: "PI-NEW" } });
+    fireEvent.click(screen.getByRole("button", { name: /complete stage/i }));
+
+    await waitFor(() => expect(o2dApi.completeStage).toHaveBeenCalled());
+    const [, , body] = o2dApi.completeStage.mock.calls[0];
+    expect(body.evidence).toEqual({ piNumber: "PI-NEW", sorReference: "SOR-OLD" });
+    expect(body.remarks).toBe("first pass");
+  });
+
+  test("stage 4 asks for the advance decision and records it through the decision endpoint", async () => {
+    const onCompleted = vi.fn();
+    render(
+      <CompleteStageModal
+        order={ORDER}
+        stage={{ stageNumber: STAGES.ADVANCE_DECISION, stageName: "Advance Order Decision" }}
+        onClose={vi.fn()}
+        onCompleted={onCompleted}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /complete stage/i }));
+    expect(await screen.findByText(/Advance payment decision is required/)).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText(/No — skip stage 5/));
+    fireEvent.click(screen.getByRole("button", { name: /complete stage/i }));
+
+    await waitFor(() => expect(onCompleted).toHaveBeenCalled());
+    expect(o2dApi.advanceDecision).toHaveBeenCalledWith("o1", { advanceRequired: false, remarks: null });
+    expect(o2dApi.completeStage).not.toHaveBeenCalled();
   });
 });
 

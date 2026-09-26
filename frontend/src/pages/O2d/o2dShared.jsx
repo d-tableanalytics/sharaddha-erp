@@ -1,4 +1,8 @@
+import { useState } from "react";
+import { Check, Lock, SkipForward, Paperclip } from "lucide-react";
+
 import { Badge } from "../../components/ui/Badge";
+import { STAGE_FIELD_TYPES, fieldsForStage } from "@shared/constants/o2dStageFields.js";
 import {
   STAGE_STATUS_LABELS,
   displayStatus,
@@ -10,6 +14,7 @@ import {
   bucketTone,
   formatDateTime,
   formatDelay,
+  formatDate,
 } from "../../services/o2d/orders";
 import { STAGE_STATUS, TERMINAL_STAGE_STATUSES } from "@shared/constants/o2d.js";
 
@@ -34,6 +39,10 @@ import { STAGE_STATUS, TERMINAL_STAGE_STATUSES } from "@shared/constants/o2d.js"
  */
 export const StageBadge = ({ status, className }) => (
   <Badge variant={displayTone(status)} className={className}>
+    {status === STAGE_STATUS.LOCKED && <Lock size={10} className="mr-1" aria-hidden="true" />}
+    {TERMINAL_STAGE_STATUSES.includes(status) && (
+      <Check size={10} strokeWidth={3} className="mr-1" aria-hidden="true" />
+    )}
     {displayStatus(status)}
   </Badge>
 );
@@ -136,7 +145,12 @@ export function StageTimeline({
   onAssign,
   onUnassign,
   assigningStage,
+  onReopen,
+  documents = [],
+  onOpenDocument,
 }) {
+  const [expanded, setExpanded] = useState(null);
+
   if (stages.length === 0) {
     return <p className="text-sm text-slate-500">No stages recorded for this order.</p>;
   }
@@ -145,19 +159,35 @@ export function StageTimeline({
     <ol className="relative space-y-0" aria-label="Order progress">
       {stages.map((stage, index) => {
         const done = TERMINAL_STAGE_STATUSES.includes(stage.status);
+        const locked = stage.status === STAGE_STATUS.LOCKED;
+        // Any open stage, not just the order's cursor — an out-of-order override
+        // can leave an earlier stage open behind it.
+        const active = !done && !locked;
         const isCurrent = stage.stageNumber === currentStage;
         const skipped = stage.status === STAGE_STATUS.SKIPPED;
         const canAct = actionableStages.includes(stage.stageNumber) && isCurrent;
+        // Stage 1 is the order itself; a skip is undone by reopening its deciding stage.
+        const canReopen = Boolean(onReopen) && done && !skipped && stage.stageNumber > 1;
         const last = index === stages.length - 1;
+        // Only the first locked row after open work names what it waits on.
+        const prev = stages[index - 1];
+        const blocker = locked && prev && prev.status !== STAGE_STATUS.LOCKED
+          ? stages.slice(0, index).reverse().find((s) => !TERMINAL_STAGE_STATUSES.includes(s.status))
+          : null;
 
         return (
-          <li key={stage.stageNumber} className="relative flex gap-3 pb-5">
+          <li
+            key={stage.stageNumber}
+            className="relative flex gap-3 pb-5"
+            aria-current={active ? "step" : undefined}
+            data-stage-state={done ? "completed" : active ? "active" : "locked"}
+          >
             {/* The connector, drawn between dots rather than under the last. */}
             {!last && (
               <span
                 aria-hidden="true"
                 className={`absolute left-[11px] top-6 bottom-0 w-px ${
-                  done ? "bg-primary-300" : "bg-slate-200"
+                  done ? "bg-emerald-300" : "bg-slate-200"
                 }`}
               />
             )}
@@ -168,25 +198,47 @@ export function StageTimeline({
                 skipped
                   ? "border-slate-300 bg-slate-100 text-slate-400"
                   : done
-                    ? "border-primary-600 bg-primary-600 text-white"
-                    : isCurrent
-                      ? "border-primary-600 bg-white text-primary-700"
-                      : "border-slate-300 bg-white text-slate-400"
+                    ? "border-emerald-600 bg-emerald-600 text-white"
+                    : active
+                      ? "border-primary-600 bg-primary-600 text-white ring-4 ring-primary-100"
+                      : "border-slate-200 bg-slate-50 text-slate-400"
               }`}
             >
-              {stage.stageNumber}
+              {skipped ? (
+                <SkipForward size={12} />
+              ) : done ? (
+                <Check size={13} strokeWidth={3} />
+              ) : locked ? (
+                <Lock size={11} />
+              ) : (
+                stage.stageNumber
+              )}
             </span>
 
-            <div className="min-w-0 flex-1">
+            <div
+              className={`min-w-0 flex-1 ${
+                active ? "-mx-2 -mt-1 rounded-lg border border-primary-200 bg-primary-50/50 px-2 pb-2 pt-1" : ""
+              }`}
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={`text-sm font-medium ${
-                    skipped ? "text-slate-400 line-through" : "text-slate-900"
+                    skipped
+                      ? "text-slate-400 line-through"
+                      : locked
+                        ? "text-slate-400"
+                        : "text-slate-900"
                   }`}
                 >
+                  <span className="mr-1 tabular-nums text-slate-400">{stage.stageNumber}.</span>
                   {stage.stageName}
                 </span>
                 <StageBadge status={stage.status} />
+                {active && (
+                  <span className="rounded border border-primary-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">
+                    Current task
+                  </span>
+                )}
                 {/* Beside the badge, not inside it: a stage can be In Progress
                     AND overdue, and the old single-status vocabulary had to
                     choose one of those to say. */}
@@ -198,18 +250,36 @@ export function StageTimeline({
                 )}
               </div>
 
-              <p className="mt-0.5 text-xs text-slate-500">{stage.ownerRole}</p>
+              <p className={`mt-0.5 text-xs ${locked ? "text-slate-400" : "text-slate-500"}`}>
+                {stage.ownerRole}
+              </p>
+
+              {blocker && (
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400">
+                  <Lock size={10} /> Unlocks when {blocker.stageName} is completed
+                </p>
+              )}
 
               <dl className="mt-1 space-y-0.5 text-xs text-slate-600">
                 {done && !skipped && (
                   <div className="flex gap-1.5">
-                    <dt className="text-slate-400">Completed</dt>
+                    <dt className="text-slate-400">Finished</dt>
                     <dd>
                       {formatDateTime(stage.actualCompletion)}
                       {stage.completedByName ? ` · ${stage.completedByName}` : ""}
                       {stage.delayMinutes > 0 && (
                         <span className="ml-1 text-amber-700">({formatDelay(stage.delayMinutes)})</span>
                       )}
+                    </dd>
+                  </div>
+                )}
+
+                {stage.reopenCount > 0 && (
+                  <div className="flex gap-1.5">
+                    <dt className="text-slate-400">Reworked</dt>
+                    <dd className="text-amber-700">
+                      {stage.reopenCount === 1 ? "once" : `${stage.reopenCount} times`}
+                      {stage.lastReopenReason ? ` · ${stage.lastReopenReason}` : ""}
                     </dd>
                   </div>
                 )}
@@ -314,12 +384,173 @@ export function StageTimeline({
                     Unassign
                   </button>
                 )}
+
+                {done && !skipped && (
+                  <button
+                    type="button"
+                    aria-expanded={expanded === stage.stageNumber}
+                    onClick={() => setExpanded((n) => (n === stage.stageNumber ? null : stage.stageNumber))}
+                    className="text-xs font-medium text-primary-700 underline decoration-dotted hover:text-primary-800"
+                  >
+                    {expanded === stage.stageNumber ? "Hide details" : "View details"}
+                  </button>
+                )}
+
+                {canReopen && (
+                  <button
+                    type="button"
+                    onClick={() => onReopen(stage)}
+                    className="text-xs font-medium text-amber-700 underline decoration-dotted hover:text-amber-800"
+                  >
+                    Send back for rework
+                  </button>
+                )}
               </div>
+
+              {expanded === stage.stageNumber && (
+                <StageDetails stage={stage} documents={documents} onOpenDocument={onOpenDocument} />
+              )}
             </div>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+const formatFieldValue = (field, value) => {
+  if (value === undefined || value === null || value === "") return "—";
+  if (field.type === STAGE_FIELD_TYPES.DATE) return formatDate(value);
+  if (field.type === STAGE_FIELD_TYPES.BOOLEAN) return value ? "Yes" : "No";
+  return String(value);
+};
+
+/**
+ * What a completed stage recorded, read back from the server: the form values,
+ * the files, the remarks, and who closed it when.
+ */
+export function StageDetails({ stage, documents = [], onOpenDocument }) {
+  const fields = fieldsForStage(stage.stageNumber);
+  const evidence = stage.evidence ?? {};
+  const valueFields = fields.filter((f) => f.type !== STAGE_FIELD_TYPES.DOCUMENT);
+
+  // The file each document field relied on, plus anything uploaded against this stage.
+  const files = new Map();
+  for (const field of fields.filter((f) => f.type === STAGE_FIELD_TYPES.DOCUMENT)) {
+    const ref = evidence[field.key];
+    if (ref?.documentId) {
+      files.set(String(ref.documentId), { _id: ref.documentId, label: field.label, name: ref.originalName });
+    }
+  }
+  for (const doc of documents) {
+    if (doc.stageNumber === stage.stageNumber && !doc.deletedAt && !files.has(String(doc._id))) {
+      files.set(String(doc._id), { _id: doc._id, label: doc.docType, name: doc.originalName });
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs" aria-label={`${stage.stageName} details`}>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+        <div>
+          <dt className="text-slate-400">Completed by</dt>
+          <dd className="text-slate-800">
+            {stage.completedByName ?? "—"}
+            {stage.completedByRole ? ` (${stage.completedByRole})` : ""}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Completed at</dt>
+          <dd className="text-slate-800">{formatDateTime(stage.actualCompletion)}</dd>
+        </div>
+        {typeof evidence.advanceRequired === "boolean" && (
+          <div>
+            <dt className="text-slate-400">Advance required</dt>
+            <dd className="text-slate-800">{evidence.advanceRequired ? "Yes" : "No"}</dd>
+          </div>
+        )}
+        {valueFields.map((field) => (
+          <div key={field.key}>
+            <dt className="text-slate-400">{field.label}</dt>
+            <dd className="text-slate-800">{formatFieldValue(field, evidence[field.key])}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {files.size > 0 && (
+        <div className="mt-2">
+          <p className="text-slate-400">Attachments</p>
+          <ul className="mt-0.5 space-y-0.5">
+            {[...files.values()].map((file) => (
+              <li key={String(file._id)} className="flex items-center gap-1 text-slate-800">
+                <Paperclip size={11} className="text-slate-400" />
+                <span>{file.label}</span>
+                {file.name && <span className="text-slate-500">· {file.name}</span>}
+                {onOpenDocument && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDocument(file)}
+                    className="ml-1 font-medium text-primary-700 underline decoration-dotted"
+                  >
+                    Open
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {stage.remarks && (
+        <div className="mt-2">
+          <p className="text-slate-400">Remarks</p>
+          <p className="whitespace-pre-line text-slate-800">{stage.remarks}</p>
+        </div>
+      )}
+
+      {stage.overridden && stage.overrideReason && (
+        <p className="mt-2 text-amber-700">Completed out of order: {stage.overrideReason}</p>
+      )}
+    </div>
+  );
+}
+
+/** "5 of 12 stages completed", a bar, and the key to the timeline's markers. */
+export function StageProgress({ stages = [] }) {
+  if (stages.length === 0) return null;
+  const completed = stages.filter((s) => TERMINAL_STAGE_STATUSES.includes(s.status)).length;
+
+  return (
+    <div className="mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+        <span>
+          <span className="font-semibold text-slate-900">{completed}</span> of {stages.length} stages completed
+        </span>
+        <span className="flex items-center gap-3 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <Check size={11} className="text-emerald-600" /> Completed
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-primary-600" /> Active
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Lock size={11} className="text-slate-400" /> Locked
+          </span>
+        </span>
+      </div>
+      <div
+        className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={stages.length}
+        aria-valuenow={completed}
+        aria-label="Stages completed"
+      >
+        <div
+          className="h-full rounded-full bg-emerald-500 transition-all"
+          style={{ width: `${(completed / stages.length) * 100}%` }}
+        />
+      </div>
+    </div>
   );
 }
 

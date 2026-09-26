@@ -32,6 +32,9 @@ import { CompleteTaskModal } from "./CompleteTaskModal";
 // question, and a second copy of the answer here is how the Work Queue's three
 // screens start disagreeing about which rows are mirrors.
 import { isO2dMirror } from "../Delegation/TaskListView";
+import { StageTaskModal } from "../O2d/StageTaskModal";
+import { NewTag } from "../Checklist/TasksTable";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import { PageHeader } from '../../components/common/PageHeader';
 import { TabNav } from '../../components/hrms/TabNav';
 import { StatTile } from '../../components/workqueue/StatTile';
@@ -179,8 +182,14 @@ export function MyDay() {
   const { can } = usePermissions();
   const canEditTask = can('work_queue', 'tasks', 'edit');
   const canCompleteChecklist = can('work_queue', 'checklist', 'approve');
+  // The O2D stage form needs O2D access; without it an assigned stage-4
+  // Delegation keeps the ordinary Delegation Done.
+  const worksO2d = hasPermission(currentUser, PERMISSIONS.VIEW_O2D)
+    && hasPermission(currentUser, PERMISSIONS.WORK_O2D_STAGE);
 
   const [completeTask, setCompleteTask] = useState(null);
+  /** `{ orderId, stageNumber }` of the O2D stage whose completion form is open. */
+  const [o2dStage, setO2dStage] = useState(null);
 
   // Deep link handling
   useEffect(() => {
@@ -201,7 +210,9 @@ export function MyDay() {
       try {
         const [delRes, chkRes] = await Promise.all([
           delegationService.getDelegations({ myWork: "true" }),
-          checklistApi.getTasks({ limit: 500, doer: me || undefined }),
+          // `mine`: this person's own rows plus the open O2D tasks they can act
+          // on (their team's, the stages they cover, all of them for an admin).
+          checklistApi.getTasks({ limit: 500, mine: "true" }),
         ]);
 
         // Normalize delegations
@@ -271,7 +282,8 @@ export function MyDay() {
 
     const chkCount = checklistTasks.filter((t) => {
       const doerId = String(t.doer?._id || t.doer || t.doerId || "");
-      return doerId === meStr || !doerId;
+      // An O2D row came back because the server decided this person can act on it.
+      return doerId === meStr || !doerId || isO2dMirror(t);
     }).length;
 
     const loopCount = delegations.filter((t) => {
@@ -293,6 +305,12 @@ export function MyDay() {
     };
   }, [delegations, checklistTasks, me]);
 
+  // Checklist tasks new since this person last opened the Checklist (server-tagged).
+  const checklistNewCount = useMemo(
+    () => checklistTasks.filter((t) => t.isNew && t.status !== "completed").length,
+    [checklistTasks],
+  );
+
   // Tab Filtering logic per MY-DAY-UI spec
   const currentTabPool = useMemo(() => {
     if (!me) {
@@ -312,10 +330,10 @@ export function MyDay() {
         });
 
       case "checklist":
-        // checklist items assigned to me
+        // checklist items assigned to me, plus O2D tasks I can act on
         return checklistTasks.filter((t) => {
           const doerId = String(t.doer?._id || t.doer || t.doerId || "");
-          return doerId === meStr || !doerId;
+          return doerId === meStr || !doerId || isO2dMirror(t);
         });
 
       case "loop":
@@ -555,6 +573,16 @@ export function MyDay() {
     }
   };
 
+  /*
+   * Action: Done on an O2D task (Checklist or Delegation).
+   *
+   * Opens the stage's own completion form — its required fields, the stage-4
+   * Yes/No — and completes through the O2D API, exactly as Order Tracker does.
+   * A one-tap "done" cannot satisfy a stage that needs a PI number or an AWB.
+   */
+  const handleO2dDone = (task) =>
+    setO2dStage({ orderId: task.sourceOrderId, stageNumber: task.sourceStageNumber });
+
   // Action: Done Task (Delegation Modal Submit)
   const handleModalSubmit = async (task, data) => {
     await delegationService.updateDelegation(task.id, data);
@@ -601,7 +629,7 @@ export function MyDay() {
       <TabNav
         tabs={[
           { id: "delegation", label: "Delegation", icon: ClipboardList, count: tabCounts.delegation },
-          { id: "checklist", label: "Checklist", icon: Repeat, count: tabCounts.checklist },
+          { id: "checklist", label: "Checklist", icon: Repeat, count: tabCounts.checklist, newCount: checklistNewCount },
           { id: "loop", label: "Loop", icon: Radio, count: tabCounts.loop },
           { id: "group", label: "Group", icon: Users, count: tabCounts.group },
         ].map((tab) => {
@@ -612,6 +640,11 @@ export function MyDay() {
               <span className="inline-flex items-center gap-2">
                 <Icon className="w-4 h-4 shrink-0" />
                 {tab.label}
+                {tab.newCount > 0 && (
+                  <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[10px] font-bold leading-4 text-white">
+                    {tab.newCount} new
+                  </span>
+                )}
               </span>
             ),
             badge: tab.count,
@@ -902,6 +935,7 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    onO2dDone={worksO2d ? handleO2dDone : undefined}
                     canEditTask={canEditTask}
                     canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
@@ -939,6 +973,7 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    onO2dDone={worksO2d ? handleO2dDone : undefined}
                     canEditTask={canEditTask}
                     canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
@@ -976,6 +1011,7 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    onO2dDone={worksO2d ? handleO2dDone : undefined}
                     canEditTask={canEditTask}
                     canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
@@ -1013,6 +1049,7 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    onO2dDone={worksO2d ? handleO2dDone : undefined}
                     canEditTask={canEditTask}
                     canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
@@ -1050,6 +1087,7 @@ export function MyDay() {
                     onStart={handleStartTask}
                     onChecklistDone={handleCompleteChecklist}
                     onDelegationDone={(t) => setCompleteTask(t)}
+                    onO2dDone={worksO2d ? handleO2dDone : undefined}
                     canEditTask={canEditTask}
                     canCompleteChecklist={canCompleteChecklist}
                     onClick={handleCardClick}
@@ -1068,6 +1106,18 @@ export function MyDay() {
           onClose={() => setCompleteTask(null)}
           task={completeTask}
           onSubmit={handleModalSubmit}
+        />
+      )}
+
+      {o2dStage && (
+        <StageTaskModal
+          orderId={o2dStage.orderId}
+          stageNumber={o2dStage.stageNumber}
+          onClose={() => setO2dStage(null)}
+          onCompleted={() => {
+            toast.success("Stage completed. The next stage is now active.");
+            loadData(true);
+          }}
         />
       )}
     </div>
@@ -1104,11 +1154,17 @@ function TaskCard({
   onStart,
   onChecklistDone,
   onDelegationDone,
+  onO2dDone,
   onClick,
   canEditTask = false,
   canCompleteChecklist = false,
 }) {
   const isChecklist = task.kind === "checklist";
+  // An O2D task is done through its stage form. A Checklist one always (the
+  // server marks whether this viewer may, `canComplete`); a Delegation one
+  // (stage 4, always the viewer's own assignment here) when O2D is open to them.
+  const useO2dForm = isO2dMirror(task) && (isChecklist || Boolean(onO2dDone));
+  const canCompleteO2d = Boolean(onO2dDone) && (isChecklist ? task.canComplete === true : canEditTask);
   const isLoop = activeTab === "loop";
   const isDone = task.status === "Completed" || task.status === "completed";
   const isWaiting =
@@ -1141,6 +1197,7 @@ function TaskCard({
           <h3 className="text-sm font-bold text-slate-900 group-hover:text-primary-700 transition-colors truncate leading-snug">
             {task.taskTitle}
           </h3>
+          {isChecklist && task.isNew && !isDone && <NewTag />}
           {/*
             Says where this row came from, carrying the PO and stage number
             Order Tracker shows.
@@ -1222,6 +1279,21 @@ function TaskCard({
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Completed</span>
           </div>
+        ) : useO2dForm ? (
+          /* O2D task: Done opens the stage's own completion form */
+          !canCompleteO2d ? (
+            <ViewOnlyFooter />
+          ) : (
+          <button
+            onClick={() => onO2dDone(task)}
+            disabled={busy}
+            type="button"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none bg-primary-600 hover:bg-primary-700 text-white shadow-enterprise h-9 px-3 text-xs gap-1.5 w-full select-none cursor-pointer"
+          >
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Done</span>
+          </button>
+          )
         ) : isChecklist ? (
           /* CASE 4: Checklist Item (One-tap direct completion) */
           !canCompleteChecklist ? (

@@ -42,7 +42,8 @@ export const o2dApi = {
   get: (id) => o2dClient.get(`/orders/${id}`),
   create: (dto) => o2dClient.post("/orders", dto),
   update: (id, dto) => o2dClient.patch(`/orders/${id}`, dto),
-  history: (id) => o2dClient.get(`/orders/${id}/history`),
+  /** The audit trail: what PEOPLE did to this order. Not the stage timeline. */
+  activity: (id) => o2dClient.get(`/orders/${id}/activity`),
 
   /** The live duplicate check the intake form runs while the user types. */
   checkDuplicate: (poNumber, customerName) =>
@@ -66,6 +67,8 @@ export const o2dApi = {
     o2dClient.post(`/orders/${id}/stages/${stageNumber}/complete`, dto),
   skipStage: (id, stageNumber, dto) =>
     o2dClient.post(`/orders/${id}/stages/${stageNumber}/skip`, dto),
+  reopenStage: (id, stageNumber, dto) =>
+    o2dClient.post(`/orders/${id}/stages/${stageNumber}/reopen`, dto),
   advanceDecision: (id, dto) => o2dClient.post(`/orders/${id}/advance-decision`, dto),
 
   /**
@@ -127,8 +130,8 @@ export const o2dApi = {
  * transitions and "In Progress -> In Progress" would describe nothing.
  */
 export const STAGE_STATUS_LABELS = Object.freeze({
-  [STAGE_STATUS.LOCKED]: "Not started",
-  [STAGE_STATUS.PENDING]: "In Progress",
+  [STAGE_STATUS.LOCKED]: "Locked",
+  [STAGE_STATUS.PENDING]: "Active",
   [STAGE_STATUS.DUE_SOON]: "Due soon",
   [STAGE_STATUS.OVERDUE]: "Overdue",
   [STAGE_STATUS.DONE_ON_TIME]: "Done on time",
@@ -156,9 +159,9 @@ export const STAGE_STATUS_LABELS = Object.freeze({
  * because a stage could only be one thing.
  */
 export const STAGE_DISPLAY = Object.freeze({
-  NOT_STARTED: "Not started",
-  IN_PROGRESS: "In Progress",
-  DONE: "Done",
+  NOT_STARTED: "Locked",
+  IN_PROGRESS: "Active",
+  DONE: "Completed",
 });
 
 const TERMINAL = [STAGE_STATUS.DONE_ON_TIME, STAGE_STATUS.DONE_LATE, STAGE_STATUS.SKIPPED];
@@ -190,7 +193,8 @@ export const displayTone = (status) => {
 export const ORDER_STATUS_LABELS = Object.freeze({
   [ORDER_STATUS.OPEN]: "Open",
   [ORDER_STATUS.ON_HOLD]: "On hold",
-  [ORDER_STATUS.CLOSED]: "Closed",
+  // Stored as CLOSED; the business calls a finished order Completed.
+  [ORDER_STATUS.CLOSED]: "Completed",
   [ORDER_STATUS.CANCELLED]: "Cancelled",
   [ORDER_STATUS.VOID]: "Void",
 });

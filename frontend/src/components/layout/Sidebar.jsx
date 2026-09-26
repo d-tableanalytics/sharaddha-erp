@@ -4,6 +4,7 @@ import { X, ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck,
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
+import { useChecklistBadgeStore } from "../../store/checklistBadgeStore";
 import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
 import {
   canOpenUserManagement, canManageRoles, canUseO2d, canAction, hasPermission, PERMISSIONS,
@@ -55,6 +56,9 @@ const ADMIN_GROUP_KEY = "administration";
  * showing a 256px drawer with no labels in it.
  */
 const DESKTOP_QUERY = "(min-width: 1024px)";
+
+/** How often the "N new" Checklist badge re-counts while the tab is visible. */
+const BADGE_POLL_MS = 60_000;
 
 /**
  * Is there room for the rail beside the page?
@@ -115,6 +119,28 @@ export const Sidebar = () => {
    * it must not follow the user onto a phone.
    */
   const expanded = isDesktop ? sidebarOpen : true;
+
+  /*
+   * The Checklist's "N new" badge. Polled like the O2D bell — on load, on every
+   * page change (a stage completed on another screen opens the next task), and
+   * once a minute while the tab is visible.
+   */
+  const canSeeChecklist = canAction(user, "work_queue", "checklist", "view");
+  const newChecklistCount = useChecklistBadgeStore((s) => s.newCount);
+  const refreshChecklistBadge = useChecklistBadgeStore((s) => s.refresh);
+  useEffect(() => {
+    if (!canSeeChecklist) return undefined;
+    refreshChecklistBadge();
+    const tick = () => {
+      if (document.visibilityState === "visible") refreshChecklistBadge();
+    };
+    const id = setInterval(tick, BADGE_POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [canSeeChecklist, refreshChecklistBadge, location.pathname]);
 
   /**
    * A tap on a link has to close the drawer.
@@ -338,8 +364,11 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
     ...(canAction(user, "work_queue", "trash", "view")
       ? [{ id: "wq:deletedtasks", key: "deletedtasks", label: "Deleted Tasks", path: "/wq/deletedtasks", icon: Trash2 }]
       : []),
-    ...(canAction(user, "work_queue", "checklist", "view")
-      ? [{ id: "wq:checklist", key: "checklist", label: "Checklist", path: "/wq/checklist", icon: CheckSquare }]
+    ...(canSeeChecklist
+      ? [{
+          id: "wq:checklist", key: "checklist", label: "Checklist", path: "/wq/checklist", icon: CheckSquare,
+          newCount: newChecklistCount,
+        }]
       : []),
     ...(canAction(user, "work_queue", "scoreboard", "view")
       ? [{ id: "wq:executivescoreboard", key: "executivescoreboard", label: "Executive Scoreboard", path: "/wq/executivescoreboard", icon: Trophy }]
@@ -486,18 +515,33 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
   const renderItem = (item) => {
     const Icon = iconFor(item.icon);
     const isActive = item.id === activeItemId;
+    const newCount = item.newCount > 0 ? item.newCount : 0;
 
     return (
       <NavLink
         key={item.id}
         to={item.path}
-        title={expanded ? undefined : item.label}
+        title={expanded ? undefined : newCount ? `${item.label} — ${newCount} new` : item.label}
         className={() => linkClass(isActive)}
       >
         {() => (
           <>
-            <Icon size={18} className="shrink-0" />
+            <span className="relative shrink-0">
+              <Icon size={18} />
+              {/* Collapsed rail: no room for the pill, so a dot on the icon. */}
+              {!expanded && newCount > 0 && (
+                <span aria-hidden="true" className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary-400 ring-2 ring-primary-950" />
+              )}
+            </span>
             {expanded && <span className="flex-1 truncate">{item.label}</span>}
+            {expanded && newCount > 0 && (
+              <span
+                className="shrink-0 rounded-full bg-primary-500 px-2 py-0.5 text-[10px] font-bold leading-4 text-white"
+                aria-label={`${newCount} new task${newCount === 1 ? "" : "s"}`}
+              >
+                {newCount} new
+              </span>
+            )}
           </>
         )}
       </NavLink>

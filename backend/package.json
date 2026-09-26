@@ -18,7 +18,8 @@
     "hrms:import": "node scripts/hrms/import-client-workbook.js",
     "hrms:migrate-keys": "node scripts/hrms/migrate-encryption-keys.js",
     "academy:seed": "node scripts/hrms/seed-academy-demo.js",
-    "work-queue:clear": "node scripts/clear-work-queue.js"
+    "work-queue:clear": "node scripts/clear-work-queue.js",
+    "o2d:backfill-tasks": "node scripts/o2d-backfill-stage-tasks.js"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1123.0",

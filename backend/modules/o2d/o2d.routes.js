@@ -37,6 +37,7 @@ import {
   completeStageSchema,
   advanceDecisionSchema,
   skipStageSchema,
+  reopenStageSchema,
   assignStageSchema,
   holdOrderSchema,
   resumeOrderSchema,
@@ -84,6 +85,7 @@ const canCreate = authorize(PERMISSIONS.CREATE_O2D_ORDER);
 const canWork = authorize(PERMISSIONS.WORK_O2D_STAGE);
 const canHold = authorize(PERMISSIONS.HOLD_O2D);
 const canExit = authorize(PERMISSIONS.EXIT_O2D);
+const canOverride = authorize(PERMISSIONS.OVERRIDE_O2D);
 // Its own permission, not VIEW_O2D. Seeing the orders you work is a different
 // thing from seeing how fast each team closes them: the second is a management
 // view, and several roles that need the first should not have the second.
@@ -189,6 +191,12 @@ router.post(
   validate({ body: skipStageSchema }),
   controller.skip,
 );
+router.post(
+  '/orders/:id/stages/:stageNumber/reopen',
+  canOverride,
+  validate({ body: reopenStageSchema }),
+  controller.reopen,
+);
 
 /**
  * Hand a stage to one named person — §"link O2D tasks to the Work Queue".
@@ -228,8 +236,12 @@ router.post('/orders/:id/cancel', canExit, validate({ body: exitOrderSchema }), 
 router.post('/orders/:id/void', canExit, validate({ body: exitOrderSchema }), controller.voidOrder);
 router.post('/orders/:id/revive', canExit, validate({ body: reviveOrderSchema }), controller.reviveOrder);
 
-/** Order 360's history tab. */
-router.get('/orders/:id/history', canView, controller.orderHistory);
+/**
+ * Order 360's audit trail ("Activity"). Its own path: it once shared
+ * `/orders/:id/history` with the stage timeline above, which was registered
+ * first and always won, so this handler could never be reached.
+ */
+router.get('/orders/:id/activity', canView, controller.orderHistory);
 
 // ---------------------------------------------------------------------------
 // Analytics

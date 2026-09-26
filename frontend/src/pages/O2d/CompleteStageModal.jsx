@@ -1,13 +1,14 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Loader2, Upload, Check, AlertTriangle } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
-import { o2dApi } from "../../services/o2d/orders";
+import { o2dApi, formatDateTime } from "../../services/o2d/orders";
 import {
   STAGE_FIELD_TYPES,
   fieldsForStage,
   ZOHO_FILLED_STAGES,
 } from "@shared/constants/o2dStageFields.js";
+import { STAGES } from "@shared/constants/o2d.js";
 
 /**
  * The stage-specific completion form.
@@ -53,16 +54,58 @@ const isSatisfied = (field, values, uploaded) =>
       || values[field.key] === null
       || String(values[field.key]).trim() === "");
 
+/** What a stage stored last time, as form values — so a rework opens filled in. */
+function valuesFrom(fields, evidence) {
+  const out = {};
+  for (const field of fields) {
+    const raw = evidence?.[field.key];
+    if (field.type === STAGE_FIELD_TYPES.DOCUMENT || raw === undefined || raw === null) continue;
+    if (field.type === STAGE_FIELD_TYPES.DATE) out[field.key] = String(raw).slice(0, 10);
+    else if (field.type === STAGE_FIELD_TYPES.BOOLEAN) out[field.key] = raw ? "true" : "false";
+    else out[field.key] = String(raw);
+  }
+  return out;
+}
+
 export function CompleteStageModal({ order, stage, onClose, onCompleted }) {
   const fields = useMemo(() => fieldsForStage(stage?.stageNumber), [stage?.stageNumber]);
   const zoho = ZOHO_FILLED_STAGES[stage?.stageNumber] ?? null;
+  // Stage 4 is a decision that also settles whether stage 5 runs, so it goes
+  // through the advance-decision endpoint — the one Order Tracker uses.
+  const isAdvanceDecision = stage?.stageNumber === STAGES.ADVANCE_DECISION;
 
-  const [values, setValues] = useState({});
+  const [values, setValues] = useState(() => valuesFrom(fields, stage?.evidence));
   const [uploaded, setUploaded] = useState({});
-  const [remarks, setRemarks] = useState("");
+  const [advance, setAdvance] = useState(() =>
+    typeof stage?.evidence?.advanceRequired === "boolean" ? String(stage.evidence.advanceRequired) : "",
+  );
+  const [remarks, setRemarks] = useState(stage?.remarks ?? "");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(null);
   const [error, setError] = useState(null);
+
+  /*
+   * A required file already on the order counts — a PO copy attached at intake
+   * satisfies stage 2 on the server, so the form must not ask for it again.
+   */
+  const docFields = fields.filter((f) => f.type === STAGE_FIELD_TYPES.DOCUMENT);
+  useEffect(() => {
+    if (!order?._id || docFields.length === 0) return;
+    let live = true;
+    o2dApi.documents(order._id)
+      .then((docs) => {
+        if (!live) return;
+        const onFile = {};
+        for (const field of docFields) {
+          const doc = (docs ?? []).find((d) => d.docType === field.docType && !d.deletedAt);
+          if (doc) onFile[field.key] = doc.originalName || `${field.docType} on file`;
+        }
+        setUploaded((s) => ({ ...onFile, ...s }));
+      })
+      .catch(() => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?._id, stage?.stageNumber]);
 
   if (!stage) return null;
 
@@ -100,7 +143,12 @@ export function CompleteStageModal({ order, stage, onClose, onCompleted }) {
     }
   };
 
-  const missing = fields.filter((f) => f.required && !isSatisfied(f, values, uploaded));
+  const missing = [
+    ...(isAdvanceDecision && advance === ""
+      ? [{ key: "advanceRequired", label: "Advance payment decision" }]
+      : []),
+    ...fields.filter((f) => f.required && !isSatisfied(f, values, uploaded)),
+  ];
 
   const submit = async () => {
     if (missing.length > 0) {
@@ -112,6 +160,16 @@ export function CompleteStageModal({ order, stage, onClose, onCompleted }) {
     setBusy(true);
     setError(null);
     try {
+      if (isAdvanceDecision) {
+        await o2dApi.advanceDecision(order._id, {
+          advanceRequired: advance === "true",
+          remarks: remarks.trim() || null,
+        });
+        onCompleted?.();
+        onClose();
+        return;
+      }
+
       // Documents are already on the server; only the value fields travel.
       const evidence = Object.fromEntries(
         fields
@@ -147,10 +205,18 @@ export function CompleteStageModal({ order, stage, onClose, onCompleted }) {
           </h3>
           <p className="mt-0.5 text-[11px] text-slate-500">
             {order?.poNumber}
+            {order?.customerName ? ` · ${order.customerName}` : ""}
             {/* Said plainly, because its absence from the form looks like an
                 oversight otherwise. */}
             {" · "}The completion time is recorded automatically.
           </p>
+          {(stage.ownerRole || stage.plannedCompletion || stage.assignedToName) && (
+            <p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-500">
+              {stage.ownerRole && <span>Owner: <span className="font-semibold text-slate-700">{stage.ownerRole}</span></span>}
+              {stage.plannedCompletion && <span>Due: <span className="font-semibold text-slate-700">{formatDateTime(stage.plannedCompletion)}</span></span>}
+              {stage.assignedToName && <span>Assigned to: <span className="font-semibold text-slate-700">{stage.assignedToName}</span></span>}
+            </p>
+          )}
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto px-5 py-4">
@@ -165,7 +231,38 @@ export function CompleteStageModal({ order, stage, onClose, onCompleted }) {
             </div>
           )}
 
-          {fields.length === 0 ? (
+          {isAdvanceDecision ? (
+            <fieldset>
+              <legend className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                Does this order need an advance payment?<span className="ml-0.5 text-error-600">*</span>
+              </legend>
+              <div className="flex flex-col gap-1.5 text-sm text-slate-700">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="advanceRequired"
+                    value="true"
+                    checked={advance === "true"}
+                    onChange={() => { setAdvance("true"); setError(null); }}
+                  />
+                  Yes — advance required (stage 5 goes to Accounts)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="advanceRequired"
+                    value="false"
+                    checked={advance === "false"}
+                    onChange={() => { setAdvance("false"); setError(null); }}
+                  />
+                  No — skip stage 5
+                </label>
+              </div>
+              {error?.field === "advanceRequired" && (
+                <p className="mt-1 text-[11px] font-semibold text-error-600">{error.message}</p>
+              )}
+            </fieldset>
+          ) : fields.length === 0 ? (
             <p className="text-sm text-slate-600">
               This stage needs no extra information. Completing it records the time and moves the
               order on.

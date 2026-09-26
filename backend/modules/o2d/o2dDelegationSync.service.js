@@ -36,8 +36,11 @@ import {
   detachMirrorForStage,
   holdMirrorForStage,
   mirrorRefOf,
+  ensureStageTask,
 } from './stageMirror.service.js';
-import { O2D_AUDIT_ACTIONS, ORDER_STATUS, TERMINAL_STAGE_STATUSES } from '../../shared/constants/o2d.js';
+import {
+  O2D_AUDIT_ACTIONS, ORDER_STATUS, STAGE_STATUS, TERMINAL_STAGE_STATUSES,
+} from '../../shared/constants/o2d.js';
 
 /**
  * May `actor` hand this stage to somebody else?
@@ -197,6 +200,10 @@ export async function unassignStage({ orderId, stageNumber, actor, req = null })
   stage.assignedAt = null;
   stage.delegationId = null;
   stage.checklistOccurrenceId = null;
+  // Still open, so it goes back to the whole team's Checklist.
+  if (!TERMINAL_STAGE_STATUSES.includes(stage.status) && stage.status !== STAGE_STATUS.LOCKED) {
+    await ensureStageTask(stage, { order });
+  }
   await stage.save();
 
   await recordAudit(

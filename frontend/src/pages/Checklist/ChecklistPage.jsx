@@ -10,12 +10,15 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useUserStore } from '../../store/userStore';
-import { isAdmin as checkIsAdmin, isSuperAdmin } from '../../utils/permissions';
+import {
+  isAdmin as checkIsAdmin, isSuperAdmin, hasPermission, PERMISSIONS,
+} from '../../utils/permissions';
 import { checklistApi } from '../../services/checklist';
+import { useChecklistBadgeStore } from '../../store/checklistBadgeStore';
 import toast from 'react-hot-toast';
 
 import { TasksTable, isO2dMirror } from './TasksTable';
-import { CompleteStageModal } from '../O2d/CompleteStageModal';
+import { StageTaskModal } from '../O2d/StageTaskModal';
 import { RoutinesTable } from './RoutinesTable';
 import { DepartmentScoreboard } from './DepartmentScoreboard';
 import { KpiDrilldownDrawer } from './KpiDrilldownDrawer';
@@ -100,6 +103,10 @@ export function ChecklistPage() {
   const canStopRoutine = can('work_queue', 'checklist', 'delete');
   const canComplete = can('work_queue', 'checklist', 'approve');
   const canReassign = can('work_queue', 'assignment', 'edit');
+  // O2D stages are worked under O2D's own permission, not the checklist's: the
+  // server marks each O2D row `canComplete` from the O2D stage rules.
+  const worksO2d = hasPermission(user, PERMISSIONS.VIEW_O2D) && hasPermission(user, PERMISSIONS.WORK_O2D_STAGE);
+  const canCompleteRow = (task) => (isO2dMirror(task) ? task.canComplete === true : canComplete);
 
   // ── Data state ───────────────────────────────────────────────────────────
   const [tasks, setTasks] = useState([]);
@@ -137,6 +144,11 @@ export function ChecklistPage() {
   const [createDrawer, setCreateDrawer] = useState(false);
   const [drilldownKpi, setDrilldownKpi] = useState(null);
   const [activeKpi, setActiveKpi] = useState(null);
+
+  // ── "New" tasks ──────────────────────────────────────────────────────────
+  /** Rows that were new when this visit began — they keep their tag until the page is left. */
+  const [sessionNewIds, setSessionNewIds] = useState(() => new Set());
+  const clearChecklistBadge = useChecklistBadgeStore((s) => s.clear);
 
   // ── Active filter count ──────────────────────────────────────────────────
   const activeFilterCount = useMemo(() => {
@@ -186,12 +198,24 @@ export function ChecklistPage() {
         checklistApi.getSummary({ site: selectedSite || undefined }),
       ]);
 
-      setTasks(tasksData?.tasks || []);
+      const rows = tasksData?.tasks || [];
+      setTasks(rows);
       setSummary(summaryData || {});
+
+      /*
+       * Opening the Checklist is what makes its tasks no longer new. The rows
+       * already came back tagged (the server compared them with the previous
+       * visit), and the tags are remembered for this visit so a reload after
+       * completing one does not strip the rest.
+       */
+      const fresh = rows.filter((t) => t.isNew).map((t) => String(t._id));
+      if (fresh.length > 0) setSessionNewIds((prev) => new Set([...prev, ...fresh]));
+      await checklistApi.markSeen();
+      clearChecklistBadge();
     } catch (err) {
       console.error('Failed to load tasks:', err);
     }
-  }, [selectedSite, search, frequencyFilter, statusFilter, departmentFilter, siteFilter, doerFilter, specificDate, fromDate, toDate]);
+  }, [selectedSite, search, frequencyFilter, statusFilter, departmentFilter, siteFilter, doerFilter, specificDate, fromDate, toDate, clearChecklistBadge]);
 
   const loadRoutines = useCallback(async () => {
     if (!admin) return;
@@ -618,7 +642,9 @@ export function ChecklistPage() {
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleSelectAll={toggleSelectAll}
-          onComplete={canComplete ? (task) => setCompleteModal(task) : undefined}
+          onComplete={canComplete || worksO2d ? (task) => setCompleteModal(task) : undefined}
+          canCompleteRow={canCompleteRow}
+          newIds={sessionNewIds}
           onRemark={canEdit ? (task) => setRemarkModal([task._id]) : undefined}
           onReassign={canReassign ? (task) => setReassignModal(task) : undefined}
           onNonFunctional={canComplete ? (task) => setNonFuncModal(task) : undefined}
@@ -666,14 +692,14 @@ export function ChecklistPage() {
         this occurrence done. One form, one completion, two places to reach it.
       */}
       {completeModal && isO2dMirror(completeModal) && (
-        <CompleteStageModal
-          order={{ _id: completeModal.sourceOrderId }}
-          stage={{
-            stageNumber: completeModal.sourceStageNumber,
-            stageName: completeModal.taskName,
-          }}
+        <StageTaskModal
+          orderId={completeModal.sourceOrderId}
+          stageNumber={completeModal.sourceStageNumber}
           onClose={() => setCompleteModal(null)}
-          onCompleted={handleSuccess}
+          onCompleted={() => {
+            toast.success('Stage completed. The next stage is now active.');
+            handleSuccess();
+          }}
         />
       )}
 

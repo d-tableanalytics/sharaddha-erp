@@ -247,6 +247,24 @@ describe('the two stages that need a file', () => {
     assert.ok([STAGE_STATUS.DONE_ON_TIME, STAGE_STATUS.DONE_LATE].includes(stage.status));
   });
 
+  test('the completion records WHICH file satisfied it', async () => {
+    const order = await create();
+    const doc = await O2dDocument.create({
+      order: order._id, poNumber: order.poNumber, docType: 'PO', originalName: 'po-4471.pdf',
+      stageNumber: STAGES.SUBMIT_PO_TO_BILLING, uploadedByName: 'A Sales',
+      storageKey: 'o2d/x/po.pdf', contentType: 'application/pdf', uploadedAt: new Date(),
+    });
+
+    await completeStage({
+      orderId: order._id, stageNumber: STAGES.SUBMIT_PO_TO_BILLING,
+      actor: actor('Billing'), now: NOW, evidence: {},
+    });
+
+    const stored = await O2dOrderStage.findOne({ order: order._id, stageNumber: STAGES.SUBMIT_PO_TO_BILLING }).lean();
+    assert.equal(String(stored.evidence.poCopy.documentId), String(doc._id));
+    assert.equal(stored.evidence.poCopy.originalName, 'po-4471.pdf');
+  });
+
   test('a deleted document stops satisfying the requirement', async () => {
     const order = await create();
     await O2dDocument.create({

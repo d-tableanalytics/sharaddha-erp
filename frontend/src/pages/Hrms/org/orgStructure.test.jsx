@@ -468,6 +468,8 @@ describe("locations", () => {
     expect(await screen.findByRole("button", { name: "Europe/Berlin" })).toBeTruthy();
   });
 
+  // 15 s rather than the default 5: the picker renders all ~418 IANA zones as
+  // buttons, and finding one by role runs past 5 s on a loaded machine.
   it("changes the timezone and saves it", async () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Edit Bangalore" }));
@@ -479,7 +481,7 @@ describe("locations", () => {
 
     await waitFor(() => expect(calls.some((c) => c.method === "patch")).toBe(true));
     expect(calls.find((c) => c.method === "patch").data.timezone).toBe("Europe/London");
-  });
+  }, 15_000);
 
   it("edits, pre-filled with the existing values", async () => {
     await open();

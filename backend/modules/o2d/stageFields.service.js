@@ -117,7 +117,7 @@ export async function validateStageEvidence(orderId, stageNumber, evidence = {})
   const clean = {};
 
   for (const field of fields) {
-    // A document is not carried in `evidence` — it is checked below.
+    // A document is not typed into the form — it is looked up below.
     if (field.type === STAGE_FIELD_TYPES.DOCUMENT) continue;
 
     const value = coerce(field, submitted[field.key]);
@@ -145,17 +145,28 @@ export async function validateStageEvidence(orderId, stageNumber, evidence = {})
   const docType = requiredDocTypeFor(stageNumber);
   if (docType) {
     const field = fields.find((f) => f.type === STAGE_FIELD_TYPES.DOCUMENT);
-    const exists = await O2dDocument.exists({
+    const doc = await O2dDocument.findOne({
       order: orderId,
       docType,
       deletedAt: null,
-    });
-    if (!exists) {
+    })
+      .sort({ uploadedAt: -1 })
+      .select('_id docType originalName uploadedAt uploadedByName')
+      .lean();
+    if (!doc) {
       throw fieldError(
         `${field.label} must be uploaded before this stage can be completed.`,
         'O2D_STAGE_DOCUMENT_REQUIRED', field.key,
       );
     }
+    // Which file this completion relied on, so the record still names it later.
+    clean[field.key] = {
+      documentId: doc._id,
+      docType: doc.docType,
+      originalName: doc.originalName ?? null,
+      uploadedAt: doc.uploadedAt,
+      uploadedByName: doc.uploadedByName ?? null,
+    };
   }
 
   return Object.keys(clean).length > 0 ? clean : null;

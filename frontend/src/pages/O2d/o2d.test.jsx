@@ -113,7 +113,7 @@ describe("My Tasks", () => {
     signIn("Billing", [PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE]);
     at(o2dRoute("tasks"));
 
-    expect(await screen.findByText("Yours to complete")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Complete" })).toBeTruthy();
   });
 
   test("a stage the caller only WATCHES is labelled, not offered", async () => {
@@ -125,7 +125,7 @@ describe("My Tasks", () => {
     at(o2dRoute("tasks"));
 
     expect(await screen.findByText("Waiting on another team")).toBeTruthy();
-    expect(screen.queryByText("Yours to complete")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
   });
 
   test("shows the overdue count as a filter chip", async () => {
@@ -450,7 +450,7 @@ describe("a task stays visible in the stages it has passed", () => {
     expect(screen.getByText("3. Send SOR + PI")).toBeTruthy();
     // One is finished, the other is the work.
     expect(screen.getByText("Completed")).toBeTruthy();
-    expect(screen.getByText("Yours to complete")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Complete" })).toBeTruthy();
   });
 
   test("the badge counts work to do, not the retained history", async () => {

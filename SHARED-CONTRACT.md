@@ -36,11 +36,16 @@ deliberate.
 ```
 config/permissions.js          config/moduleRegistry.js
 utils/roleResolver.js          utils/hrmsRoleGuard.js
-utils/hrmsAccessBridge.js      middlewares/rbac.js
-middlewares/auth.js            middlewares/hrmsAuth.js
+utils/tokens.js                middlewares/rbac.js
+middlewares/auth.js            middlewares/portalGuard.js
 models/User.js                 models/Role.js
 shared/permissions/{assignment,constants,has-permission,index,legacy,matrix}.js
 ```
+
+`backend/shared-contract.manifest.json` is the authoritative list; this block
+mirrors it. `utils/hrmsAccessBridge.js` and `middlewares/hrmsAuth.js` left the
+contract when they moved wholly into this repository; `utils/tokens.js` and
+`middlewares/portalGuard.js` joined it.
 
 Check them in either repository, independently, with no network:
 
@@ -118,14 +123,13 @@ already reporting drift you did not cause, do the same.
 
 ## 3. How RBAC actually resolves
 
-Nothing about this changed in the split. It is written down here because the
-answer spans both repositories.
+Written down here because the answer spans both repositories.
 
 ```
 User.role  ─┐
             ├─→ resolveUserPermissions()  ─→  flat portal permission strings
-Role.grants ┘        (baseline ∪ DB grants, capped for portalOnly roles)
-User.extraGrants ┘
+Role.grants ┘        (the role's row — or its baseline if it has no row —
+User.extraGrants ┘    ∪ extras; capped for portalOnly roles; then the domain fence)
                                 │
                                 ▼
                     utils/hrmsAccessBridge.js
@@ -153,10 +157,42 @@ User.extraGrants ┘
   a second time structurally in `buildHrmsActor()`, which only derives grants
   from `hrms_*` keys.
 
-The baseline in `config/permissions.js` is a **floor**: a user's effective
-permissions are `baseline(role) ∪ Role.grants ∪ User.extraGrants`. The matrix
-can add, never revoke. `npm run verify:rbac` proves the floor still holds,
-without a database — run it in either repository.
+**The role's database row is the whole answer.** A user's effective
+permissions are `row(role) ∪ User.extraGrants`, where `row(role)` is
+`compileGrants(Role.grants) ∪ Role.permissions`. The compiled-in baseline in
+`config/permissions.js` applies **only to a role with no row** (a cold cache, an
+unseeded or unreachable collection). So unticking a cell in either portal's
+matrix revokes it — `tests/matrix-authoritative.test.js` pins this.
+
+This used to read "the baseline is a floor: `baseline ∪ grants`, the matrix can
+add, never revoke". That stopped being true when the resolver changed to
+row-is-the-answer (Customer Portal commit `54f08f1`). One consequence worth
+knowing: a key added to a role's baseline later does NOT reach a role that
+already has a row. The Customer Portal's `npm run roles:baseline` (dry run by
+default, `--apply` to write) tops rows up, adding only.
+
+Then two fences, in this order:
+
+- **portal-only** — a `portalOnly` role (Customer) is capped at
+  `customer_portal` keys;
+- **domain** — every non-wildcard key not reachable from a sub-module THIS
+  deployment serves is dropped (`portalKeys(currentPortal())`). This is why the
+  Customer Portal resolves no O2D or HRMS key for anybody but a wildcard holder.
+
+`npm run verify:rbac` compares the compiled-in baselines against the frozen
+pre-RBAC role map, without a database — run it in either repository.
+
+### Two role editors
+
+Both portals now have a Roles & Permissions screen, each showing only the
+modules it serves. The Customer Portal's save paths (role grants, the legacy
+flat list, per-account extras) MERGE: they take that portal's cells from the
+request and keep every other cell as stored — see its
+`backend/utils/portalGrants.js`. This repository's save paths still REPLACE,
+and stay safe only because this screen seeds its draft from every stored cell
+and sends them all back. Note that it seeds from `baselineGrants ∪ grants`, so a
+baseline cell unticked in the Customer Portal comes back ticked the next time a
+role is opened and saved here.
 
 ---
 
@@ -263,3 +299,35 @@ cd "Employee portal module/frontend" && npm run dev
 ```
 
 Both log the Mongo host they connected to at boot. They must match.
+
+---
+
+## 8. The Customer Portal draws FMS from this API
+
+Staff who work in the Customer Portal (Sales above all) get the FMS screens
+there too, **without a second FMS**. There is still one engine, one set of
+scheduled jobs (§4) and one set of Work Queue mirrors, and they all live here.
+The Customer Portal only draws the screens:
+
+- **Its frontend calls `/api/v1/o2d` on this server** with the access token it
+  already holds. §1's shared `JWT_SECRET` is what makes that token valid here.
+  Its backend serves no O2D route and never will. Its portal fence strips the
+  O2D keys by design, and nothing about that fence or the `o2d` registry tag
+  changed.
+- **Who sees FMS there is decided by this server's `/auth/me`,** the server
+  that enforces it. A Customer account resolves no O2D key here either.
+- **The screens are this repository's files, copied verbatim** into
+  `Customer portal module/frontend/src/fms/` and recorded in
+  `fms-port.manifest.json`. That includes `shared/constants/o2d.js` and
+  `o2dStageFields.js`, and the O2D page tests, which run there unmodified.
+
+What that asks of this repository:
+
+| When you… | Do this |
+|---|---|
+| deploy | Add the Customer Portal's origin (`https://erp.shraddhaimpex.net`) to `CORS_ORIGINS`. A refused origin shows as `[CORS] refused origin` in the logs and as "FMS not offered" there. Nothing else breaks. |
+| change an O2D screen, `services/o2d/*`, or the two shared constant files | In the Customer Portal frontend: `npm run fms:diff`, then `npm run fms:sync` and its tests. `npm run fms:check` in its CI fails if someone edits a copy there instead. |
+| change an `/api/v1/o2d` response shape | Both frontends read it. The synced copy picks the change up, but only once somebody syncs. |
+
+Notification links (`/fms/o2d/orders?open=<id>`) resolve in both portals,
+because the routes are the same. Emails still link to `EMPLOYEE_PORTAL_URL`.

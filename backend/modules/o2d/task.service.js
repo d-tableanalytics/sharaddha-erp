@@ -65,6 +65,9 @@ export async function roleStageMap(role) {
 
   const actionable = [];
   const watching = [];
+  // Stages this role may act on as cover/senior rather than as the team doing
+  // the work — they see those stages even when a named person holds them.
+  const supervising = [];
 
   for (const m of masters) {
     const closer = m.completedByRole || m.ownerRole;
@@ -73,9 +76,13 @@ export async function roleStageMap(role) {
     if (allowed.includes(role)) actionable.push(m.stageNumber);
     // Owner, but not the one who records it — see the note above.
     else if (m.ownerRole === role) watching.push(m.stageNumber);
+
+    if (role !== closer && role !== m.ownerRole && (m.alsoAllowedRoles ?? []).includes(role)) {
+      supervising.push(m.stageNumber);
+    }
   }
 
-  return { actionable, watching, masters };
+  return { actionable, watching, supervising, masters };
 }
 
 /**
@@ -112,10 +119,10 @@ async function visibilityFilter(user) {
      * this cannot piggy-back on `roleStageMap` the way the branch below does.
      */
     const allStageNumbers = await O2dStageMaster.distinct('stageNumber', { enabled: true });
-    return { all: true, actionable: allStageNumbers, watching: [] };
+    return { all: true, actionable: allStageNumbers, watching: [], supervising: allStageNumbers };
   }
-  const { actionable, watching } = await roleStageMap(user?.role);
-  return { all: false, actionable, watching };
+  const { actionable, watching, supervising } = await roleStageMap(user?.role);
+  return { all: false, actionable, watching, supervising };
 }
 
 /**
@@ -237,17 +244,19 @@ export async function myTasks(user, query = {}) {
 
   if (vis.all) {
     /*
-     * Super Admin holds the wildcard on WHICH STAGES, not on whose to-do list
-     * this is. They see every stage nobody was named on, plus their own
-     * assignments — the same sentence as everybody else, with the role clause
-     * removed. Order Tracker remains their unrestricted view.
+     * Admins see every stage on a live order, including ones named to somebody
+     * else: when an assignee is absent it is the admin who has to pick the work
+     * up, and it has to be on their list to do so. Peers of the same role still
+     * lose a stage from their queue once somebody is named — see above.
      */
-    filter.$or = notSomebodyElses;
   } else {
     const branches = [];
     if (mine && mine.length > 0) {
       branches.push({ stageNumber: { $in: mine }, $or: notSomebodyElses });
     }
+    // Cover/senior roles (a stage's `alsoAllowedRoles` other than the team that
+    // does it) see the stage whoever holds it, for the same reason as admins.
+    if (vis.supervising.length > 0) branches.push({ stageNumber: { $in: vis.supervising } });
     if (myUserId) branches.push({ assignedTo: myUserId });
     // Both empty only when neither role nor assignment grants anything, which
     // the early return above already caught — reaching here with an empty
@@ -297,6 +306,8 @@ export async function myTasks(user, query = {}) {
           || Boolean(myUserId && String(stage.assignedTo ?? '') === myUserId)),
       /** True for a row retained as history rather than offered as work. */
       completed: TERMINAL_STAGE_STATUSES.includes(stage.status),
+      /** Named to another person; shown to an admin/cover role so they can step in. */
+      assignedToOther: Boolean(stage.assignedTo) && String(stage.assignedTo) !== myUserId,
       /** In Progress / Done — the two-state name the screens show. */
       displayStatus: displayStatusFor(stage.status),
     };

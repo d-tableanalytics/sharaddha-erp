@@ -50,12 +50,46 @@ import crypto from 'node:crypto';
 
 import { O2dWorkflowError } from '../stage.engine.js';
 
-const MODE = process.env.O2D_ZOHO_MODE ?? 'mock';
-const ENABLED = process.env.O2D_ZOHO_ENABLED === 'enabled';
-const CLIENT_ID = process.env.ZOHO_CLIENT_ID;
-const CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN;
-const ORG_ID = process.env.ZOHO_ORG_ID;
+/**
+ * The configuration, read when USED rather than when this file loads.
+ *
+ * server.js calls `dotenv.config()` after its imports have evaluated, so
+ * module-level constants here saw an empty environment: anything set only in
+ * `.env` was ignored and the channel stayed in mock mode whatever it said. The
+ * other channels already read lazily; this one now does too.
+ *
+ * MODES
+ *   live                 reach Zoho.
+ *   log | mock | (empty) do not reach Zoho: a derived MOCK- invoice number lets
+ *                        the workflow run. `log` is the value .env.example and
+ *                        render.yaml document; the code used to recognise only
+ *                        `mock`, so `log` took the live path.
+ *   anything else        treated as offline, and said so loudly, rather than
+ *                        silently taking the live path as it used to.
+ */
+const OFFLINE_MODES = new Set(['', 'mock', 'log']);
+let warnedMode = null;
+
+const zohoMode = () => {
+  const raw = String(process.env.O2D_ZOHO_MODE ?? '').trim().toLowerCase();
+  if (raw === 'live') return 'live';
+  if (!OFFLINE_MODES.has(raw) && warnedMode !== raw) {
+    warnedMode = raw;
+    console.error(`[O2D/Zoho] O2D_ZOHO_MODE="${raw}" is not live, log or mock; staying offline.`);
+  }
+  return 'mock';
+};
+
+const isMock = () => zohoMode() === 'mock';
+
+const zohoConfig = () => ({
+  enabled: process.env.O2D_ZOHO_ENABLED === 'enabled',
+  clientId: process.env.ZOHO_CLIENT_ID,
+  clientSecret: process.env.ZOHO_CLIENT_SECRET,
+  refreshToken: process.env.ZOHO_REFRESH_TOKEN,
+  orgId: process.env.ZOHO_ORG_ID,
+});
+
 const API_BASE = 'https://www.zohoapis.com/books/v3';
 
 /** Cached access token and its expiry, so we don't re-auth on every request. */
@@ -72,16 +106,17 @@ let tokenExpiry = 0;
  * In mock mode, this is a no-op.
  */
 async function getAccessToken() {
-  if (MODE === 'mock') return 'mock-token';
+  if (isMock()) return 'mock-token';
 
-  if (!ENABLED) {
+  const { enabled, clientId, clientSecret, refreshToken, orgId } = zohoConfig();
+  if (!enabled) {
     throw new O2dWorkflowError('Zoho is not enabled. Set O2D_ZOHO_ENABLED=enabled to use it.', {
       status: 503,
       code: 'O2D_ZOHO_DISABLED',
     });
   }
 
-  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN || !ORG_ID) {
+  if (!clientId || !clientSecret || !refreshToken || !orgId) {
     throw new O2dWorkflowError('Zoho credentials are incomplete. Check ZOHO_CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN, ORG_ID.', {
       status: 500,
       code: 'O2D_ZOHO_CONFIG_MISSING',
@@ -96,9 +131,9 @@ async function getAccessToken() {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        refresh_token: REFRESH_TOKEN,
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
         grant_type: 'refresh_token',
       }).toString(),
     });
@@ -133,7 +168,7 @@ async function getAccessToken() {
  * @returns {Promise<{ok: boolean, invoiceNumber: string, detail: string}>}
  */
 export async function createInvoice({ orderId, customerEmail, poNumber, items, idempotencyKey }) {
-  if (MODE === 'mock') {
+  if (isMock()) {
     /**
      * DERIVED from the idempotency key, not from `Date.now()`.
      *
@@ -155,7 +190,7 @@ export async function createInvoice({ orderId, customerEmail, poNumber, items, i
     const total = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
 
     const res = await fetch(
-      `${API_BASE}/invoices?organization_id=${ORG_ID}`,
+      `${API_BASE}/invoices?organization_id=${zohoConfig().orgId}`,
       {
         method: 'POST',
         headers: {
@@ -219,7 +254,7 @@ export async function createInvoice({ orderId, customerEmail, poNumber, items, i
  * For now, this is a placeholder for future expansion.
  */
 export async function markInvoiceSent({ invoiceNumber }) {
-  if (MODE === 'mock') {
+  if (isMock()) {
     console.log(`[O2D/Zoho Mock] Invoice marked sent: ${invoiceNumber}`);
     return { ok: true };
   }
@@ -263,22 +298,24 @@ export function signaturesMatch(expected, provided) {
 /**
  * Is this webhook really from Zoho?
  *
- * ⚠ Mock mode accepts anything, which is right for local development and
- * catastrophic in production. That is why the missing-secret case below
- * REFUSES rather than warning-and-accepting: a deployment that sets the mode
- * to live but forgets the secret would otherwise expose an open endpoint that
- * anyone who learns the URL can use to mark invoices paid.
+ * A configured secret is ALWAYS checked, whatever the mode. With no secret the
+ * webhook is refused, except offline outside production, where accepting
+ * anything is what local development needs.
+ *
+ * That exception used to be the whole of mock mode, production included, and
+ * mock was the effective mode whenever the setting lived only in `.env` (see
+ * zohoMode above). So the promise in .env.example — "without this secret the
+ * webhook refuses every request" — did not hold, and anyone who learned the URL
+ * could mark an invoice paid.
  */
 export function verifyWebhookSignature(rawBody, signature) {
-  if (MODE === 'mock') return true;
-
   const secret = process.env.ZOHO_WEBHOOK_SECRET;
-  if (!secret) {
-    console.error('[O2D/Zoho] ZOHO_WEBHOOK_SECRET is not set; refusing the webhook.');
-    return false;
-  }
+  if (secret) return signaturesMatch(signPayload(rawBody, secret), signature);
 
-  return signaturesMatch(signPayload(rawBody, secret), signature);
+  if (isMock() && process.env.NODE_ENV !== 'production') return true;
+
+  console.error('[O2D/Zoho] ZOHO_WEBHOOK_SECRET is not set; refusing the webhook.');
+  return false;
 }
 
 export default { createInvoice, markInvoiceSent, verifyWebhookSignature };

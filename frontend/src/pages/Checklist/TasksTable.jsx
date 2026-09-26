@@ -45,6 +45,13 @@ const StatusBadge = ({ status }) => (
   </Badge>
 );
 
+/** Marks a task that reached this person's list since they last opened the Checklist. */
+export const NewTag = () => (
+  <span className="shrink-0 rounded-full bg-primary-600 px-2 py-0.5 text-[10px] font-bold leading-4 text-white">
+    New
+  </span>
+);
+
 const FrequencyPill = ({ frequency }) => (
   <Badge variant="primary" className="gap-1">
     <Repeat size={10} />
@@ -165,6 +172,10 @@ export function TasksTable({
   onToggleSelect,
   onToggleSelectAll,
   onComplete,
+  /** Per-row say on Complete — an O2D row answers from O2D's own rules. */
+  canCompleteRow,
+  /** Rows that were new when this visit began, kept tagged for the visit. */
+  newIds,
   onRemark,
   onReassign,
   onNonFunctional,
@@ -267,7 +278,10 @@ export function TasksTable({
 
                   {/* Task */}
                   <td className="px-6 py-4 max-w-[240px]">
-                    <p className="text-sm font-bold text-slate-900 hover:text-primary-700 transition-colors truncate">{task.taskName}</p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 hover:text-primary-700 transition-colors truncate">{task.taskName}</p>
+                      {!isCompleted && (task.isNew || newIds?.has(String(task._id))) && <NewTag />}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[11px] font-mono font-semibold text-slate-400">{task.taskCode}</span>
                       {task.remarks?.length > 0 && (
@@ -300,6 +314,9 @@ export function TasksTable({
                   {/* Owner */}
                   <td className="px-6 py-4">
                     <p className="text-xs font-bold text-slate-900">{task.doerFirstName} {task.doerLastName}</p>
+                    {isO2dMirror(task) && !task.doer && !isCompleted && (
+                      <p className="text-[11px] font-semibold text-amber-700">Anyone in the team can complete it</p>
+                    )}
                     <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
                       {task.department && <>{task.department} · </>}
                       <span className="font-bold text-primary-700">{task.site}</span>
@@ -351,7 +368,7 @@ export function TasksTable({
                       <span className="text-xs text-success-600 font-bold">{fmtDate(task.completedDate)}</span>
                     ) : (
                       <div className="flex items-center justify-end gap-1">
-                        {onComplete && (
+                        {onComplete && (!canCompleteRow || canCompleteRow(task)) && (
                         <button
                           type="button"
                           onClick={() => onComplete(task)}

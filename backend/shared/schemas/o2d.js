@@ -190,6 +190,13 @@ export const skipStageSchema = z.object({
   actualCompletion: isoDateTime.nullish(),
 });
 
+/** Send a completed stage back for rework. See `reopenStage` in the engine. */
+export const reopenStageSchema = z.object({
+  reason: text(500),
+  /** Also send every later completed stage back to LOCKED, to be redone in order. */
+  resetDownstream: z.boolean().default(false),
+});
+
 /** Hand a stage to one named person — see o2dDelegationSync.service.js. */
 export const assignStageSchema = z.object({
   userId: objectId,
@@ -336,6 +343,7 @@ export default {
   completeStageSchema,
   advanceDecisionSchema,
   skipStageSchema,
+  reopenStageSchema,
   assignStageSchema,
   holdOrderSchema,
   resumeOrderSchema,

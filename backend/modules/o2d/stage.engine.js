@@ -39,10 +39,11 @@ import {
 import { validateStageEvidence } from './stageFields.service.js';
 import {
   resyncMirrorForStage, markMirrorForStageDone, markMirrorForStageSkipped,
-  holdMirrorsForOrder, releaseMirrorsForOrder,
+  holdMirrorsForOrder, releaseMirrorsForOrder, ensureStageTask, releaseStageTask,
 } from './stageMirror.service.js';
 import {
   STAGES,
+  FIRST_STAGE,
   STAGE_STATUS,
   ORDER_STATUS,
   O2D_EVENTS,
@@ -186,7 +187,10 @@ export async function createStagesForOrder(order, { actor = null, now = new Date
  * value rather than recomputing, so a later edit to the SLA master cannot
  * re-judge work already in flight (§48).
  */
-async function unlockStage(stage, { from, calendar, order }) {
+async function unlockStage(stage, {
+  from, calendar, order,
+  source = STAGE_EVENT_SOURCES.WORKFLOW, actor = null, reason = 'Stage reached', meta = null,
+}) {
   const start = from;
   const rule = { type: stage.sla.type, value: stage.sla.value ?? undefined, byMinute: stage.sla.byMinute ?? undefined };
 
@@ -203,21 +207,22 @@ async function unlockStage(stage, { from, calendar, order }) {
     order.status === ORDER_STATUS.ON_HOLD ? STAGE_STATUS.ON_HOLD : STAGE_STATUS.PENDING,
     {
       order,
-      source: STAGE_EVENT_SOURCES.WORKFLOW,
-      reason: 'Stage reached',
+      source,
+      actor,
+      reason,
       // The deadline in force at the moment it opened. A later hold moves
       // `plannedCompletion`, so without this the history cannot show what the
       // team was originally working to.
-      meta: { plannedCompletion: due },
+      meta: { ...(meta ?? {}), plannedCompletion: due },
     },
   );
-  await stage.save();
 
-  // The deadline just computed above is the real one — if somebody was
-  // assigned to this stage while it was still LOCKED, their mirrored task was
-  // seeded with a placeholder due date. Correct it now that the truth is
-  // known, on whichever surface the mirror lives.
-  await syncMirror(resyncMirrorForStage, stage, { order });
+  // The stage is now somebody's work, so it gets its task: the named person's,
+  // or a team task for the responsible role — which is what puts it on their
+  // Checklist the moment it opens. A task created while the stage was still
+  // LOCKED (an advance assignment) is instead corrected to the real deadline.
+  await syncMirror(ensureStageTask, stage, { order });
+  await stage.save();
 
   return stage;
 }
@@ -375,6 +380,10 @@ export async function completeStage({
         delayMinutes: late,
         plannedCompletion: stage.plannedCompletion,
         overridden: Boolean(blocker && override),
+        // The submitted form, kept with the event so a later rework that
+        // overwrites the row's evidence cannot erase what this close recorded.
+        evidence: checkedEvidence ?? null,
+        remarks: remarks || null,
       },
     },
   );
@@ -507,6 +516,8 @@ export async function skipStage({ orderId, stageNumber, reason, actor = null, no
   // Deliberately NOT an actual completion: a skipped stage was never done, and
   // stamping one would pull it into the KPI denominator it must stay out of.
   stage.delayMinutes = null;
+  // Before the save: an unclaimed team task is removed, which clears the link.
+  await syncMirror(markMirrorForStageSkipped, stage, { actor, reason: stage.skipReason, at: now });
   await stage.save();
 
   const events = [{ type: O2D_EVENTS.STAGE_SKIPPED, payload: { orderId: order._id, stageNumber, reason: stage.skipReason } }];
@@ -535,9 +546,249 @@ export async function skipStage({ orderId, stageNumber, reason, actor = null, no
       excludedFromKpi: true,
     });
 
-  await syncMirror(markMirrorForStageSkipped, stage, { actor, reason: stage.skipReason, at: now });
-
   return { stage, order, events };
+}
+
+// ---------------------------------------------------------------------------
+// Reopening (rework)
+// ---------------------------------------------------------------------------
+
+/** What a stage's close said, kept in the history before the row is cleared. */
+const completionSnapshot = (stage) => ({
+  status: stage.status,
+  actualCompletion: stage.actualCompletion,
+  recordedAt: stage.recordedAt,
+  completedBy: stage.completedBy,
+  completedByName: stage.completedByName,
+  completedByRole: stage.completedByRole,
+  delayMinutes: stage.delayMinutes,
+  plannedCompletion: stage.plannedCompletion,
+  skipReason: stage.skipReason,
+  overridden: stage.overridden,
+  overrideReason: stage.overrideReason,
+  evidence: stage.evidence,
+  remarks: stage.remarks,
+});
+
+/**
+ * Clear a stage back to "not done". Evidence is kept so the rework form opens
+ * pre-filled; `completeStage` merges over it.
+ */
+function clearCompletion(stage) {
+  stage.actualCompletion = null;
+  stage.recordedAt = null;
+  stage.completedBy = null;
+  stage.completedByName = null;
+  stage.completedByRole = null;
+  stage.delayMinutes = null;
+  stage.skipReason = null;
+  stage.skippedAt = null;
+  stage.overridden = false;
+  stage.overrideReason = null;
+  stage.overriddenBy = null;
+  stage.plannedStart = null;
+  stage.plannedCompletion = null;
+  stage.actualStart = null;
+  stage.dueSoonNotifiedAt = null;
+  stage.overdueNotifiedAt = null;
+  stage.escalatedAt = null;
+}
+
+/**
+ * Send a completed stage back for rework.
+ *
+ * The stage returns to PENDING with a fresh deadline and is reassigned to the
+ * same person (a new mirrored task; the old one keeps its completion). Nothing
+ * is deleted: the prior close is snapshotted into the stage-event history and
+ * the audit log, which is what KPI history reads from.
+ *
+ * Downstream stages:
+ *   - any that were open are locked again — they depend on this one;
+ *   - completed ones are kept, unless `resetDownstream` is set, in which case
+ *     every later stage goes back to LOCKED and is redone in sequence;
+ *   - reopening stage 4 always resets stage 5, whose skip-or-not was decided by it.
+ *
+ * SKIPPED stages cannot be reopened directly — reopen the stage that decided
+ * the skip. Stage 1 cannot be reopened; creating the order is receiving it.
+ */
+export async function reopenStage({
+  orderId,
+  stageNumber,
+  reason,
+  resetDownstream = false,
+  actor = null,
+  now = new Date(),
+  calendar = null,
+}) {
+  const order = await O2dOrder.findById(orderId);
+  if (!order) throw new O2dWorkflowError('That order no longer exists.', { status: 404 });
+
+  if (order.status === ORDER_STATUS.CANCELLED || order.status === ORDER_STATUS.VOID) {
+    throw new O2dWorkflowError(
+      `This order was ${order.status.toLowerCase()}. Revive it before reopening any stage.`,
+      { code: 'O2D_ORDER_EXITED' },
+    );
+  }
+  if (order.status === ORDER_STATUS.ON_HOLD) {
+    throw new O2dWorkflowError(
+      'This order is on hold. Resume it before sending a stage back for rework.',
+      { code: 'O2D_ORDER_ON_HOLD' },
+    );
+  }
+  if (stageNumber === FIRST_STAGE) {
+    throw new O2dWorkflowError(
+      'Receiving the order cannot be reopened — correct the order details instead.',
+      { code: 'O2D_STAGE_NOT_REOPENABLE' },
+    );
+  }
+  if (!reason?.trim()) {
+    throw new O2dWorkflowError(
+      'Sending a stage back needs a reason, which is recorded against the order.',
+      { code: 'O2D_REOPEN_REASON_REQUIRED' },
+    );
+  }
+
+  const stage = await O2dOrderStage.findOne({ order: orderId, stageNumber });
+  if (!stage) throw new O2dWorkflowError(`Stage ${stageNumber} does not exist on this order.`, { status: 404 });
+
+  if (stage.status === STAGE_STATUS.SKIPPED) {
+    throw new O2dWorkflowError(
+      `${stage.stageName} was skipped by an earlier decision. Reopen the stage that made that decision instead.`,
+      { code: 'O2D_STAGE_SKIPPED' },
+    );
+  }
+  if (!TERMINAL_STAGE_STATUSES.includes(stage.status)) {
+    throw new O2dWorkflowError(
+      `${stage.stageName} is not complete, so there is nothing to reopen.`,
+      { code: 'O2D_STAGE_NOT_DONE' },
+    );
+  }
+
+  const why = reason.trim();
+  const cal = calendar ?? (await loadCalendar({ years: yearsSpanning(now, order.poDate) }));
+  const priorOrderStatus = order.status;
+
+  // ── Downstream first, so the order never shows two open stages ──────────
+  const later = await O2dOrderStage.find({ order: orderId, stageNumber: { $gt: stageNumber } })
+    .sort({ stageNumber: 1 });
+  const relocked = [];
+  const reset = [];
+
+  for (const s of later) {
+    const terminal = TERMINAL_STAGE_STATUSES.includes(s.status);
+    const forced = stageNumber === STAGES.ADVANCE_DECISION && s.stageNumber === STAGES.RECEIVE_ADVANCE;
+    if (s.status === STAGE_STATUS.LOCKED) continue;
+    if (terminal && !resetDownstream && !forced) continue;
+
+    const snapshot = terminal ? completionSnapshot(s) : null;
+    await setStageStatus(s, STAGE_STATUS.LOCKED, {
+      order,
+      source: STAGE_EVENT_SOURCES.USER,
+      actor,
+      reason: `Stage ${stageNumber} (${stage.stageName}) sent back for rework: ${why}`,
+      meta: snapshot ? { reset: true, previous: snapshot } : { relocked: true },
+    });
+    clearCompletion(s);
+    if (terminal) {
+      s.reopenCount = (s.reopenCount ?? 0) + 1;
+      s.lastReopenedAt = now;
+      s.lastReopenedBy = actor?._id ?? null;
+      s.lastReopenReason = why;
+      reset.push(s.stageNumber);
+    } else {
+      relocked.push(s.stageNumber);
+    }
+    // A locked stage is nobody's work yet, so its task comes off every list; it
+    // gets a fresh one when the sequence reaches it again.
+    await syncMirror(releaseStageTask, s, {
+      actor, at: now, reason: `Waiting again — stage ${stageNumber} was sent back for rework: ${why}`,
+    });
+    await s.save();
+
+    if (s.stageNumber === STAGES.PACK_AND_DISPATCH) order.dispatchedAt = null;
+  }
+
+  // ── The stage itself ─────────────────────────────────────────────────────
+  const previous = completionSnapshot(stage);
+  clearCompletion(stage);
+  stage.reopenCount = (stage.reopenCount ?? 0) + 1;
+  stage.lastReopenedAt = now;
+  stage.lastReopenedBy = actor?._id ?? null;
+  stage.lastReopenReason = why;
+  // The old task keeps the completion it recorded; the rework is new work and
+  // gets a fresh task when the stage unlocks below.
+  await syncMirror(releaseStageTask, stage, { actor, at: now, reason: `Sent back for rework: ${why}` });
+
+  // Before the unlock, so the fresh task is born live rather than parked.
+  if (order.status === ORDER_STATUS.CLOSED) {
+    order.status = ORDER_STATUS.OPEN;
+    order.closedAt = null;
+    order.closedBy = null;
+  }
+
+  await unlockStage(stage, {
+    from: now,
+    calendar: cal,
+    order,
+    source: STAGE_EVENT_SOURCES.USER,
+    actor,
+    reason: `Sent back for rework: ${why}`,
+    meta: { reopened: true, previous, resetDownstream: reset, relocked },
+  });
+
+  if (stageNumber === STAGES.PACK_AND_DISPATCH) order.dispatchedAt = null;
+
+  // ── The order follows its cursor back ────────────────────────────────────
+  order.currentStage = stageNumber;
+  order.updatedBy = actor?._id ?? null;
+  await order.save();
+
+  const meta = {
+    orderId: String(order._id),
+    poNumber: order.poNumber,
+    stageNumber,
+    from: previous.status,
+    to: stage.status,
+    reason: why,
+    previous,
+    resetDownstream: reset,
+    relocked,
+    plannedCompletion: stage.plannedCompletion,
+  };
+
+  await audit(actor, O2D_AUDIT_ACTIONS.STAGE_REOPENED,
+    `${stage.stageName} on ${order.poNumber} sent back for rework — ${why}`
+      + (reset.length ? ` (stages ${reset.join(', ')} reset)` : ''),
+    meta);
+
+  if (priorOrderStatus === ORDER_STATUS.CLOSED) {
+    await audit(actor, O2D_AUDIT_ACTIONS.ORDER_REOPENED,
+      `${order.poNumber} reopened — ${stage.stageName} sent back for rework`,
+      {
+        orderId: String(order._id),
+        poNumber: order.poNumber,
+        from: ORDER_STATUS.CLOSED,
+        to: ORDER_STATUS.OPEN,
+        stageNumber,
+        reason: why,
+      });
+  }
+
+  return {
+    stage,
+    order,
+    events: [{
+      type: O2D_EVENTS.STAGE_REOPENED,
+      payload: {
+        orderId: order._id,
+        stageNumber,
+        ownerRole: stage.ownerRole,
+        dueAt: stage.plannedCompletion,
+        reason: why,
+        resetDownstream: reset,
+      },
+    }],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -738,6 +989,7 @@ export default {
   createStagesForOrder,
   completeStage,
   skipStage,
+  reopenStage,
   holdOrder,
   resumeOrder,
 };

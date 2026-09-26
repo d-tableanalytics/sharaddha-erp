@@ -12,7 +12,9 @@
 
 import * as orders from './order.service.js';
 import * as tasks from './task.service.js';
-import { completeStage, skipStage, holdOrder, resumeOrder, O2dWorkflowError } from './stage.engine.js';
+import {
+  completeStage, skipStage, reopenStage, holdOrder, resumeOrder, O2dWorkflowError,
+} from './stage.engine.js';
 import { O2dStageMaster } from '../../models/o2d/O2dStageMaster.js';
 import { O2dOrderStage } from '../../models/o2d/O2dOrderStage.js';
 import * as documents from './document.service.js';
@@ -26,6 +28,7 @@ import * as exporter from './export.service.js';
 import * as invoicing from './invoicing.service.js';
 import * as bookings from './booking.service.js';
 import { assignStageToUser, unassignStage } from './o2dDelegationSync.service.js';
+import { hasPermission, PERMISSIONS } from '../../middlewares/rbac.js';
 
 const ctx = (req) => ({ req });
 
@@ -216,6 +219,15 @@ export const complete = async (req, res, next) => {
     const stageNumber = Number(req.params.stageNumber);
     await assertCanWork(req, stageNumber);
 
+    // The engine leaves override authorisation to its caller; without this any
+    // stage worker could jump the sequence by sending `override: true`.
+    if (req.body.override && !hasPermission(req.user, PERMISSIONS.OVERRIDE_O2D)) {
+      throw new O2dWorkflowError(
+        'Stages are completed in order. Completing one ahead of an unfinished earlier stage needs override permission.',
+        { status: 403, code: 'O2D_OVERRIDE_NOT_ALLOWED' },
+      );
+    }
+
     // The stage's required fields are checked INSIDE the engine, after its
     // ordering and lock checks — see completeStage. Doing it here would put
     // "fill in this field" ahead of "you cannot complete this stage yet".
@@ -303,6 +315,28 @@ export const skip = async (req, res, next) => {
       actor: req.user,
       reason: req.body.reason,
       actualCompletion: req.body.actualCompletion ?? null,
+    });
+    await announce(data.events);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/o2d/orders/:id/stages/:stageNumber/reopen
+ *
+ * Gated on OVERRIDE_O2D at the route, not on stage ownership: undoing a
+ * completion rewrites what the KPI counted, which is a supervisory act.
+ */
+export const reopen = async (req, res, next) => {
+  try {
+    const data = await reopenStage({
+      orderId: req.params.id,
+      stageNumber: Number(req.params.stageNumber),
+      reason: req.body.reason,
+      resetDownstream: req.body.resetDownstream ?? false,
+      actor: req.user,
     });
     await announce(data.events);
     res.status(200).json({ success: true, data });
@@ -402,23 +436,40 @@ export const exitsByStage = async (req, res, next) => {
 // ---------------------------------------------------------------------------
 
 /**
- * GET /api/v1/o2d/orders/:id/history - Order 360's audit tab.
+ * GET /api/v1/o2d/orders/:id/activity - Order 360's audit tab ("Activity").
  *
  * Reads the SHARED audit log filtered by `meta.orderId` rather than a
  * purpose-built O2D trail. That is what makes "who moved this order" and "who
  * changed this user's role" answerable from one place - see the note on
  * `audit()` in the stage engine.
+ *
+ * It used to share `/orders/:id/history` with the stage timeline, which was
+ * registered first and always won, so this handler was unreachable and the tab
+ * rendered stage events as blank audit rows. Now that it is reachable it obeys
+ * the same two scopes as `history` below: the order must be one the viewer may
+ * open, and a stage-level row is shown only for a stage the viewer may see.
  */
 export const orderHistory = async (req, res, next) => {
   try {
+    const order = await orders.getOrder(req.params.id, req.user);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
     const rows = await AuditLog.find({ 'meta.orderId': String(req.params.id) })
       .sort({ createdAt: -1 })
       .limit(500)
       .populate('user', 'user email')
       .lean();
-    res.status(200).json({ success: true, data: rows });
+
+    const allowed = await visibleStagesFor(req.user);
+    const scoped = allowed === null
+      ? rows
+      : rows.filter((r) => r.meta?.stageNumber == null || allowed.includes(Number(r.meta.stageNumber)));
+
+    return res.status(200).json({ success: true, data: scoped });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -735,7 +786,7 @@ export default {
   createOrder, listOrders, getOrder, updateOrder, checkDuplicate,
   listBookings, getBooking,
   listItems, replaceItems,
-  complete, advanceDecision, skip, hold, resume,
+  complete, advanceDecision, skip, reopen, hold, resume,
   uploadDocument, listDocuments, documentUrl, deleteDocument,
   cancelOrder, voidOrder, reviveOrder, exitRegister, exitsByStage, orderHistory,
   listNotifications, readNotifications,

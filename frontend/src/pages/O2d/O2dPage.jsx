@@ -17,7 +17,10 @@ import {
   formatRelative,
 } from "../../services/o2d/orders";
 import { O2dApiError } from "../../services/o2d/client";
+import toast from "react-hot-toast";
+
 import { OrderDrawer } from "./OrderDrawer";
+import { StageTaskModal } from "./StageTaskModal";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { StagesTab } from "./StagesTab";
 import { OrderStatusBadge, BucketBadge } from "./o2dShared";
@@ -154,6 +157,8 @@ function MyTasksTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openId, setOpenId] = useState(null);
+  /** `{ orderId, stageNumber }` of the stage whose completion form is open. */
+  const [completing, setCompleting] = useState(null);
   /**
    * Whether finished stages are shown alongside open work.
    *
@@ -204,7 +209,14 @@ function MyTasksTab() {
             <p className="text-sm text-slate-900">
               {row.stageNumber}. {row.stageName}
             </p>
-            <p className="text-xs text-slate-500">{row.ownerRole}</p>
+            <p className="text-xs text-slate-500">
+              {row.ownerRole}
+              {row.assignedToName && (
+                <span className={row.assignedToOther ? "text-amber-700" : ""}>
+                  {" · "}Assigned to {row.assignedToOther ? row.assignedToName : "you"}
+                </span>
+              )}
+            </p>
           </div>
         ),
       },
@@ -242,7 +254,16 @@ function MyTasksTab() {
               <Check size={13} /> Completed
             </span>
           ) : row.actionable ? (
-            <span className="text-xs font-medium text-primary-700">Yours to complete</span>
+            <Button
+              size="xs"
+              onClick={(e) => {
+                // The row itself opens the whole order; this opens just the stage.
+                e.stopPropagation();
+                setCompleting({ orderId: row.order?._id, stageNumber: row.stageNumber });
+              }}
+            >
+              Complete
+            </Button>
           ) : (
             <span className="text-xs text-slate-400">Waiting on another team</span>
           ),
@@ -340,6 +361,18 @@ function MyTasksTab() {
 
       {openId && (
         <OrderDrawer orderId={openId} onClose={() => setOpenId(null)} onChanged={load} />
+      )}
+
+      {completing && (
+        <StageTaskModal
+          orderId={completing.orderId}
+          stageNumber={completing.stageNumber}
+          onClose={() => setCompleting(null)}
+          onCompleted={() => {
+            toast.success("Stage completed. The next stage is now active.");
+            load();
+          }}
+        />
       )}
     </>
   );

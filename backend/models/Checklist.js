@@ -16,11 +16,18 @@ const remarkSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 }, { _id: true });
 
+/**
+ * A doer is required, except on an O2D TEAM task: an active stage nobody has
+ * been named on belongs to the whole responsible role until someone completes
+ * it (they then become its doer) or is assigned it.
+ */
+const doerRequired = function () { return this.sourceType !== 'o2d_stage'; };
+
 const routineSchema = new mongoose.Schema({
   taskName:      { type: String, required: true, trim: true },
   taskCode:      { type: String, required: true, unique: true, uppercase: true, trim: true },
   frequency:     { type: String, enum: ['once', 'daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'], required: true },
-  doer:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  doer:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: doerRequired, default: null },
   doerFirstName: { type: String, default: '' },
   doerLastName:  { type: String, default: '' },
   department:    { type: String, default: '' },
@@ -71,7 +78,7 @@ const occurrenceSchema = new mongoose.Schema({
   routine:       { type: mongoose.Schema.Types.ObjectId, ref: 'ChecklistRoutine', required: true },
   taskName:      { type: String, required: true },
   taskCode:      { type: String, required: true },
-  doer:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  doer:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: doerRequired, default: null },
   doerFirstName: { type: String, default: '' },
   doerLastName:  { type: String, default: '' },
   department:    { type: String, default: '' },
@@ -104,16 +111,23 @@ const occurrenceSchema = new mongoose.Schema({
   reassignedTo:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   reassignedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   reassigned:    { type: Boolean, default: false },
+  /**
+   * When the row reached its current doer, if that was after it was created —
+   * set by a reassignment. "New" is measured from this, falling back to
+   * `createdAt`, so a task handed to somebody is new for them.
+   */
+  assignedAt:    { type: Date, default: null },
   nonFunctionalReason: { type: String, default: null },
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
   /**
-   * ── The live mirror of one assigned O2D stage ───────────────────────────
+   * ── The live task of one active O2D stage ───────────────────────────────
    *
-   * An O2D stage whose completion means RECORDING SPECIFIC THINGS (an invoice
-   * number, an AWB, a UTR) is a checklist task, not a delegated one — that is
-   * the routing rule, and it comes from the stage's own required-field spec
-   * rather than from anybody's opinion. See `o2dDelegationSync.service.js`.
+   * Created the moment the stage becomes active: for the named person if one
+   * is assigned, otherwise as a TEAM task (`doer: null`) that every member of
+   * the responsible role sees — the same people who see it in O2D My Tasks.
+   * Stages whose completion is a bare decision (stage 4) go to Delegation
+   * instead, and only once a person is named. See `stageMirror.service.js`.
    *
    * Completing this occurrence does NOT just flip a status word: it runs the
    * real stage completion, with the real evidence rules. See the interception

@@ -285,6 +285,41 @@ describe('the per-stage check (§37)', () => {
       assert.equal(res.body.code, 'O2D_PREREQUISITE_INCOMPLETE');
     });
   });
+
+  test('sending override: true does not let a stage worker skip ahead', async () => {
+    await withServer(app(), async (url) => {
+      const orderId = await seedOrder(url);
+      const billing = await accountFor('Billing');
+
+      const res = await post(
+        url,
+        `${P}/orders/${orderId}/stages/4/complete`,
+        { override: true, overrideReason: 'In a hurry' },
+        billing.auth,
+      );
+      assert.equal(res.status, 403);
+      assert.equal(res.body.code, 'O2D_OVERRIDE_NOT_ALLOWED');
+
+      const s4 = await O2dOrderStage.findOne({ order: orderId, stageNumber: 4 }).lean();
+      assert.equal(s4.status, 'LOCKED', 'the refused completion changed nothing');
+    });
+  });
+
+  test('a role holding OVERRIDE_O2D may, with a reason', async () => {
+    await withServer(app(), async (url) => {
+      const orderId = await seedOrder(url);
+      const head = await accountFor('Billing Head');
+
+      const res = await post(
+        url,
+        `${P}/orders/${orderId}/stages/4/complete`,
+        { override: true, overrideReason: 'MD approved' },
+        head.auth,
+      );
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      assert.equal(res.body.data.stage.overridden, true);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

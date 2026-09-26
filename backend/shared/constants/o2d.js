@@ -151,9 +151,9 @@ export const STAGE_DISPLAY_STATUS = Object.freeze({
 });
 
 export const STAGE_DISPLAY_LABELS = Object.freeze({
-  NOT_STARTED: 'Not started',
-  IN_PROGRESS: 'In Progress',
-  DONE: 'Done',
+  NOT_STARTED: 'Locked',
+  IN_PROGRESS: 'Active',
+  DONE: 'Completed',
 });
 
 /**
@@ -362,6 +362,7 @@ export const O2D_EVENTS = Object.freeze({
   STAGE_ESCALATED: 'o2d.stage.escalated',
   STAGE_COMPLETED: 'o2d.stage.completed',
   STAGE_SKIPPED: 'o2d.stage.skipped',
+  STAGE_REOPENED: 'o2d.stage.reopened',
   ADVANCE_PENDING: 'o2d.advance.pending',
   INVOICE_CREATED: 'o2d.invoice.created',
   DISPATCH_COMPLETED: 'o2d.dispatch.completed',

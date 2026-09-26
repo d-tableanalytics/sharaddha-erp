@@ -109,6 +109,14 @@ const o2dOrderStageSchema = new mongoose.Schema(
 
     remarks: { type: String, default: null, trim: true, maxlength: 2000 },
 
+    // ── Rework ─────────────────────────────────────────────────────────────
+    // The prior completion itself is snapshotted into the stage-event history,
+    // so clearing it from this row loses nothing.
+    reopenCount: { type: Number, default: 0 },
+    lastReopenedAt: { type: Date, default: null },
+    lastReopenedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    lastReopenReason: { type: String, default: null, trim: true, maxlength: 500 },
+
     /** Reminder bookkeeping, so §30's notifications cannot fire twice. */
     dueSoonNotifiedAt: { type: Date, default: null },
     overdueNotifiedAt: { type: Date, default: null },

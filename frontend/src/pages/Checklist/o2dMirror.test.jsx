@@ -118,6 +118,28 @@ describe("a mirrored row on the Checklist", () => {
     expect(screen.getByRole("button", { name: /Add remark/ })).toBeTruthy();
   });
 
+  test("a team task names the team and says anyone in it can complete it", () => {
+    renderTable([mirroredTask({ doer: null, doerFirstName: "Billing team", doerLastName: "" })]);
+    expect(screen.getByText(/Billing team/)).toBeTruthy();
+    expect(screen.getByText(/Anyone in the team can complete it/)).toBeTruthy();
+  });
+
+  test("Complete follows the server's per-row answer for O2D rows", () => {
+    const canCompleteRow = (task) => (isO2dMirror(task) ? task.canComplete === true : true);
+    renderTable(
+      [
+        mirroredTask({ _id: "yes", canComplete: true, sourcePoNumber: "PO-YES" }),
+        mirroredTask({ _id: "no", canComplete: false, sourcePoNumber: "PO-NO" }),
+      ],
+      { canCompleteRow },
+    );
+
+    const yesRow = screen.getByText(/O2D · PO-YES/).closest("tr");
+    const noRow = screen.getByText(/O2D · PO-NO/).closest("tr");
+    expect(within(yesRow).getByRole("button", { name: /Complete/i })).toBeTruthy();
+    expect(within(noRow).queryByRole("button", { name: /Complete/i })).toBeNull();
+  });
+
   test("an ordinary task keeps both actions", async () => {
     const user = userEvent.setup();
     renderTable([ownTask()]);

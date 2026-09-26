@@ -14,8 +14,10 @@ import {
   ChecklistRoutine, ChecklistOccurrence, OCCURRENCE_REASSIGNED_AWAY,
 } from '../../models/Checklist.js';
 import User from '../../models/User.js';
-import { isSuperAdmin } from '../../middlewares/rbac.js';
+import { WorkQueueSeen } from '../../models/WorkQueueSeen.js';
+import { isSuperAdmin, hasPermission, PERMISSIONS } from '../../middlewares/rbac.js';
 import { completeMirroredTask } from '../o2d/o2dDelegationSync.service.js';
+import { roleStageMap } from '../o2d/task.service.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,98 @@ const ADMIN_ROLES = ['Super Admin', 'Admin', 'Management', 'HR'];
 
 const isManager = (user) =>
   isSuperAdmin(user) || ADMIN_ROLES.includes(user?.role);
+
+/**
+ * What this user may do with O2D stage tasks — the same answer O2D's own My
+ * Tasks gives, read from the live stage master rather than copied here.
+ *
+ *   actionable   stages the user's role completes (its team tasks are theirs)
+ *   supervising  stages the role covers as a senior — seen even when named
+ *                to somebody else, like an admin
+ */
+async function o2dAbilityFor(user) {
+  const works = hasPermission(user, PERMISSIONS.VIEW_O2D) && hasPermission(user, PERMISSIONS.WORK_O2D_STAGE);
+  if (!works) return { works: false, all: false, actionable: [], supervising: [] };
+  if (isSuperAdmin(user)) return { works: true, all: true, actionable: [], supervising: [] };
+  const { actionable, supervising } = await roleStageMap(user?.role);
+  return { works: true, all: false, actionable, supervising };
+}
+
+/**
+ * A person's own queue: their rows, plus the OPEN O2D tasks they can act on —
+ * their role's team tasks, the stages they cover, or every stage for an admin.
+ *
+ * Open only, beyond their own rows: somebody else's finished O2D task is that
+ * person's credit, and counting it here would inflate this viewer's Done tile.
+ *
+ * A manager's default view is unscoped (`null`, every row); `mine` asks for
+ * the personal queue instead, which is what My Work shows.
+ */
+function visibilityScope(user, ability, { mine = false } = {}) {
+  if (isManager(user) && !mine) return null;
+  const branches = [{ doer: user._id }];
+  const openO2d = { sourceType: 'o2d_stage', status: { $in: ['pending', 'overdue'] } };
+  if (ability.all) {
+    branches.push(openO2d);
+  } else {
+    if (ability.actionable.length > 0) {
+      branches.push({ ...openO2d, doer: null, sourceStageNumber: { $in: ability.actionable } });
+    }
+    if (ability.supervising.length > 0) {
+      branches.push({ ...openO2d, sourceStageNumber: { $in: ability.supervising } });
+    }
+  }
+  return { $or: branches };
+}
+
+// ── "New" tasks ──────────────────────────────────────────────────────────────
+
+/** Somebody who has never opened the Checklist sees the last day's arrivals as new. */
+const FIRST_VISIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function seenAtFor(userId) {
+  const marker = await WorkQueueSeen.findOne({ user: userId, list: 'checklist' }).select('seenAt').lean();
+  return marker?.seenAt ?? new Date(Date.now() - FIRST_VISIT_WINDOW_MS);
+}
+
+/**
+ * The open tasks that reached this person's own queue since `seenAt`.
+ *
+ * "Reached" is `assignedAt` (a reassignment) or else `createdAt`. A recurring
+ * routine generates all its dates at once, so it counts ONCE — its next open
+ * occurrence — rather than a month of daily rows appearing as thirty new tasks.
+ */
+async function newTaskIdsFor(user, ability, seenAt) {
+  const rows = await ChecklistOccurrence.find({
+    $and: [
+      visibilityScope(user, ability, { mine: true }),
+      { status: { $in: ['pending', 'overdue'] }, heldAt: null },
+      { $expr: { $gt: [{ $ifNull: ['$assignedAt', '$createdAt'] }, seenAt] } },
+    ],
+  })
+    .select('_id routine frequency plannedDate')
+    .lean();
+
+  const byTask = new Map();
+  for (const row of rows) {
+    const recurring = row.frequency && row.frequency !== 'once';
+    const key = recurring ? `r:${row.routine}` : String(row._id);
+    const current = byTask.get(key);
+    if (!current || new Date(row.plannedDate) < new Date(current.plannedDate)) byTask.set(key, row);
+  }
+  return new Set([...byTask.values()].map((row) => String(row._id)));
+}
+
+/**
+ * May this viewer complete this O2D row? Answered here, per row, because it is
+ * O2D's permission and stage master that decide — not the Checklist's own.
+ */
+const canCompleteO2dRow = (row, user, ability) =>
+  ability.works && (
+    ability.all
+    || String(row.doer ?? '') === String(user._id)
+    || ability.actionable.includes(Number(row.sourceStageNumber))
+  );
 
 /**
  * Is this row a mirror of an O2D stage rather than a checklist item of its own?
@@ -86,7 +180,7 @@ function generateDates(startDate, endDate, frequency) {
  * Build the base filter for occurrence queries.
  * Enriches pending tasks whose plannedDate is past as 'overdue'.
  */
-function buildOccurrenceFilter(query, user) {
+function buildOccurrenceFilter(query, user, scope = null) {
   const filter = {};
 
   if (query.site) filter.site = query.site;
@@ -99,12 +193,9 @@ function buildOccurrenceFilter(query, user) {
     filter.$or = [{ taskName: re }, { taskCode: re }];
   }
 
-  // Doer filter (admin only — regular users always see only their own)
-  if (!isManager(user)) {
-    filter.doer = user._id;
-  } else if (query.doer) {
-    filter.doer = query.doer;
-  }
+  // Doer filter (admin only, on the unscoped view). Everyone else is limited by
+  // `scope`: their own rows plus the O2D tasks they can act on.
+  if (isManager(user) && !scope && query.doer) filter.doer = query.doer;
 
   /**
    * A PERSONAL list drops an occurrence whose O2D order is parked.
@@ -120,7 +211,7 @@ function buildOccurrenceFilter(query, user) {
    * manual occurrences and everything written before this flag existed are
    * untouched.
    */
-  if (filter.doer && query.includeHeld !== 'true') filter.heldAt = null;
+  if ((filter.doer || scope) && query.includeHeld !== 'true') filter.heldAt = null;
 
   // Status
   const now = new Date();
@@ -171,6 +262,10 @@ function buildOccurrenceFilter(query, user) {
     filter.$and = [...(filter.$and ?? []), { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } }];
   }
 
+  // Through `$and` for the same reason: the search and overdue branches above
+  // assign `filter.$or` outright, and the scope is an `$or` of its own.
+  if (scope) filter.$and = [...(filter.$and ?? []), scope];
+
   return filter;
 }
 
@@ -195,24 +290,30 @@ function enrichStatus(task) {
  */
 export async function getTasks(req, res, next) {
   try {
-    const filter = buildOccurrenceFilter(req.query, req.user);
+    const ability = await o2dAbilityFor(req.user);
+    const scope = visibilityScope(req.user, ability, { mine: req.query.mine === 'true' });
+    const filter = buildOccurrenceFilter(req.query, req.user, scope);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, parseInt(req.query.limit) || 25);
     const skip = (page - 1) * limit;
 
-    const [tasks, total] = await Promise.all([
+    const [tasks, total, newIds] = await Promise.all([
       ChecklistOccurrence.find(filter)
         .sort({ plannedDate: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
       ChecklistOccurrence.countDocuments(filter),
+      seenAtFor(req.user._id).then((seenAt) => newTaskIdsFor(req.user, ability, seenAt)),
     ]);
 
     res.json({
       success: true,
       data: {
-        tasks: tasks.map(enrichStatus),
+        tasks: tasks.map((t) => {
+          const row = { ...enrichStatus(t), isNew: newIds.has(String(t._id)) };
+          return isO2dMirror(row) ? { ...row, canComplete: canCompleteO2dRow(row, req.user, ability) } : row;
+        }),
         total,
         page,
         pages: Math.ceil(total / limit),
@@ -231,14 +332,16 @@ export async function getSummary(req, res, next) {
   try {
     const baseFilter = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
     if (req.query.site) baseFilter.site = req.query.site;
-    if (!isManager(req.user)) baseFilter.doer = req.user._id;
+    const scope = visibilityScope(req.user, await o2dAbilityFor(req.user));
+    // In `$and`, because the overdue counts below add an `$or` of their own.
+    if (scope) baseFilter.$and = [scope];
     // The tiles sit directly above the list, and must count exactly what the
     // list shows — `buildOccurrenceFilter` drops a parked mirror from a
     // personal view, so a tile that still counted it would read "5 pending"
     // over four rows. A handed-away row is excluded above for the same reason,
     // and additionally because `total` is the compliance DENOMINATOR: counting
     // work somebody no longer owns drags their rate down for a hand-off.
-    if (baseFilter.doer) baseFilter.heldAt = null;
+    if (scope) baseFilter.heldAt = null;
 
     const now = new Date();
     const todayStart = startOfDay(now);
@@ -556,7 +659,9 @@ export async function completeTask(req, res, next) {
     const task = await ChecklistOccurrence.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
 
-    if (!isManager(req.user) && String(task.doer) !== String(req.user._id)) {
+    // An O2D row is authorised by O2D (`completeMirroredTask` → `canWorkStage`),
+    // which also admits a team task's whole role — it has no doer to compare.
+    if (!isO2dMirror(task) && !isManager(req.user) && String(task.doer) !== String(req.user._id)) {
       return res.status(403).json({ success: false, message: 'Not authorized to complete this task.' });
     }
 
@@ -628,10 +733,6 @@ export async function markNonFunctional(req, res, next) {
     const task = await ChecklistOccurrence.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
 
-    if (!isManager(req.user) && String(task.doer) !== String(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized to modify this task.' });
-    }
-
     /**
      * "Not needed" on a mirrored task is an O2D SKIP, and skipping a stage is
      * a decision O2D guards with its own authority check and a mandatory
@@ -639,6 +740,10 @@ export async function markNonFunctional(req, res, next) {
      * open forever with nobody looking at it.
      */
     if (isO2dMirror(task)) return refuseMirrorEdit(res, 'marked non-functional');
+
+    if (!isManager(req.user) && String(task.doer) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this task.' });
+    }
 
     task.status = 'non-functional';
     task.nonFunctionalReason = req.body.reason || '';
@@ -681,6 +786,7 @@ export async function reassignTask(req, res, next) {
     task.reassigned = true;
     task.reassignedTo = newDoer._id;
     task.reassignedBy = req.user._id;
+    task.assignedAt = new Date();
     await task.save();
 
     res.json({ success: true, data: task });
@@ -729,7 +835,11 @@ export async function drilldown(req, res, next) {
     // what the tile excluded or the list will not add up to the number clicked.
     const filter = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
     if (site) filter.site = site;
-    if (!isManager(req.user)) filter.doer = req.user._id;
+    const scope = visibilityScope(req.user, await o2dAbilityFor(req.user));
+    if (scope) {
+      filter.$and = [scope];
+      filter.heldAt = null;
+    }
 
     const now = new Date();
     const todayStart = startOfDay(now);
@@ -762,6 +872,41 @@ export async function drilldown(req, res, next) {
       .lean();
 
     res.json({ success: true, data: tasks.map(enrichStatus) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /checklist/tasks/new-count
+ * How many tasks reached the caller's own queue since they last opened the
+ * Checklist — the sidebar badge.
+ */
+export async function getNewCount(req, res, next) {
+  try {
+    const ability = await o2dAbilityFor(req.user);
+    const seenAt = await seenAtFor(req.user._id);
+    const ids = await newTaskIdsFor(req.user, ability, seenAt);
+    res.json({ success: true, data: { count: ids.size, seenAt } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /checklist/seen
+ * The caller opened their Checklist: everything that has arrived so far is no
+ * longer new for them. Only their own marker moves.
+ */
+export async function markSeen(req, res, next) {
+  try {
+    const seenAt = new Date();
+    await WorkQueueSeen.updateOne(
+      { user: req.user._id, list: 'checklist' },
+      { $set: { seenAt } },
+      { upsert: true },
+    );
+    res.json({ success: true, data: { seenAt } });
   } catch (err) {
     next(err);
   }

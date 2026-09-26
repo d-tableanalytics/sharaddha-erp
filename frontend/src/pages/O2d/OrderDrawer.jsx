@@ -17,9 +17,10 @@ import {
   formatRelative,
 } from "../../services/o2d/orders";
 import { O2dApiError } from "../../services/o2d/client";
-import { StageTimeline, OrderStatusBadge, Field, Section } from "./o2dShared";
+import { StageTimeline, StageProgress, OrderStatusBadge, Field, Section } from "./o2dShared";
 import { STAGES, ORDER_STATUS } from "@shared/constants/o2d.js";
 import { CompleteStageModal } from "./CompleteStageModal";
+import { ReopenStageModal } from "./ReopenStageModal";
 import { openFile } from "../../services/fileUrl";
 import { delegationService } from "../../services/delegation";
 
@@ -59,6 +60,8 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const [stageEvents, setStageEvents] = useState([]);
   /** The stage whose completion form is open, if any. */
   const [completing, setCompleting] = useState(null);
+  /** The completed stage being sent back for rework, if any. */
+  const [reopening, setReopening] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -70,19 +73,23 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
   const canWork = hasPermission(user, PERMISSIONS.WORK_O2D_STAGE);
   const canHold = hasPermission(user, PERMISSIONS.HOLD_O2D);
   const canExit = hasPermission(user, PERMISSIONS.EXIT_O2D);
+  const canOverride = hasPermission(user, PERMISSIONS.OVERRIDE_O2D);
 
   const load = useCallback(async () => {
     if (!orderId) return;
     setLoading(true);
     setError(null);
     try {
-      const [full, tasks] = await Promise.all([
+      const [full, tasks, docs] = await Promise.all([
         o2dApi.get(orderId),
         // Asked for so the drawer knows which stages THIS user may close.
         o2dApi.myTasks({ pageSize: 1 }).catch(() => ({ actionable: [] })),
+        // For each completed stage's attachments in its details view.
+        o2dApi.documents(orderId).catch(() => []),
       ]);
       setPayload(full);
       setActionable(tasks?.actionable ?? []);
+      setDocuments(docs ?? []);
     } catch (err) {
       setError(err instanceof O2dApiError ? err : new O2dApiError(err.message));
     } finally {
@@ -111,7 +118,7 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
     if (!orderId) return;
     if (tab === "documents") o2dApi.documents(orderId).then(setDocuments).catch(() => setDocuments([]));
     if (tab === "history") {
-      o2dApi.history(orderId).then(setHistory).catch(() => setHistory([]));
+      o2dApi.activity(orderId).then(setHistory).catch(() => setHistory([]));
       o2dApi.stageHistory(orderId).then(setStageEvents).catch(() => setStageEvents([]));
     }
   }, [tab, orderId]);
@@ -280,7 +287,9 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
             <div className="flex flex-wrap items-center gap-2">
               <OrderStatusBadge status={order.status} />
               <span className="text-xs text-slate-500">
-                Stage {order.currentStage} of {stages.length}
+                {order.status === ORDER_STATUS.CLOSED
+                  ? `All ${stages.length} stages completed`
+                  : `Stage ${order.currentStage} of ${stages.length}`}
               </span>
             </div>
 
@@ -422,6 +431,7 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
 
           {tab === "progress" && (
             <Section title="Progress">
+              <StageProgress stages={stages} />
               <StageTimeline
                 stages={stages}
                 currentStage={order.currentStage}
@@ -437,6 +447,14 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
                 onAssign={assignStage}
                 onUnassign={unassignStage}
                 assigningStage={assigningStage}
+                documents={documents}
+                onOpenDocument={openDocument}
+                onReopen={
+                  canOverride
+                  && (order.status === ORDER_STATUS.OPEN || order.status === ORDER_STATUS.CLOSED)
+                    ? setReopening
+                    : undefined
+                }
               />
             </Section>
           )}
@@ -660,6 +678,19 @@ export function OrderDrawer({ orderId, onClose, onChanged }) {
           stage={completing}
           onClose={() => setCompleting(null)}
           onCompleted={() => {
+            load();
+            onChanged?.();
+          }}
+        />
+      )}
+
+      {reopening && (
+        <ReopenStageModal
+          order={order}
+          stage={reopening}
+          onClose={() => setReopening(null)}
+          onReopened={() => {
+            toast.success(`${reopening.stageName} sent back for rework.`);
             load();
             onChanged?.();
           }}

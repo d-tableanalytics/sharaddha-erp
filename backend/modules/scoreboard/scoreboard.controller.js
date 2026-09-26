@@ -258,7 +258,9 @@ export async function getScoreboard(req, res, next) {
 
     // 3. Query Checklist Occurrences
     // Same rule on the other surface — see the delegation query above.
-    const occurrenceQuery = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } };
+    // An unclaimed O2D team task is nobody's score yet; whoever completes it
+    // becomes its doer and is credited then.
+    const occurrenceQuery = { status: { $ne: OCCURRENCE_REASSIGNED_AWAY }, doer: { $ne: null } };
     if (scope !== 'all') {
       occurrenceQuery.site = new RegExp(`^${scope}$`, 'i');
     }

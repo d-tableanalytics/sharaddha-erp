@@ -55,6 +55,7 @@ import { O2D_EVENTS, COMMUNICATION_CHANNELS, o2dRoute } from '../../shared/const
 const ROUTING = Object.freeze({
   [O2D_EVENTS.STAGE_UNLOCKED]: ['IN_APP'],
   [O2D_EVENTS.STAGE_DUE_SOON]: ['IN_APP'],
+  [O2D_EVENTS.STAGE_REOPENED]: ['IN_APP'],
   [O2D_EVENTS.STAGE_OVERDUE]: ['IN_APP', 'EMAIL'],
   // The only event that reaches a phone by default: somebody senior is being
   // told that a deadline has been missed and nobody acted on the reminder.
@@ -150,9 +151,19 @@ async function recipientsFor(event, { stageNumber = null, escalate = false } = {
   return usersInRoles([closer, ...(master.alsoAllowedRoles ?? [])]);
 }
 
-/** `<event>:<orderId>:<stage>:<user>:<channel>` — see the model. */
-const dedupeKeyFor = (event, orderId, stageNumber, userId, channel) =>
-  `${event}:${orderId ?? 'none'}:${stageNumber ?? 'none'}:${userId}:${channel}`;
+/**
+ * `<event>:<orderId>:<stage>:<user>:<channel>[:<scope>]` — see the model.
+ *
+ * `scope` is for an event with no order behind it that must still recur. The
+ * daily summary carries no orderId or stageNumber, so without its date the key
+ * was identical every day: the first summary went out and every later one hit
+ * the unique index and was silently skipped. Appended only when present, so
+ * every other event keeps the exact key already stored on its rows — changing
+ * those would let the next sweep re-send reminders that already went out.
+ */
+const dedupeKeyFor = (event, orderId, stageNumber, userId, channel, scope = null) =>
+  `${event}:${orderId ?? 'none'}:${stageNumber ?? 'none'}:${userId}:${channel}`
+  + (scope ? `:${scope}` : '');
 
 /**
  * The words.
@@ -171,6 +182,11 @@ function render(event, { order, stage, payload = {} }) {
       return {
         title: `${stageName} is ready on ${po}`,
         body: `${po}${customer} has reached ${stageName}. It is now waiting on your team.`,
+      };
+    case O2D_EVENTS.STAGE_REOPENED:
+      return {
+        title: `${stageName} on ${po} was sent back for rework`,
+        body: `Reason: ${payload.reason ?? 'not given'}. It is waiting on your team again.`,
       };
     case O2D_EVENTS.STAGE_DUE_SOON:
       return {
@@ -209,7 +225,7 @@ function render(event, { order, stage, payload = {} }) {
     case O2D_EVENTS.DISPATCH_COMPLETED:
       return { title: `${po} has dispatched`, body: `Dispatched${customer}.` };
     case O2D_EVENTS.ORDER_CLOSED:
-      return { title: `${po} is closed`, body: null };
+      return { title: `${po} is completed`, body: 'Every stage is done.' };
     default:
       return { title: `${po}: ${event}`, body: null };
   }
@@ -263,7 +279,9 @@ export async function dispatchEvent(event, payload = {}, { escalate = false } = 
       for (const channelName of channels) {
         if (!COMMUNICATION_CHANNELS.includes(channelName)) continue;
 
-        const dedupeKey = dedupeKeyFor(event, orderId, stageNumber, user._id, channelName);
+        const dedupeKey = dedupeKeyFor(
+          event, orderId, stageNumber, user._id, channelName, payload.summaryDate ?? null,
+        );
 
         let row;
         try {

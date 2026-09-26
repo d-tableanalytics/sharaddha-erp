@@ -42,6 +42,9 @@ export const checklistApi = {
   getUsers:         ()       => get('/users'),
   getLocations:     ()       => get('/locations'),
   getDepartmentsList: ()     => get('/departments-list'),
+  // "New" tasks: the sidebar badge, and the visit that clears it.
+  getNewCount:      ()       => get('/tasks/new-count'),
+  markSeen:         ()       => post('/seen', {}),
 
   // Write
   createRoutine:    (data)     => post('/routines', data),

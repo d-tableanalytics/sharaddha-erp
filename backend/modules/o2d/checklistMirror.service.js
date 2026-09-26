@@ -46,14 +46,26 @@ const firstName = (u) => String(u?.user ?? u?.email ?? 'Team').split(' ')[0];
 const lastName = (u) => String(u?.user ?? '').split(' ').slice(1).join(' ');
 
 /**
- * Create the live occurrence for a freshly-assigned stage, upserting the
- * routine that carries it.
+ * Who the row names as its doer. A team task has nobody yet, so it names the
+ * team — the existing name columns are what every Checklist screen displays.
+ */
+const doerFieldsFor = (assignee, team) => (assignee
+  ? { doer: assignee._id, doerFirstName: firstName(assignee), doerLastName: lastName(assignee) }
+  : { doer: null, doerFirstName: `${team || 'O2D'} team`, doerLastName: '' });
+
+/**
+ * Create the live occurrence for an active stage, upserting the routine that
+ * carries it.
+ *
+ * `assignee: null` makes a TEAM task — visible to everyone in the role that
+ * completes the stage (`team`), claimed by whoever completes it.
  *
  * `department` is the stage's OWNER ROLE — Sales, Billing, Accounts — because
  * that is what the Checklist screens group and report by, and it is the same
  * vocabulary O2D already uses for who a stage belongs to.
  */
-export async function createChecklistMirror({ order, stage, assignee, actor }) {
+export async function createChecklistMirror({ order, stage, assignee, actor, team = null }) {
+  const doerFields = doerFieldsFor(assignee, team);
   const routine = await ChecklistRoutine.findOneAndUpdate(
     { sourceStageId: stage._id },
     {
@@ -61,9 +73,7 @@ export async function createChecklistMirror({ order, stage, assignee, actor }) {
         taskName: `${stage.stageName} — ${order.poNumber}`,
         taskCode: mirrorTaskCodeFor(order, stage),
         frequency: 'once',
-        doer: assignee._id,
-        doerFirstName: firstName(assignee),
-        doerLastName: lastName(assignee),
+        ...doerFields,
         department: stage.ownerRole ?? '',
         startDate: stage.plannedStart ?? new Date(),
         endDate: stage.plannedCompletion ?? new Date(),
@@ -88,9 +98,7 @@ export async function createChecklistMirror({ order, stage, assignee, actor }) {
     routine: routine._id,
     taskName: routine.taskName,
     taskCode: routine.taskCode,
-    doer: assignee._id,
-    doerFirstName: firstName(assignee),
-    doerLastName: lastName(assignee),
+    ...doerFields,
     department: stage.ownerRole ?? '',
     frequency: 'once',
     plannedDate: stage.plannedCompletion ?? new Date(),
@@ -138,9 +146,20 @@ const remarkOf = (text, actor, at) => ({
   createdAt: at,
 });
 
-/** The real stage was completed — catch the occurrence up. */
+/**
+ * The real stage was completed — catch the occurrence up.
+ *
+ * A team task is credited to whoever completed it: they become its doer, so
+ * the completion counts on their Checklist and scoreboard.
+ */
 export async function markChecklistMirrorDone(occurrenceId, { actor, at = new Date(), note = null } = {}) {
   if (!occurrenceId) return null;
+  if (actor?._id) {
+    await ChecklistOccurrence.updateOne(
+      { _id: occurrenceId, doer: null },
+      { $set: { doer: actor._id, doerFirstName: firstName(actor), doerLastName: lastName(actor) } },
+    );
+  }
   return ChecklistOccurrence.findByIdAndUpdate(
     occurrenceId,
     {
@@ -171,6 +190,23 @@ export async function markChecklistMirrorDone(occurrenceId, { actor, at = new Da
  */
 export async function markChecklistMirrorSkipped(occurrenceId, { actor, reason, at = new Date() } = {}) {
   if (!occurrenceId) return null;
+
+  /*
+   * An unclaimed team task is removed rather than marked non-functional. It was
+   * created only because the stage opened for a moment — stage 5 opens and is
+   * skipped in the same step when stage 4 says "no advance" — so it was never
+   * anybody's work, and keeping it would put a dead row on every team member's
+   * list and into their compliance total. The skip itself is in the stage history.
+   */
+  const current = await ChecklistOccurrence.findById(occurrenceId).select('doer routine').lean();
+  if (current && !current.doer) {
+    await ChecklistOccurrence.deleteOne({ _id: occurrenceId });
+    if (!(await ChecklistOccurrence.exists({ routine: current.routine }))) {
+      await ChecklistRoutine.deleteOne({ _id: current.routine });
+    }
+    return { removed: true };
+  }
+
   return ChecklistOccurrence.findByIdAndUpdate(
     occurrenceId,
     {

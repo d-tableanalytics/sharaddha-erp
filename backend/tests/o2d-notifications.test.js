@@ -417,6 +417,28 @@ describe('the daily summary', () => {
     const roles = [...new Set(rows.map((r) => r.recipientRole))];
     assert.ok(roles.every((r) => ['Management', 'Billing Head'].includes(r)), roles.join(','));
   });
+
+  test('goes out again the next day, but only once per day', async () => {
+    process.env.O2D_EMAIL_ENABLED = 'enabled';
+    const order = await makeOrder();
+    await O2dOrderStage.updateOne(
+      { order: order._id, stageNumber: STAGES.SUBMIT_PO_TO_BILLING },
+      { $set: { plannedCompletion: ist('2026-09-14', '10:00') } },
+    );
+
+    await escalation.sendDailySummary({ now: ist('2026-09-14', '18:00') });
+    const firstDay = (await rowsFor(O2D_EVENTS.DAILY_SUMMARY)).length;
+    assert.ok(firstDay > 0);
+
+    // A second run the same day is the cron retrying, not a new summary.
+    await escalation.sendDailySummary({ now: ist('2026-09-14', '19:00') });
+    assert.equal((await rowsFor(O2D_EVENTS.DAILY_SUMMARY)).length, firstDay);
+
+    // The next morning is a new summary. The key used to carry no date, so this
+    // one hit the unique index and nobody ever received a second summary.
+    await escalation.sendDailySummary({ now: ist('2026-09-15', '18:00') });
+    assert.equal((await rowsFor(O2D_EVENTS.DAILY_SUMMARY)).length, firstDay * 2);
+  });
 });
 
 // ---------------------------------------------------------------------------
