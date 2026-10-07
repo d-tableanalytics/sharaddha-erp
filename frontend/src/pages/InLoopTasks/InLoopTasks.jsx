@@ -35,6 +35,7 @@ import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { StatTile } from '../../components/workqueue/StatTile';
 import { TASK_STATUS_TILES } from '../../components/workqueue/taskTiles';
+import { isTaskOverdue } from '../Delegation/taskOverdue';
 
 // Status Tab definitions
 const STATUS_TABS = [
@@ -69,12 +70,7 @@ function formatTimeAgo(dateString) {
   return `${diffDay}d ago`;
 }
 
-// Helper: Check if task is overdue
-function isTaskOverdue(task) {
-  if (!task?.dueDate) return false;
-  if (task.status === 'Completed' || task.status === 'Awaiting Verification') return false;
-  return new Date(task.dueDate).getTime() < Date.now();
-}
+// Overdue: the shared rule in Delegation/taskOverdue.js.
 
 // Helper: Extract all in-loop user IDs safely
 function getInLoopUserIds(task) {
@@ -1333,10 +1329,11 @@ export function InLoopTasks() {
                     {/* Sanitized Description Snippet */}
                     {task.description && (
                       <div className="border-l-2 border-primary-200 pl-3 py-1 mb-3">
-                        <div
-                          className="text-xs font-medium text-slate-600 line-clamp-2"
-                          dangerouslySetInnerHTML={{ __html: task.description }}
-                        />
+                        <p
+                          className="text-xs font-medium text-slate-600 line-clamp-2 whitespace-pre-line"
+                        >
+                          {task.description}
+                        </p>
                       </div>
                     )}
 

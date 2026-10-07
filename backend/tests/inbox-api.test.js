@@ -150,7 +150,9 @@ describe('contract', () => {
       assert.ok(meta, `${type} has no metadata`);
       assert.ok(meta.label && meta.label !== type, `${type} renders its raw machine name`);
       assert.ok(meta.path.startsWith('/'), `${type} has no path`);
-      assert.equal(hrefFor(type, HRMS_ROUTE_PREFIX), `${HRMS_ROUTE_PREFIX}${meta.path}`);
+      // The Work Queue types point outside HRMS and say so with `absolute`.
+      const expected = meta.absolute ? meta.path : `${HRMS_ROUTE_PREFIX}${meta.path}`;
+      assert.equal(hrefFor(type, HRMS_ROUTE_PREFIX), expected);
     }
   });
 
@@ -863,8 +865,12 @@ describe('inbox mail', () => {
      * Academy screen already surface them. The seven events that DO mail are
      * the ones where somebody else is blocked waiting on the recipient, and
      * "your own training is due in three days" is not one of those.
+     *
+     * Then 21, when the Work Queue Buddy System added three (a backup assigned,
+     * and nobody available — for Delegation and for Checklist). Same call:
+     * they surface in the bell, and none is a template.
      */
-    assert.equal(INBOX_TYPE_LIST.length - withMail.length, 18);
+    assert.equal(INBOX_TYPE_LIST.length - withMail.length, 21);
   });
 
   test('🔴 no template carries a reason, an amount or any free text', () => {

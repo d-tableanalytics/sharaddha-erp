@@ -84,6 +84,11 @@ export function RoutinesTable({ routines, loading, onEdit, onStop }) {
                   {/* Owner */}
                   <td className="px-6 py-4">
                     <p className="text-xs font-bold text-slate-900">{routine.doerFirstName} {routine.doerLastName}</p>
+                    {routine.assignmentType === 'buddy' && (
+                      <p className="text-[11px] font-semibold text-slate-400" title="Backup order">
+                        Backups: {(routine.buddyChain || []).slice(1).map((b) => b.name).join(' → ')}
+                      </p>
+                    )}
                   </td>
 
                   {/* Frequency */}

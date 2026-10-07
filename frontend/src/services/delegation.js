@@ -81,6 +81,9 @@ export const delegationService = {
   reviseDueDate:     (id, data) => post(`/${id}/revise-date`, data),
   addReminder:       (id, data) => post(`/${id}/reminders`, data),
   addFollowUp:       (id, data) => post(`/${id}/follow-ups`, data),
+
+  // Buddy System: pin the task to someone ({ doerId, reason }) or resume the rotation ({ resume: true }).
+  overrideAssignee:  (id, data) => patch(`/${id}/assignee`, data),
 };
 
 export default delegationService;

@@ -26,6 +26,7 @@ import {
   CompleteChecklistModal,
   NonFunctionalModal,
   ReassignChecklistModal,
+  BuddyDetailsModal,
   RemarkModal,
   EditChecklistModal,
   CreateChecklistDrawer,
@@ -123,6 +124,9 @@ export function ChecklistPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSite, setSelectedSite] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
+  // The server pages the list (25 a page); the pager walks it.
+  const [page, setPage] = useState(1);
+  const [pageInfo, setPageInfo] = useState({ total: 0, pages: 1 });
 
   // ── Filters ──────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -139,6 +143,7 @@ export function ChecklistPage() {
   const [completeModal, setCompleteModal] = useState(null);
   const [nonFuncModal, setNonFuncModal] = useState(null);
   const [reassignModal, setReassignModal] = useState(null);
+  const [buddyModal, setBuddyModal] = useState(null);
   const [remarkModal, setRemarkModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [createDrawer, setCreateDrawer] = useState(false);
@@ -182,7 +187,7 @@ export function ChecklistPage() {
   // ── Data loading ─────────────────────────────────────────────────────────
   const loadTasks = useCallback(async () => {
     try {
-      const params = { site: selectedSite || undefined };
+      const params = { site: selectedSite || undefined, page };
       if (search) params.search = search;
       if (frequencyFilter) params.frequency = frequencyFilter;
       if (statusFilter) params.status = statusFilter;
@@ -200,6 +205,7 @@ export function ChecklistPage() {
 
       const rows = tasksData?.tasks || [];
       setTasks(rows);
+      setPageInfo({ total: tasksData?.total ?? rows.length, pages: Math.max(1, tasksData?.pages ?? 1) });
       setSummary(summaryData || {});
 
       /*
@@ -215,7 +221,13 @@ export function ChecklistPage() {
     } catch (err) {
       console.error('Failed to load tasks:', err);
     }
-  }, [selectedSite, search, frequencyFilter, statusFilter, departmentFilter, siteFilter, doerFilter, specificDate, fromDate, toDate, clearChecklistBadge]);
+  }, [page, selectedSite, search, frequencyFilter, statusFilter, departmentFilter, siteFilter, doerFilter, specificDate, fromDate, toDate, clearChecklistBadge]);
+
+  // A changed filter starts again from page one — page 4 of the old result
+  // may not exist in the new one.
+  useEffect(() => {
+    setPage(1);
+  }, [selectedSite, search, frequencyFilter, statusFilter, departmentFilter, siteFilter, doerFilter, specificDate, fromDate, toDate]);
 
   const loadRoutines = useCallback(async () => {
     if (!admin) return;
@@ -336,12 +348,16 @@ export function ChecklistPage() {
 
   // ── Routine actions ────────────────────────────────────────────────────
   const handleStopRoutine = async (routine) => {
+    // Stopping removes every future occurrence nobody has worked yet.
+    if (!window.confirm(`Stop "${routine.taskName}"? Its future tasks will be removed. Today's task and past records stay.`)) return;
     try {
-      await checklistApi.stopRoutine(routine._id);
-      toast.success('Routine stopped');
+      const res = await checklistApi.stopRoutine(routine._id);
+      const removed = res?.futureRemoved ?? 0;
+      toast.success(removed > 0 ? `Routine stopped — ${removed} future task(s) removed` : 'Routine stopped');
       loadRoutines();
+      loadTasks();
     } catch (err) {
-      toast.error('Failed to stop routine');
+      toast.error(err?.response?.data?.message || 'Failed to stop routine');
     }
   };
 
@@ -648,6 +664,7 @@ export function ChecklistPage() {
           onRemark={canEdit ? (task) => setRemarkModal([task._id]) : undefined}
           onReassign={canReassign ? (task) => setReassignModal(task) : undefined}
           onNonFunctional={canComplete ? (task) => setNonFuncModal(task) : undefined}
+          onShowBuddy={(task) => setBuddyModal(task)}
           hasFilters={hasFilters}
           onClearFilters={clearFilters}
           onCreateNew={canCreate ? () => setCreateDrawer(true) : undefined}
@@ -673,9 +690,22 @@ export function ChecklistPage() {
 
       {/* ── 6. Footer Count ──────────────────────────────────────────── */}
       {view === 'tasks' && tasks.length > 0 && (
-        <p className="text-center text-xs font-semibold text-slate-400">
-          Showing {tasks.length} tasks{selectedSite ? ` for ${selectedSite}` : ''}
-        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-500">
+          <span>
+            {pageInfo.total} task{pageInfo.total === 1 ? '' : 's'}{selectedSite ? ` for ${selectedSite}` : ''}
+            {pageInfo.pages > 1 ? ` · page ${page} of ${pageInfo.pages}` : ''}
+          </span>
+          {pageInfo.pages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                Previous
+              </Button>
+              <Button variant="outline" size="sm" disabled={page >= pageInfo.pages} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── 7. Modals & Drawers ──────────────────────────────────────── */}
@@ -728,6 +758,14 @@ export function ChecklistPage() {
           task={reassignModal}
           users={users}
           onSuccess={handleSuccess}
+        />
+      )}
+
+      {buddyModal && (
+        <BuddyDetailsModal
+          isOpen={!!buddyModal}
+          onClose={() => setBuddyModal(null)}
+          task={buddyModal}
         />
       )}
 

@@ -84,7 +84,7 @@ describe("My Work — O2D tasks", () => {
   test("asks for this person's own queue, including the O2D tasks they can act on", async () => {
     checklistApi.getTasks.mockResolvedValue({ tasks: [] });
     renderMyWork();
-    await waitFor(() => expect(checklistApi.getTasks).toHaveBeenCalledWith({ limit: 500, mine: "true" }));
+    await waitFor(() => expect(checklistApi.getTasks).toHaveBeenCalledWith({ limit: 100, mine: "true" }));
   });
 
   test("Done opens the stage's form and completes through the O2D API, not the checklist tick", async () => {

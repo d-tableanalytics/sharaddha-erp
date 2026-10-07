@@ -42,9 +42,9 @@ export function mirrorTitleFor(stage, order) {
  *
  * `dueDate` is required on every Delegation, so a stage with no
  * `plannedCompletion` yet (still LOCKED, waiting on an earlier stage) falls
- * back to now — it is a placeholder that gets no attention from a due-date
- * report before the stage unlocks and the mirror's due date is corrected onto
- * the real deadline; see `resyncMirrorSchedule`.
+ * back to now — a placeholder, flagged `scheduleTbd` so no overdue count or
+ * badge treats it as a deadline, until the stage unlocks and the mirror's due
+ * date is corrected onto the real one; see `resyncMirrorSchedule`.
  */
 export async function createMirrorDelegation({ order, stage, assignee, actor }) {
   const doc = new Delegation({
@@ -62,6 +62,7 @@ export async function createMirrorDelegation({ order, stage, assignee, actor }) 
     priority: 'Medium',
     category: 'FMS',
     dueDate: stage.plannedCompletion ?? new Date(),
+    scheduleTbd: !stage.plannedCompletion,
     // The real evidence/verification rules live on the STAGE, in
     // stageFields.service.js — this screen must not invent a second, looser
     // set that a person could satisfy without actually finishing the stage.
@@ -92,7 +93,7 @@ export async function resyncMirrorSchedule(delegationId, { stage, order }) {
     {
       $set: {
         taskTitle: mirrorTitleFor(stage, order),
-        ...(stage.plannedCompletion ? { dueDate: stage.plannedCompletion } : {}),
+        ...(stage.plannedCompletion ? { dueDate: stage.plannedCompletion, scheduleTbd: false } : {}),
       },
     },
   );

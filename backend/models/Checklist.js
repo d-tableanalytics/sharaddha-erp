@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import {
+  ASSIGNMENT_TYPES, ASSIGNMENT_SOURCES, buddyMemberSchema, assignmentEventSchema,
+} from './workQueueBuddy.js';
 
 /**
  * Checklist Routine — the master rule.
@@ -52,6 +55,15 @@ const routineSchema = new mongoose.Schema({
   sourceStageId:     { type: mongoose.Schema.Types.ObjectId, ref: 'O2dOrderStage', default: null },
   sourceStageNumber: { type: Number, default: null },
   sourcePoNumber:    { type: String, default: null, trim: true },
+
+  /**
+   * Buddy System: `buddyChain[0]` is the primary and mirrors `doer`; the rest
+   * are backups in priority order. Each day's occurrence goes to the first
+   * person in the chain who is available THAT day — see
+   * `modules/workqueue/buddy.service.js`. Never set on an O2D mirror.
+   */
+  assignmentType: { type: String, enum: ASSIGNMENT_TYPES, default: 'single' },
+  buddyChain:     { type: [buddyMemberSchema], default: [] },
 }, { timestamps: true });
 
 /** One routine per O2D stage. Partial, so manual routines are unaffected. */
@@ -62,6 +74,7 @@ routineSchema.index(
 
 routineSchema.index({ site: 1, isActive: 1 });
 routineSchema.index({ doer: 1 });
+routineSchema.index({ assignmentType: 1, isActive: 1 });
 routineSchema.index({ department: 1 });
 
 export const ChecklistRoutine = mongoose.model('ChecklistRoutine', routineSchema);
@@ -149,6 +162,28 @@ const occurrenceSchema = new mongoose.Schema({
    */
   heldAt:     { type: Date, default: null },
   holdReason: { type: String, default: null },
+
+  /**
+   * The O2D stage behind this mirror has no deadline yet — it is still LOCKED
+   * behind an earlier stage — so the date on this row is only a placeholder.
+   * Nothing treats such a row as overdue; `resync*` clears the flag the moment
+   * the stage unlocks and the real deadline lands.
+   */
+  scheduleTbd: { type: Boolean, default: false },
+
+  /**
+   * Buddy System — the same fields Delegation carries, named the same way.
+   * The chain itself lives on the routine; an occurrence IS one office day,
+   * so a backup taking it over never touches any other day's row.
+   *
+   * `manual` is written by the reassign endpoint, and the scheduler leaves a
+   * manually assigned occurrence alone.
+   */
+  assignmentSource:  { type: String, enum: ASSIGNMENT_SOURCES, default: 'primary' },
+  assignmentReason:  { type: String, default: '' },
+  buddyDay:          { type: String, default: null },
+  noAssigneeDay:     { type: String, default: null },
+  assignmentHistory: { type: [assignmentEventSchema], default: [] },
 }, { timestamps: true });
 
 /**

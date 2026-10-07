@@ -19,6 +19,8 @@ import {
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { BuddyBadge } from '../../components/workqueue/BuddyAssignmentPanel';
+import { isTaskOverdue } from './taskOverdue';
 
 function getInitials(first = '', last = '') {
   const f = first ? first.charAt(0) : '';
@@ -55,18 +57,6 @@ function formatRelativeTime(dateString) {
  */
 export const isO2dMirror = (task) => task?.sourceType === 'o2d_stage';
 
-/**
- * `Reassigned` alongside the two finished states, and for the same reason they
- * are here: an overdue badge accuses somebody of being late, and a task that
- * was taken off them is not theirs to be late on. The row only reaches this
- * screen through All Tasks, where it is history rather than a to-do.
- */
-function isTaskOverdue(task) {
-  if (!task.dueDate) return false;
-  if (task.status === 'Completed' || task.status === 'Awaiting Verification') return false;
-  if (task.status === 'Reassigned') return false;
-  return new Date(task.dueDate).getTime() < Date.now();
-}
 
 export function TaskListView({
   tasks = [],
@@ -239,6 +229,7 @@ export function TaskListView({
                     O2D · {task.sourcePoNumber}
                   </span>
                 )}
+                <BuddyBadge task={task} />
                 <div className="sm:hidden text-[10px] font-semibold text-slate-400">
                   {task.doerFirstName} {task.doerLastName}
                 </div>
@@ -347,10 +338,11 @@ export function TaskListView({
                 {/* Description Snippet */}
                 {task.description && (
                   <div className="border-l-2 border-primary-300 pl-3 py-1 mb-3">
-                    <div
-                      className="text-xs font-medium text-slate-600 line-clamp-2"
-                      dangerouslySetInnerHTML={{ __html: task.description }}
-                    />
+                    {/* Plain text: the description is typed into a textarea, and
+                        rendering it as HTML ran whatever markup somebody stored. */}
+                    <p className="text-xs font-medium text-slate-600 line-clamp-2 whitespace-pre-line">
+                      {task.description}
+                    </p>
                   </div>
                 )}
 

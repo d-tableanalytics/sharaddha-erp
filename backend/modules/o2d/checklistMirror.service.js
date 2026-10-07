@@ -102,6 +102,8 @@ export async function createChecklistMirror({ order, stage, assignee, actor, tea
     department: stage.ownerRole ?? '',
     frequency: 'once',
     plannedDate: stage.plannedCompletion ?? new Date(),
+    // A LOCKED stage has no deadline yet; the date above is a placeholder.
+    scheduleTbd: !stage.plannedCompletion,
     status: 'pending',
     proofRequired: false,
     createdBy: actor?._id ?? null,
@@ -124,7 +126,7 @@ export async function resyncChecklistMirror(occurrenceId, { stage, order }) {
     {
       $set: {
         taskName: name,
-        ...(stage.plannedCompletion ? { plannedDate: stage.plannedCompletion } : {}),
+        ...(stage.plannedCompletion ? { plannedDate: stage.plannedCompletion, scheduleTbd: false } : {}),
       },
     },
   );

@@ -265,6 +265,23 @@ export const doerIdOf = (mirror) => mirror?.doerId ?? mirror?.doer ?? null;
  * only one idea and neither of them owns it.
  */
 export async function completeMirroredTask(mirror, { actor, evidence = null, remarks = null, req = null }) {
+  /*
+   * Only the LIVE mirror is a door to the stage.
+   *
+   * A reassignment or unassignment detaches the old row — `sourceStageId` is
+   * cleared — but keeps `sourceOrderId`/`sourceStageNumber` as its history.
+   * Those two alone were enough to reach `completeStage`, and the check below
+   * then trusted the OLD doer, so the person the stage was taken off could
+   * still close it, with the credit and the evidence in their name.
+   */
+  if (!mirror.sourceStageId || ['Reassigned', 'reassigned'].includes(mirror.status)) {
+    throw new O2dWorkflowError(
+      'This task was moved off you, so it can no longer complete the O2D stage. '
+        + 'Whoever holds the stage now completes it from their own task.',
+      { status: 409, code: 'O2D_MIRROR_DETACHED' },
+    );
+  }
+
   await assertMayCompleteMirroredStage(actor, {
     doerId: doerIdOf(mirror),
     stageNumber: mirror.sourceStageNumber,

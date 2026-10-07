@@ -1,23 +1,141 @@
+import mongoose from 'mongoose';
 import { Delegation, DELEGATION_REASSIGNED_AWAY } from '../../models/Delegation.js';
 import User from '../../models/User.js';
 import { isSuperAdmin, can } from '../../middlewares/rbac.js';
 import { logActivity } from '../activities/activity.controller.js';
 import { completeMirroredTask } from '../o2d/o2dDelegationSync.service.js';
+import { startOfOfficeDay, endOfOfficeDay, officeDayKey } from '../../utils/officeDay.js';
+import {
+  resolveBuddyChain, resolveActiveAssignee, sameChain, splitName, assignmentEvent, runBuddySweep, BuddyChainError,
+} from '../workqueue/buddy.service.js';
+import { notifyUsers } from '../hrms/inbox/notifier.service.js';
+import { INBOX_TYPES } from '../../shared/constants/inbox.js';
+import { recordAudit } from '../../utils/auditLog.js';
 
 const ADMIN_ROLES = ['Super Admin', 'Admin', 'Management', 'HR'];
 const isManager = (user) => isSuperAdmin(user) || ADMIN_ROLES.includes(user?.role);
 
-const startOfDay = (d) => {
-  const dt = new Date(d);
-  dt.setHours(0, 0, 0, 0);
-  return dt;
+// Office-day boundaries (IST), not the server's own midnight.
+const startOfDay = startOfOfficeDay;
+const endOfDay = endOfOfficeDay;
+
+/** Search text is matched literally — `(` or `C++` is a title, not a pattern. */
+const escapeRegex = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const searchRegex = (text) => new RegExp(escapeRegex(text), 'i');
+
+const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
+/**
+ * How the caller stands to ONE task.
+ *
+ *   owner  the assigner, or a manager — may change the task, verify it,
+ *          move its date, delete it
+ *   doer   the person doing it — may move it through the work, never verify
+ *          their own work or move their own deadline
+ *   sees   anybody on it at all, in-loop included — may read it and remark
+ *
+ * The permission matrix says what KIND of thing a person may do anywhere in
+ * the Work Queue; this says WHICH tasks. Without it every `:id` route acted on
+ * any task in the company for anybody holding the cell — and the baseline
+ * gives every staff role the cell.
+ */
+function relationTo(task, user) {
+  const manager = isManager(user);
+  const assigner = sameId(task.assignerId, user._id);
+  const doer = sameId(task.doerId, user._id);
+  const inLoop = (task.inLoop ?? []).some((p) => sameId(p?.userId, user._id));
+  // A backup in a buddy chain may read the task they may be handed tomorrow.
+  // Only the doer of the day may work it.
+  const buddy = task.assignmentType === 'buddy' && (task.buddyChain ?? []).some((m) => sameId(m?.userId, user._id));
+  return { owner: manager || assigner, assigner, doer, sees: manager || assigner || doer || inLoop || buddy };
+}
+
+const NEEDS = {
+  sees: (rel) => rel.sees,
+  participant: (rel) => rel.owner || rel.doer,
+  owner: (rel) => rel.owner,
 };
 
-const endOfDay = (d) => {
-  const dt = new Date(d);
-  dt.setHours(23, 59, 59, 999);
-  return dt;
-};
+/**
+ * Load `req.params.id` for an action that needs `need` of the caller, or answer
+ * the request and return null. A task the caller cannot see at all is a 404,
+ * not a 403, so ids cannot be probed for existence.
+ */
+async function loadTaskFor(req, res, need = 'sees', { includeDeleted = false, lean = false } = {}) {
+  const notFound = () => res.status(404).json({ success: false, message: 'Delegated task not found' });
+  if (!mongoose.isValidObjectId(req.params.id)) { notFound(); return null; }
+
+  const query = Delegation.findById(req.params.id);
+  const task = lean ? await query.lean() : await query;
+  if (!task || (!includeDeleted && task.isDeleted)) { notFound(); return null; }
+
+  const rel = relationTo(task, req.user);
+  if (!rel.sees) { notFound(); return null; }
+  if (!NEEDS[need](rel)) {
+    res.status(403).json({
+      success: false,
+      message: need === 'owner'
+        ? 'Only the person who assigned this task (or a manager) can do that.'
+        : 'Only the assigner or the doer of this task can do that.',
+    });
+    return null;
+  }
+  return { task, rel };
+}
+
+/** The owner-scoped clause for bulk writes: a manager owns everything. */
+const ownedBy = (user) => (isManager(user) ? {} : { assignerId: user._id });
+
+const hasEvidence = (t) => Boolean(String(t.evidenceUrl ?? '').trim() || String(t.evidenceNotes ?? '').trim());
+
+/**
+ * An evidence link is rendered as an `href`, so only web links (and the
+ * `uploaded://` placeholder My Day writes for an attached file) are accepted —
+ * a `javascript:` URL stored here would run in whoever opens the task.
+ */
+const SAFE_EVIDENCE_URL = /^(https?:\/\/|uploaded:\/\/)/i;
+const isSafeEvidenceUrl = (url) => !String(url ?? '').trim() || SAFE_EVIDENCE_URL.test(String(url).trim());
+
+/**
+ * Put `task` into `next`, keeping the completion stamps honest.
+ *
+ * `completedAt` is when the DOER finished — stamped on submit for verification
+ * or on completion, kept through verification, and cleared the moment the
+ * task goes back to being work. A reopened task used to keep its old stamp,
+ * and the scoreboard counts any stamped row as done.
+ */
+function applyStatus(task, next, actor, now = new Date()) {
+  task.status = next;
+  if (next === 'Completed') {
+    task.completedAt = task.completedAt ?? now;
+    task.verifiedAt = now;
+    task.verifiedBy = actor._id;
+  } else if (next === 'Awaiting Verification') {
+    task.completedAt = task.completedAt ?? now;
+    task.verifiedAt = null;
+    task.verifiedBy = null;
+  } else {
+    task.completedAt = null;
+    task.verifiedAt = null;
+    task.verifiedBy = null;
+  }
+}
+
+/** The statuses a person may set by hand. `Reassigned` is the system's alone. */
+const SETTABLE_STATUSES = ['Pending', 'In Progress', 'Awaiting Verification', 'Completed', 'Need Revision'];
+
+/** What a doer who is not also the owner may move their own task to. */
+const DOER_STATUSES = ['In Progress', 'Awaiting Verification', 'Completed'];
+
+/** Fields only the owner may change. A doer moves the work, not its terms. */
+const OWNER_FIELDS = [
+  'taskTitle', 'description', 'priority', 'category', 'categoryColor', 'tags',
+  'dueDate', 'recurrence', 'evidenceRequired', 'verificationRequired',
+  'assignmentType', 'buddyChain',
+];
+
+/** A chain error is the caller's mistake — answer 400 with its message. */
+const chainErrorResponse = (res, err) => res.status(err.status ?? 400).json({ success: false, message: err.message });
 
 /**
  * GET /api/v1/delegation
@@ -101,7 +219,7 @@ export async function getDelegations(req, res, next) {
 
     // Search
     if (search) {
-      const regex = new RegExp(search, 'i');
+      const regex = searchRegex(search);
       conditions.push({
         $or: [
           { taskTitle: regex },
@@ -127,6 +245,8 @@ export async function getDelegations(req, res, next) {
         // longer has it cannot finish it, and the person who does has their own
         // row with its own deadline.
         filter.status = { $nin: ['Completed', 'Awaiting Verification', DELEGATION_REASSIGNED_AWAY] };
+        // A locked O2D stage's placeholder date is not a deadline.
+        filter.scheduleTbd = { $ne: true };
       } else {
         filter.status = status;
       }
@@ -213,11 +333,9 @@ export async function getDelegations(req, res, next) {
  */
 export async function getDelegationById(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id).lean();
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
-    res.json({ success: true, data: task });
+    const loaded = await loadTaskFor(req, res, 'sees', { lean: true });
+    if (!loaded) return;
+    res.json({ success: true, data: loaded.task });
   } catch (err) {
     next(err);
   }
@@ -250,9 +368,28 @@ export async function createDelegation(req, res, next) {
       verificationRequired,
       evidenceRequired,
       subtasks,
+      assignmentType,
+      buddyChain,
     } = req.body;
 
-    if (!taskTitle || !doerId || !dueDate) {
+    /**
+     * Buddy System: the chain decides the doer. Its first person is the
+     * primary and the task starts with them; the rotation below hands it on
+     * at once if they are already away.
+     */
+    let chain = [];
+    if (assignmentType === 'buddy') {
+      try {
+        chain = await resolveBuddyChain(buddyChain);
+      } catch (err) {
+        if (err instanceof BuddyChainError) return chainErrorResponse(res, err);
+        throw err;
+      }
+    }
+    const primary = chain[0] ?? null;
+    const resolvedDoerId = primary ? primary.userId : doerId;
+
+    if (!taskTitle || !resolvedDoerId || !dueDate) {
       return res.status(400).json({
         success: false,
         message: 'Task title, doer assignee, and due date are required.',
@@ -260,12 +397,12 @@ export async function createDelegation(req, res, next) {
     }
 
     // Lookup doer details if not provided
-    let finalDoerFirstName = doerFirstName;
-    let finalDoerLastName = doerLastName;
-    let finalHierarchy = assigneeHierarchy;
+    let finalDoerFirstName = primary ? splitName(primary.name).first : doerFirstName;
+    let finalDoerLastName = primary ? splitName(primary.name).last : doerLastName;
+    let finalHierarchy = primary ? null : assigneeHierarchy;
 
     if (!finalDoerFirstName || !finalHierarchy) {
-      const doerUser = await User.findById(doerId).lean();
+      const doerUser = await User.findById(resolvedDoerId).lean();
       if (doerUser) {
         const parts = (doerUser.user || 'User').split(' ');
         finalDoerFirstName = finalDoerFirstName || parts[0];
@@ -279,7 +416,7 @@ export async function createDelegation(req, res, next) {
       description: description || '',
       assignerId: currentUserId,
       assignerName: currentUserName,
-      doerId,
+      doerId: resolvedDoerId,
       doerFirstName: finalDoerFirstName || 'Team',
       doerLastName: finalDoerLastName || 'Member',
       assigneeHierarchy: finalHierarchy || `${finalDoerFirstName} ${finalDoerLastName}`,
@@ -297,6 +434,8 @@ export async function createDelegation(req, res, next) {
       subtasks: (subtasks || []).map((s) => (typeof s === 'string' ? { title: s } : s)),
       remarks: [],
       dateRevisions: [],
+      assignmentType: primary ? 'buddy' : 'single',
+      buddyChain: chain,
     });
 
     await doc.save();
@@ -310,6 +449,14 @@ export async function createDelegation(req, res, next) {
       metadata: { taskUid: `DEL-${String(doc._id).slice(-4).toUpperCase()}` },
     });
 
+    // A task that starts while its primary is already away goes to the first
+    // available backup now, not on the scheduler's next tick.
+    if (primary) {
+      await runBuddySweep({ delegationIds: [doc._id] });
+      const rotated = await Delegation.findById(doc._id);
+      return res.status(201).json({ success: true, data: rotated });
+    }
+
     res.status(201).json({ success: true, data: doc });
   } catch (err) {
     next(err);
@@ -322,13 +469,25 @@ export async function createDelegation(req, res, next) {
  */
 export async function updateDelegation(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
+    const loaded = await loadTaskFor(req, res, 'participant');
+    if (!loaded) return;
+    const { task, rel } = loaded;
+
+    const updates = req.body ?? {};
+    const isMirrored = task.sourceType === 'o2d_stage';
+
+    if (updates.evidenceUrl !== undefined && !isSafeEvidenceUrl(updates.evidenceUrl)) {
+      return res.status(400).json({ success: false, message: 'Evidence must be a web link (http:// or https://).' });
     }
 
-    const updates = req.body;
-    const isMirrored = task.sourceType === 'o2d_stage';
+    // The doer moves the work; the terms of it — title, deadline, whether it
+    // needs verifying — are the assigner's.
+    if (!rel.owner && OWNER_FIELDS.some((key) => updates[key] !== undefined)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the person who assigned this task (or a manager) can change its details.',
+      });
+    }
 
     /**
      * A MIRRORED task's status is not this screen's to set.
@@ -353,17 +512,52 @@ export async function updateDelegation(req, res, next) {
 
     // Status update handling
     if (updates.status && updates.status !== task.status && !isMirrored) {
+      const next = updates.status;
+
+      // `Reassigned` drops a row out of My Work and out of the scoreboard's
+      // denominator, so a doer setting it on their own task ducked it entirely.
+      if (!SETTABLE_STATUSES.includes(next)) {
+        return res.status(400).json({ success: false, message: `Status "${next}" cannot be set by hand.` });
+      }
+
+      if (!rel.owner) {
+        if (task.status === 'Completed') {
+          return res.status(403).json({ success: false, message: 'This task is already completed. Ask the assigner to reopen it.' });
+        }
+        if (!DOER_STATUSES.includes(next)) {
+          return res.status(403).json({ success: false, message: `Only the assigner can move this task to "${next}".` });
+        }
+        // Verification exists so somebody OTHER than the doer signs it off.
+        if (next === 'Completed' && task.verificationRequired) {
+          return res.status(403).json({
+            success: false,
+            message: 'This task needs verification. Submit it for verification and the assigner will complete it.',
+            code: 'VERIFICATION_REQUIRED',
+          });
+        }
+      }
+
       // Marking a task Completed straight from this endpoint is the same act
       // /:id/verify performs one click at a time, so it needs the same grant.
-      if (updates.status === 'Completed' && !can(req.user, 'work_queue', 'completion', 'edit')) {
+      if (next === 'Completed' && !can(req.user, 'work_queue', 'completion', 'edit')) {
         return res.status(403).json({ success: false, message: 'Forbidden. Insufficient permissions.' });
       }
-      task.status = updates.status;
-      if (updates.status === 'Completed') {
-        task.completedAt = task.completedAt || new Date();
-        task.verifiedAt = new Date();
-        task.verifiedBy = req.user._id;
+
+      if (['Awaiting Verification', 'Completed'].includes(next) && task.evidenceRequired) {
+        const evidence = {
+          evidenceUrl: updates.evidenceUrl ?? task.evidenceUrl,
+          evidenceNotes: updates.evidenceNotes ?? task.evidenceNotes,
+        };
+        if (!hasEvidence(evidence)) {
+          return res.status(400).json({
+            success: false,
+            message: 'This task requires evidence. Attach a link or notes before submitting it.',
+            code: 'EVIDENCE_REQUIRED',
+          });
+        }
       }
+
+      applyStatus(task, next, req.user);
     }
 
     /**
@@ -387,7 +581,179 @@ export async function updateDelegation(req, res, next) {
     if (updates.evidenceUrl !== undefined) task.evidenceUrl = updates.evidenceUrl;
     if (updates.evidenceNotes !== undefined) task.evidenceNotes = updates.evidenceNotes;
 
+    let chainChanged = false;
+    if (updates.assignmentType !== undefined || updates.buddyChain !== undefined) {
+      if (isMirrored) {
+        return res.status(400).json({ success: false, message: 'A task mirrored from an O2D stage cannot use the Buddy System.' });
+      }
+      // Changing who is in the chain changes who does the work — that is
+      // assigning, the same cell creating a task with a doer requires.
+      if (!can(req.user, 'work_queue', 'assignment', 'edit')) {
+        return res.status(403).json({ success: false, message: 'Forbidden. Insufficient permissions.' });
+      }
+      try {
+        chainChanged = await applyChainEdit(task, updates, req.user);
+      } catch (err) {
+        if (err instanceof BuddyChainError) return chainErrorResponse(res, err);
+        throw err;
+      }
+    }
+
     await task.save();
+
+    // A new chain starts from its top today, unless a manager has pinned the doer.
+    if (chainChanged && task.assignmentType === 'buddy' && task.assignmentSource !== 'manual') {
+      await runBuddySweep({ delegationIds: [task._id] });
+      const rotated = await Delegation.findById(task._id);
+      return res.json({ success: true, data: rotated });
+    }
+    res.json({ success: true, data: task });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Apply a Buddy System edit from `updateDelegation` to `task` (unsaved).
+ * Returns whether anything changed.
+ *
+ *   → single   the chain is dropped; whoever holds the task today keeps it.
+ *   → buddy    the new chain is stored and the day's decision is reset, so
+ *              the rotation re-walks it from the top — a removed backup who
+ *              was holding the task loses it, a reordered chain takes effect
+ *              today. A manually pinned doer stays pinned.
+ */
+async function applyChainEdit(task, updates, actor) {
+  const nextType = updates.assignmentType ?? task.assignmentType ?? 'single';
+  const day = officeDayKey();
+
+  if (nextType === 'single') {
+    if (task.assignmentType !== 'buddy') return false;
+    task.assignmentType = 'single';
+    task.buddyChain = [];
+    task.assignmentSource = 'primary';
+    task.assignmentReason = '';
+    task.buddyDay = null;
+    task.noAssigneeDay = null;
+    task.assignmentHistory.push(assignmentEvent({
+      day, event: 'chain_changed', source: 'manual', reason: 'Buddy System turned off', by: actor,
+    }));
+    return true;
+  }
+
+  if (nextType !== 'buddy') throw new BuddyChainError(`Unknown assignment type "${nextType}".`);
+  const chain = await resolveBuddyChain(updates.buddyChain ?? task.buddyChain);
+  if (task.assignmentType === 'buddy' && sameChain(chain, task.buddyChain)) return false;
+
+  task.assignmentType = 'buddy';
+  task.buddyChain = chain;
+  task.buddyDay = null;
+  task.noAssigneeDay = null;
+  task.assignmentHistory.push(assignmentEvent({
+    day,
+    event: 'chain_changed',
+    source: 'manual',
+    reason: `Buddy chain set to ${chain.map((m, i) => `${i + 1}. ${m.name}`).join(', ')}`,
+    by: actor,
+  }));
+  return true;
+}
+
+/**
+ * PATCH /api/v1/delegation/:id/assignee
+ *
+ * Manual override for a Buddy System task.
+ *
+ *   { doerId, reason? }  assign it to this person — any active employee, in
+ *                        the chain or not — and pin it there. The rotation
+ *                        stops for this task until it is resumed.
+ *   { resume: true }     unpin, and let the rotation decide again from the
+ *                        top of the chain, today.
+ *
+ * Recorded as `manual_override` / `resumed`, separately from what the
+ * scheduler writes.
+ */
+export async function overrideAssignee(req, res, next) {
+  try {
+    const loaded = await loadTaskFor(req, res, 'owner');
+    if (!loaded) return;
+    const { task } = loaded;
+
+    if (task.sourceType === 'o2d_stage') {
+      return res.status(400).json({ success: false, message: 'Reassign this O2D task from Order Tracker.' });
+    }
+    if (task.assignmentType !== 'buddy') {
+      return res.status(400).json({ success: false, message: 'Manual override applies to Buddy System tasks.' });
+    }
+    if (['Completed', DELEGATION_REASSIGNED_AWAY].includes(task.status)) {
+      return res.status(400).json({ success: false, message: 'This task is already closed.' });
+    }
+
+    const day = officeDayKey();
+    const current = {
+      userId: task.doerId,
+      name: [task.doerFirstName, task.doerLastName].filter(Boolean).join(' '),
+    };
+
+    if (req.body?.resume) {
+      if (task.assignmentSource !== 'manual') {
+        return res.status(400).json({ success: false, message: 'This task is already following its buddy chain.' });
+      }
+      const holdsPrimary = sameId(task.doerId, task.buddyChain[0]?.userId);
+      task.assignmentSource = holdsPrimary ? 'primary' : 'automatic';
+      task.assignmentReason = '';
+      task.buddyDay = null;
+      task.noAssigneeDay = null;
+      task.assignmentHistory.push(assignmentEvent({
+        day, event: 'resumed', source: 'manual', from: current, to: current,
+        reason: 'Automatic buddy rotation resumed', by: req.user,
+      }));
+      await task.save();
+      await recordAudit(req.user, 'Work Queue Buddy: Rotation Resumed', task.taskTitle, req, { meta: { taskId: String(task._id) } });
+      await runBuddySweep({ delegationIds: [task._id] });
+      return res.json({ success: true, data: await Delegation.findById(task._id) });
+    }
+
+    let target;
+    try {
+      target = await resolveActiveAssignee(req.body?.doerId);
+    } catch (err) {
+      if (err instanceof BuddyChainError) return chainErrorResponse(res, err);
+      throw err;
+    }
+
+    const note = String(req.body?.reason ?? '').trim().slice(0, 300);
+    const actorName = req.user.user || req.user.email || 'a manager';
+    const reason = `Assigned manually by ${actorName}${note ? ` — ${note}` : ''}`;
+    const moved = !sameId(target.userId, task.doerId);
+    const { first, last } = splitName(target.name);
+
+    task.doerId = target.userId;
+    task.doerFirstName = first;
+    task.doerLastName = last;
+    task.assignmentSource = 'manual';
+    task.assignmentReason = reason;
+    task.buddyDay = day;
+    task.noAssigneeDay = null;
+    task.assignmentHistory.push(assignmentEvent({
+      day, event: 'manual_override', source: 'manual', from: current, to: target, reason, by: req.user,
+    }));
+    await task.save();
+
+    await recordAudit(req.user, 'Work Queue Buddy: Manual Override', `${task.taskTitle}: ${current.name} → ${target.name}`, req, {
+      meta: { taskId: String(task._id), from: String(current.userId), to: String(target.userId) },
+    });
+    if (moved) {
+      await notifyUsers({
+        toUserIds: [String(target.userId)],
+        type: INBOX_TYPES.WORK_QUEUE_BUDDY_ASSIGNED,
+        title: `You have been assigned "${task.taskTitle}"`,
+        body: reason,
+        entity: 'delegation',
+        entityId: String(task._id),
+      });
+    }
+
     res.json({ success: true, data: task });
   } catch (err) {
     next(err);
@@ -400,10 +766,9 @@ export async function updateDelegation(req, res, next) {
  */
 export async function verifyAndComplete(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'sees');
+    if (!loaded) return;
+    const { task, rel } = loaded;
 
     // Same door as `updateDelegation`'s status→Completed path: a mirrored
     // task's one-click "Verify & Complete" has to run the real stage
@@ -419,10 +784,27 @@ export async function verifyAndComplete(req, res, next) {
       return res.json({ success: true, data: refreshed });
     }
 
-    task.status = 'Completed';
-    task.completedAt = new Date();
-    task.verifiedAt = new Date();
-    task.verifiedBy = req.user._id;
+    if (!rel.owner) {
+      return res.status(403).json({ success: false, message: 'Only the person who assigned this task (or a manager) can verify it.' });
+    }
+    // Nobody signs off their own work — unless they also set it themselves.
+    if (rel.doer && !rel.assigner && task.verificationRequired) {
+      return res.status(403).json({ success: false, message: 'You cannot verify a task assigned to you.' });
+    }
+    if (task.status === 'Completed') {
+      return res.status(400).json({ success: false, message: 'Task already completed.' });
+    }
+    if (task.evidenceRequired && !hasEvidence(task)) {
+      return res.status(400).json({
+        success: false,
+        message: 'This task requires evidence, and none has been submitted yet.',
+        code: 'EVIDENCE_REQUIRED',
+      });
+    }
+
+    // Keeps the doer's own `completedAt` from their submission, so verifying a
+    // day later does not make on-time work look late (or the reverse).
+    applyStatus(task, 'Completed', req.user);
 
     if (req.body.notes) {
       task.remarks.push({
@@ -456,10 +838,9 @@ export async function verifyAndComplete(req, res, next) {
  */
 export async function addSubtask(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'participant');
+    if (!loaded) return;
+    const { task } = loaded;
 
     const { title } = req.body;
     if (!title) {
@@ -489,10 +870,9 @@ export async function addSubtask(req, res, next) {
  */
 export async function toggleSubtask(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'participant');
+    if (!loaded) return;
+    const { task } = loaded;
 
     const sub = task.subtasks.id(req.params.subtaskId);
     if (!sub) {
@@ -515,10 +895,9 @@ export async function toggleSubtask(req, res, next) {
  */
 export async function addRemark(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'sees');
+    if (!loaded) return;
+    const { task } = loaded;
 
     const { text } = req.body;
     if (!text) {
@@ -554,9 +933,21 @@ export async function addRemark(req, res, next) {
  */
 export async function reviseDueDate(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
+    const loaded = await loadTaskFor(req, res, 'owner');
+    if (!loaded) return;
+    const { task } = loaded;
+
+    // A mirror's deadline is the O2D stage's, kept in step by the stage itself.
+    if (task.sourceType === 'o2d_stage') {
+      return res.status(400).json({
+        success: false,
+        message: 'This task is linked to an O2D stage — its deadline belongs to the order.',
+        code: 'O2D_MIRROR_READ_ONLY',
+      });
+    }
+    // Moving the deadline of finished work only rewrites whether it was late.
+    if (task.status === 'Completed') {
+      return res.status(400).json({ success: false, message: 'A completed task\'s due date cannot be revised.' });
     }
 
     const { newDate, reason } = req.body;
@@ -599,10 +990,9 @@ export async function reviseDueDate(req, res, next) {
  */
 export async function addReminder(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'participant');
+    if (!loaded) return;
+    const { task } = loaded;
 
     const { date, note } = req.body;
     task.reminders.push({
@@ -624,10 +1014,9 @@ export async function addReminder(req, res, next) {
  */
 export async function addFollowUp(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Delegated task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'participant');
+    if (!loaded) return;
+    const { task } = loaded;
 
     const { notes, contactedVia } = req.body;
     task.followUps.push({
@@ -787,10 +1176,12 @@ export async function getDeletedDelegations(req, res, next) {
 
     const filter = { isDeleted: true };
     const conditions = [];
+    // Declared before the status filter, which reads it for "Overdue".
+    const now = new Date();
 
     // Search
     if (search) {
-      const regex = new RegExp(search, 'i');
+      const regex = searchRegex(search);
       conditions.push({
         $or: [
           { taskTitle: regex },
@@ -828,8 +1219,9 @@ export async function getDeletedDelegations(req, res, next) {
     if (assignedBy && assignedBy !== 'All') {
       conditions.push({
         $or: [
-          { assignerId: assignedBy },
-          { assignerName: new RegExp(assignedBy, 'i') },
+          // A name is not an ObjectId; casting one threw a 500.
+          ...(mongoose.isValidObjectId(assignedBy) ? [{ assignerId: assignedBy }] : []),
+          { assignerName: searchRegex(assignedBy) },
         ],
       });
     }
@@ -840,7 +1232,6 @@ export async function getDeletedDelegations(req, res, next) {
     }
 
     // Date range filter against deletedAt || createdAt
-    const now = new Date();
     if (dateRange === 'Today') {
       conditions.push({
         $or: [
@@ -938,10 +1329,9 @@ export async function getDeletedDelegations(req, res, next) {
  */
 export async function restoreDelegation(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'owner', { includeDeleted: true });
+    if (!loaded) return;
+    const { task } = loaded;
 
     task.isDeleted = false;
     task.deletedAt = null;
@@ -971,10 +1361,9 @@ export async function restoreDelegation(req, res, next) {
  */
 export async function deleteDelegation(req, res, next) {
   try {
-    const task = await Delegation.findById(req.params.id);
-    if (!task) {
-      return res.status(404).json({ success: false, message: 'Task not found' });
-    }
+    const loaded = await loadTaskFor(req, res, 'owner');
+    if (!loaded) return;
+    const { task } = loaded;
 
     /**
      * A mirrored task cannot be deleted from here.
@@ -1028,17 +1417,11 @@ export async function bulkUpdateStatus(req, res, next) {
       return res.status(400).json({ success: false, message: 'Task IDs array and status are required' });
     }
 
-    const validStatuses = ['Pending', 'In Progress', 'Awaiting Verification', 'Completed', 'Need Revision'];
-    if (!validStatuses.includes(status)) {
+    if (!SETTABLE_STATUSES.includes(status)) {
       return res.status(400).json({ success: false, message: `Invalid status: ${status}` });
     }
 
-    const updateFields = { status };
-    if (status === 'Completed') {
-      updateFields.completedAt = new Date();
-      updateFields.verifiedAt = new Date();
-      updateFields.verifiedBy = req.user._id;
-    }
+    const validIds = ids.filter((id) => mongoose.isValidObjectId(id));
 
     /**
      * Bulk status is a direct write — it does not go through `updateDelegation`
@@ -1048,32 +1431,62 @@ export async function bulkUpdateStatus(req, res, next) {
      * single-task path exists to prevent. Manual tasks in the selection still
      * update normally; mirrored ones are skipped and reported, so a bulk action
      * against a filtered list never fails silently for part of it.
+     *
+     * And only the caller's OWN tasks — the ones they assigned, or any for a
+     * manager — the same rule `loadTaskFor` applies one task at a time.
      */
-    const filter = { _id: { $in: ids }, isDeleted: false, sourceType: { $ne: 'o2d_stage' } };
-    const skipped = await Delegation.countDocuments({
-      _id: { $in: ids }, isDeleted: false, sourceType: 'o2d_stage',
+    const live = { _id: { $in: validIds }, isDeleted: false };
+    const skipped = await Delegation.countDocuments({ ...live, sourceType: 'o2d_stage' });
+    const candidates = await Delegation.find({ ...live, sourceType: { $ne: 'o2d_stage' } })
+      .select('_id assignerId status completedAt evidenceRequired evidenceUrl evidenceNotes')
+      .lean();
+    const owned = candidates.filter((t) => relationTo(t, req.user).owner);
+    const notPermitted = candidates.length - owned.length;
+
+    // Nothing to do for a task already in that status, and an evidence-gated
+    // task cannot be closed out in bulk without its evidence.
+    const needsEvidence = ['Awaiting Verification', 'Completed'].includes(status);
+    const changing = owned.filter((t) => t.status !== status);
+    const missingEvidence = needsEvidence ? changing.filter((t) => t.evidenceRequired && !hasEvidence(t)) : [];
+    const toUpdate = changing.filter((t) => !missingEvidence.includes(t));
+
+    const now = new Date();
+    const ops = toUpdate.map((t) => {
+      const doc = { ...t };
+      applyStatus(doc, status, req.user, now);
+      return {
+        updateOne: {
+          filter: { _id: t._id },
+          update: { $set: { status, completedAt: doc.completedAt, verifiedAt: doc.verifiedAt, verifiedBy: doc.verifiedBy } },
+        },
+      };
     });
+    const result = ops.length ? await Delegation.bulkWrite(ops) : { modifiedCount: 0 };
 
-    const result = await Delegation.updateMany(filter, { $set: updateFields });
-
-    // Asynchronously log activities for each task
-    for (const id of ids) {
+    // Logged for the tasks that actually changed, not for every id submitted.
+    for (const t of toUpdate) {
       logActivity({
         type: 'status_change',
         title: 'Status Updated',
         description: `Status changed to ${status} via bulk update`,
         userId: req.user._id,
-        relatedId: id,
+        relatedId: t._id,
       }).catch(() => {});
     }
 
+    const notes = [
+      skipped ? `${skipped} linked to O2D stage(s) were skipped — complete those from Order Tracker or their own task card.` : null,
+      notPermitted ? `${notPermitted} you did not assign were skipped.` : null,
+      missingEvidence.length ? `${missingEvidence.length} still need their evidence and were skipped.` : null,
+    ].filter(Boolean);
+
     res.json({
       success: true,
-      message: skipped
-        ? `Updated status for ${result.modifiedCount} task(s). ${skipped} linked to O2D stage(s) were skipped — complete those from Order Tracker or their own task card.`
-        : `Updated status for ${result.modifiedCount} task(s)`,
+      message: `Updated status for ${result.modifiedCount} task(s)${notes.length ? `. ${notes.join(' ')}` : ''}`,
       modifiedCount: result.modifiedCount,
       skipped,
+      notPermitted,
+      missingEvidence: missingEvidence.length,
     });
   } catch (err) {
     next(err);
@@ -1093,26 +1506,36 @@ export async function bulkDeleteDelegations(req, res, next) {
 
     const userName = req.user.user || req.user.name || 'Admin';
     const nameParts = userName.trim().split(' ');
+    const validIds = ids.filter((id) => mongoose.isValidObjectId(id));
 
     // Same exclusion as bulk-status, and for the same reason: deleting a
     // mirror here leaves the real O2D stage untouched, still assigned, still
-    // waiting — see the single-task guard in `deleteDelegation`.
-    const skipped = await Delegation.countDocuments({ _id: { $in: ids }, sourceType: 'o2d_stage' });
+    // waiting — see the single-task guard in `deleteDelegation`. Already
+    // binned rows are left alone so their original deletion is kept.
+    const live = { _id: { $in: validIds }, isDeleted: false };
+    const skipped = await Delegation.countDocuments({ ...live, sourceType: 'o2d_stage' });
+    const candidates = await Delegation.find({ ...live, sourceType: { $ne: 'o2d_stage' } })
+      .select('_id assignerId')
+      .lean();
+    const ownedIds = candidates.filter((t) => relationTo(t, req.user).owner).map((t) => t._id);
+    const notPermitted = candidates.length - ownedIds.length;
 
-    const result = await Delegation.updateMany(
-      { _id: { $in: ids }, sourceType: { $ne: 'o2d_stage' } },
-      {
-        $set: {
-          isDeleted: true,
-          deletedAt: new Date(),
-          deletedBy: req.user._id,
-          deletedByFirstName: nameParts[0] || 'Admin',
-          deletedByLastName: nameParts.slice(1).join(' ') || '',
+    const result = ownedIds.length
+      ? await Delegation.updateMany(
+        { _id: { $in: ownedIds }, isDeleted: false },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            deletedBy: req.user._id,
+            deletedByFirstName: nameParts[0] || 'Admin',
+            deletedByLastName: nameParts.slice(1).join(' ') || '',
+          },
         },
-      }
-    );
+      )
+      : { modifiedCount: 0 };
 
-    for (const id of ids) {
+    for (const id of ownedIds) {
       logActivity({
         type: 'deleted',
         title: 'Task Deleted',
@@ -1125,11 +1548,11 @@ export async function bulkDeleteDelegations(req, res, next) {
     res.json({
       success: true,
       skipped,
-      message: `Deleted ${result.modifiedCount} task(s)`,
+      notPermitted,
+      message: `Deleted ${result.modifiedCount} task(s)${notPermitted ? `. ${notPermitted} you did not assign were skipped.` : ''}`,
       deletedCount: result.modifiedCount,
     });
   } catch (err) {
     next(err);
   }
 }
-

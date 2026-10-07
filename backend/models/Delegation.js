@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import {
+  ASSIGNMENT_TYPES, ASSIGNMENT_SOURCES, buddyMemberSchema, assignmentEventSchema,
+} from './workQueueBuddy.js';
 
 /**
  * Delegated Task Model — records tasks delegated by one user to another.
@@ -192,6 +195,14 @@ const delegationSchema = new mongoose.Schema({
   holdReason: { type: String, default: null },
 
   /**
+   * The O2D stage behind this mirror has no deadline yet — it is still LOCKED
+   * behind an earlier stage — so the date on this row is only a placeholder.
+   * Nothing treats such a row as overdue; `resync*` clears the flag the moment
+   * the stage unlocks and the real deadline lands.
+   */
+  scheduleTbd: { type: Boolean, default: false },
+
+  /**
    * Who this task went to, and who moved it — set together with the
    * `Reassigned` status. The same two fields ChecklistOccurrence already
    * carries, named the same way, so "where did this go" is one question with
@@ -203,11 +214,36 @@ const delegationSchema = new mongoose.Schema({
    */
   reassignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   reassignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+
+  /**
+   * ── Buddy System ────────────────────────────────────────────────────────
+   *
+   * `buddy` tasks carry an ordered chain — `buddyChain[0]` is the primary,
+   * the rest are backups in priority order — and `doerId` is whoever holds
+   * the task TODAY. See `modules/workqueue/buddy.service.js`.
+   *
+   *   assignmentSource  how `doerId` got there (primary / automatic / manual).
+   *                     `manual` pins it: the scheduler stops rotating until
+   *                     a manager resumes the rotation.
+   *   assignmentReason  the one-line why, for the screen.
+   *   buddyDay          the office day the rotation last decided for. A new
+   *                     day starts from the top of the chain again.
+   *   noAssigneeDay     set to the day everyone in the chain was away; the
+   *                     task keeps its last doer and is flagged instead.
+   */
+  assignmentType:    { type: String, enum: ASSIGNMENT_TYPES, default: 'single' },
+  buddyChain:        { type: [buddyMemberSchema], default: [] },
+  assignmentSource:  { type: String, enum: ASSIGNMENT_SOURCES, default: 'primary' },
+  assignmentReason:  { type: String, default: '' },
+  buddyDay:          { type: String, default: null },
+  noAssigneeDay:     { type: String, default: null },
+  assignmentHistory: { type: [assignmentEventSchema], default: [] },
 }, { timestamps: true });
 
 delegationSchema.index({ assignerId: 1, status: 1 });
 delegationSchema.index({ doerId: 1, status: 1 });
 delegationSchema.index({ dueDate: 1 });
+delegationSchema.index({ assignmentType: 1, status: 1 });
 delegationSchema.index({ isDeleted: 1, deletedAt: -1 });
 /**
  * One live mirror per stage. `partialFilterExpression` rather than a plain

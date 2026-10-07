@@ -100,6 +100,10 @@ export const INBOX_TYPES = Object.freeze({
   ACADEMY_OVERDUE: 'academy.overdue',
   ACADEMY_COMPLETED: 'academy.completed',
   ACADEMY_CERTIFICATE_ISSUED: 'academy.certificate',
+  // Work Queue — Buddy System
+  WORK_QUEUE_BUDDY_ASSIGNED: 'work_queue.buddy_assigned',
+  WORK_QUEUE_NO_ASSIGNEE: 'work_queue.no_assignee',
+  WORK_QUEUE_CHECKLIST_NO_ASSIGNEE: 'work_queue.checklist_no_assignee',
 });
 
 export const INBOX_TYPE_LIST = Object.freeze(Object.values(INBOX_TYPES));
@@ -211,6 +215,31 @@ export const INBOX_TYPE_META = Object.freeze({
     category: C.UPDATE,
     path: '/academy/certificates',
   },
+
+  /**
+   * Work Queue. These live outside HRMS, so `absolute` tells `hrefFor` not to
+   * prefix them. A backup taking a task over lands on My Work, where the task
+   * now is; a chain with nobody available goes to whoever assigned it, on
+   * the screen they assigned it from.
+   */
+  [T.WORK_QUEUE_BUDDY_ASSIGNED]: {
+    label: 'Task assigned to you',
+    category: C.ACTION,
+    path: '/work-queue',
+    absolute: true,
+  },
+  [T.WORK_QUEUE_NO_ASSIGNEE]: {
+    label: 'No available assignee',
+    category: C.ACTION,
+    path: '/wq/delegation',
+    absolute: true,
+  },
+  [T.WORK_QUEUE_CHECKLIST_NO_ASSIGNEE]: {
+    label: 'No available assignee',
+    category: C.ACTION,
+    path: '/wq/checklist',
+    absolute: true,
+  },
 });
 
 /** A type whose category is ACTION is one somebody has to do something about. */
@@ -228,7 +257,10 @@ export const labelOf = (type) => INBOX_TYPE_META[type]?.label ?? 'Notification';
  * `HRMS_ROUTE_PREFIX`.
  */
 export function hrefFor(type, prefix = '') {
-  const path = INBOX_TYPE_META[type]?.path;
+  const meta = INBOX_TYPE_META[type];
+  // A type that points outside HRMS (the Work Queue) names its full path.
+  if (meta?.absolute) return meta.path;
+  const path = meta?.path;
   // An unknown type still has to go somewhere sensible rather than nowhere.
   return `${prefix}${path ?? '/dashboard'}`;
 }

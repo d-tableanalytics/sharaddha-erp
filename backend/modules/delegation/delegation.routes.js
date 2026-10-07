@@ -20,6 +20,7 @@ import {
   deleteDelegation,
   bulkUpdateStatus,
   bulkDeleteDelegations,
+  overrideAssignee,
 } from './delegation.controller.js';
 
 const router = express.Router();
@@ -67,6 +68,8 @@ router.delete('/:id', canManageDelete, deleteDelegation);
 router.patch('/:id/restore', canRestore, restoreDelegation);
 router.post('/:id/restore', canRestore, restoreDelegation);
 router.post('/:id/verify', canComplete, verifyAndComplete);
+// Buddy System manual override: choosing who does the task is assigning it.
+router.patch('/:id/assignee', canAssign, overrideAssignee);
 router.post('/:id/subtasks', canEdit, addSubtask);
 router.patch('/:id/subtasks/:subtaskId/toggle', canEdit, toggleSubtask);
 router.post('/:id/remarks', canEdit, addRemark);

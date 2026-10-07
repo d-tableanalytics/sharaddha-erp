@@ -11,7 +11,10 @@ import { Modal } from '../../components/ui/Modal';
 import { Drawer } from '../../components/ui/Drawer';
 import { Button } from '../../components/ui/Button';
 import { checklistApi } from '../../services/checklist';
+import { AssignmentTypeToggle, BuddyChainEditor, buddyChainError } from '../../components/workqueue/BuddyChainField';
+import { BuddyAssignmentPanel } from '../../components/workqueue/BuddyAssignmentPanel';
 import toast from 'react-hot-toast';
+import { localDateKey } from '../../utils/localDate';
 import {
   Upload,
   X,
@@ -220,6 +223,31 @@ export function ReassignChecklistModal({ isOpen, onClose, task, users, onSuccess
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// 3b. BuddyDetailsModal — the backup order and assignment history of one day's
+//     task. To assign it by hand, use Reassign: that pins this day's task.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export function BuddyDetailsModal({ isOpen, onClose, task }) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Buddy System" size="md">
+      <div className="space-y-3">
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <p className="text-sm font-semibold text-slate-900">{task?.taskName}</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {task?.plannedDate ? new Date(task.plannedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+          </p>
+        </div>
+        <BuddyAssignmentPanel
+          task={task}
+          doerId={task?.doer}
+          doerName={`${task?.doerFirstName || ''} ${task?.doerLastName || ''}`.trim()}
+        />
+      </div>
+    </Modal>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // 4. RemarkModal
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -295,6 +323,10 @@ export function EditChecklistModal({ isOpen, onClose, routine, users, onSuccess 
         taskName: routine.taskName || '',
         frequency: routine.frequency || 'daily',
         doer: routine.doer || '',
+        assignmentType: routine.assignmentType || 'single',
+        buddyChain: routine.assignmentType === 'buddy'
+          ? (routine.buddyChain || []).map((b) => String(b.userId))
+          : [routine.doer || '', ''],
         department: routine.department || '',
         site: routine.site || 'HO',
         startDate: routine.startDate ? new Date(routine.startDate).toISOString().split('T')[0] : '',
@@ -307,9 +339,17 @@ export function EditChecklistModal({ isOpen, onClose, routine, users, onSuccess 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   const handleSubmit = async () => {
+    const isBuddy = form.assignmentType === 'buddy';
+    if (isBuddy) {
+      const problem = buddyChainError(form.buddyChain);
+      if (problem) return toast.error(problem);
+    }
+    // A buddy routine's doer is its chain's first person — the chain is sent instead.
+    const { buddyChain, doer, ...rest } = form;
+    const payload = isBuddy ? { ...rest, buddyChain } : { ...rest, doer };
     setLoading(true);
     try {
-      await checklistApi.updateRoutine(routine._id, form);
+      await checklistApi.updateRoutine(routine._id, payload);
       toast.success('Routine updated');
       onSuccess?.();
       onClose();
@@ -337,15 +377,35 @@ export function EditChecklistModal({ isOpen, onClose, routine, users, onSuccess 
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>Assigned To</label>
-            <select value={form.doer || ''} onChange={(e) => set('doer', e.target.value)} className={fieldClass}>
-              <option value="">Select…</option>
-              {(users || []).map((u) => (
-                <option key={u._id} value={u._id}>{u.user || u.email}</option>
-              ))}
-            </select>
-          </div>
+          {form.assignmentType !== 'buddy' && (
+            <div>
+              <label className={labelClass}>Assigned To</label>
+              <select value={form.doer || ''} onChange={(e) => set('doer', e.target.value)} className={fieldClass}>
+                <option value="">Select…</option>
+                {(users || []).map((u) => (
+                  <option key={u._id} value={u._id}>{u.user || u.email}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <span className={labelClass}>Assignment Type</span>
+          <AssignmentTypeToggle value={form.assignmentType || 'single'} onChange={(v) => set('assignmentType', v)} />
+          {form.assignmentType === 'buddy' && (
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <BuddyChainEditor
+                users={users || []}
+                chain={form.buddyChain || ['', '']}
+                onChange={(chain) => set('buddyChain', chain)}
+                selectClassName={fieldClass}
+              />
+              <p className="mt-2 text-[11px] text-slate-500">
+                Saving a changed chain applies from today: future tasks go to the new primary, and today's task is re-assigned from the top of the chain.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -403,6 +463,8 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
     taskCode: '',
     frequency: 'daily',
     doer: '',
+    assignmentType: 'single',
+    buddyChain: ['', ''],
     department: '',
     site: 'HO',
     startDate: '',
@@ -412,12 +474,14 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
 
   useEffect(() => {
     if (isOpen) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = localDateKey();
       setForm({
         taskName: '',
         taskCode: '',
         frequency: 'daily',
         doer: isAdmin ? '' : currentUser?._id || '',
+        assignmentType: 'single',
+        buddyChain: ['', ''],
         department: '',
         site: 'HO',
         startDate: today,
@@ -459,7 +523,14 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
     if (loading || isSubmittingRef.current) return;
     const effectiveEndDate = form.frequency === 'once' ? form.startDate : (form.endDate || form.startDate);
 
-    if (!form.taskName || !form.taskCode || !form.doer || !form.startDate || !effectiveEndDate) {
+    const isBuddy = form.assignmentType === 'buddy';
+    if (isBuddy) {
+      const problem = buddyChainError(form.buddyChain);
+      if (problem) return toast.error(problem);
+    }
+    const doer = isBuddy ? form.buddyChain[0] : form.doer;
+
+    if (!form.taskName || !form.taskCode || !doer || !form.startDate || !effectiveEndDate) {
       return toast.error('Please fill in all required fields');
     }
 
@@ -470,8 +541,11 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
     isSubmittingRef.current = true;
     setLoading(true);
     try {
+      const { buddyChain, ...rest } = form;
       const result = await checklistApi.createRoutine({
-        ...form,
+        ...rest,
+        doer,
+        ...(isBuddy ? { buddyChain } : {}),
         endDate: effectiveEndDate,
       });
       toast.success(
@@ -523,7 +597,7 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
               ))}
             </select>
           </div>
-          <div>
+          <div className={form.assignmentType === 'buddy' ? 'hidden' : undefined}>
             <label className={labelClass}>Assigned To *</label>
             {isAdmin ? (
               <select value={form.doer} onChange={(e) => set('doer', e.target.value)} className={fieldClass}>
@@ -537,6 +611,33 @@ export function CreateChecklistDrawer({ isOpen, onClose, users, isAdmin, current
             )}
           </div>
         </div>
+
+        {/* Buddy chains put other people on the hook, so they are a manager's call. */}
+        {isAdmin && (
+          <div className="space-y-2">
+            <span className={labelClass}>Assignment Type</span>
+            <AssignmentTypeToggle
+              value={form.assignmentType}
+              onChange={(v) => {
+                set('assignmentType', v);
+                // The chosen assignee becomes the primary, so switching loses nothing.
+                if (v === 'buddy' && form.doer && !form.buddyChain[0]) {
+                  set('buddyChain', [form.doer, ...form.buddyChain.slice(1)]);
+                }
+              }}
+            />
+            {form.assignmentType === 'buddy' && (
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <BuddyChainEditor
+                  users={users || []}
+                  chain={form.buddyChain}
+                  onChange={(chain) => set('buddyChain', chain)}
+                  selectClassName={fieldClass}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {form.frequency === 'once' ? (
           <div>

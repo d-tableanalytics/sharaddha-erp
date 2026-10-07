@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { isTaskOverdue } from './taskOverdue';
 import {
   AlertCircle,
   History,
@@ -87,10 +88,7 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
                 </div>
               ) : (
                 colTasks.map((task) => {
-                  const overdue =
-                    task.dueDate &&
-                    task.status !== 'Completed' &&
-                    new Date(task.dueDate).getTime() < Date.now();
+                  const overdue = isTaskOverdue(task);
 
                   return (
                     <div
@@ -119,10 +117,9 @@ export function TaskKanbanView({ tasks = [], onTaskClick }) {
 
                       {/* Card Description Preview */}
                       {task.description && (
-                        <div
-                          className="text-xs text-slate-500 line-clamp-2 leading-relaxed"
-                          dangerouslySetInnerHTML={{ __html: task.description }}
-                        />
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed whitespace-pre-line">
+                          {task.description}
+                        </p>
                       )}
 
                       {/* Verification Status tag if applicable */}

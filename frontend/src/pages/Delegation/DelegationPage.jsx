@@ -28,6 +28,7 @@ import { TabNav } from '../../components/hrms/TabNav';
 import { usePermissions } from '../../hooks/usePermissions';
 import { StatTile } from '../../components/workqueue/StatTile';
 import { TASK_STATUS_TILES } from '../../components/workqueue/taskTiles';
+import { isTaskOverdue } from './taskOverdue';
 
 const STATUS_TABS = [
   { key: 'All', label: 'All', dot: 'bg-slate-400' },
@@ -125,21 +126,38 @@ export function DelegationPage() {
       setUsers(usersRes || []);
       setCategories(catRes || []);
 
-      // If deep-linked task ID is present, select it
-      if (paramTaskId && tasksRes) {
-        const match = tasksRes.find((t) => t._id === paramTaskId);
-        if (match) setSelectedTask(match);
-      }
     } catch (err) {
       toast.error('Failed to load delegated tasks');
     } finally {
       setLoading(false);
     }
-  }, [dateRange, customStartDate, customEndDate, paramTaskId]);
+  }, [dateRange, customStartDate, customEndDate]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  /*
+   * A deep link (My Day, a notification) opens its task by id.
+   *
+   * Once per id, not on every reload — re-selecting it inside `fetchData` made
+   * a drawer the user had closed spring back open after any bulk action. And
+   * fetched on its own: this list is the tasks the viewer ASSIGNED, so a doer
+   * following a link to their own task never found it in there.
+   */
+  const openedLinkRef = useRef(null);
+  useEffect(() => {
+    if (!paramTaskId || openedLinkRef.current === paramTaskId) return;
+    openedLinkRef.current = paramTaskId;
+    delegationService.getDelegationById(paramTaskId)
+      .then((task) => { if (task) setSelectedTask(task); })
+      .catch((err) => toast.error(err?.response?.data?.message || 'That task could not be opened.'));
+  }, [paramTaskId]);
+
+  const handleCloseDetails = () => {
+    setSelectedTask(null);
+    if (paramTaskId) navigate('/wq/delegation', { replace: true });
+  };
 
   // ── Unique Tags for Filter ───────────────────────────────────────────────
   const uniqueTags = useMemo(() => {
@@ -195,11 +213,7 @@ export function DelegationPage() {
       }
 
       // Status Tab
-      const isOverdue =
-        t.dueDate &&
-        t.status !== 'Completed' &&
-        t.status !== 'Awaiting Verification' &&
-        new Date(t.dueDate).getTime() < Date.now();
+      const isOverdue = isTaskOverdue(t);
 
       if (activeTab === 'Overdue') {
         return isOverdue;
@@ -251,11 +265,7 @@ export function DelegationPage() {
 
       counts.All += 1;
 
-      const isOverdue =
-        t.dueDate &&
-        t.status !== 'Completed' &&
-        t.status !== 'Awaiting Verification' &&
-        new Date(t.dueDate).getTime() < Date.now();
+      const isOverdue = isTaskOverdue(t);
 
       if (isOverdue) counts.Overdue += 1;
       if (t.status === 'Pending') counts.Pending += 1;
@@ -367,7 +377,7 @@ export function DelegationPage() {
       toast.success('Task verified and completed!');
       fetchData();
     } catch (err) {
-      toast.error('Failed to verify task');
+      toast.error(err?.response?.data?.message || 'Failed to verify task');
     }
   };
 
@@ -383,7 +393,8 @@ export function DelegationPage() {
       setSelectedTask(updated);
       fetchData();
     } catch (err) {
-      toast.error('Failed to update status');
+      // The server says WHY — needs verification, needs evidence, not yours.
+      toast.error(err?.response?.data?.message || 'Failed to update status');
     }
   };
 
@@ -394,7 +405,7 @@ export function DelegationPage() {
       setSelectedTask(updated);
       fetchData();
     } catch (err) {
-      toast.error('Failed to verify task');
+      toast.error(err?.response?.data?.message || 'Failed to verify task');
     }
   };
 
@@ -421,6 +432,18 @@ export function DelegationPage() {
     toast.success('Due date revised successfully');
     setSelectedTask(updated);
     fetchData();
+  };
+
+  const handleOverrideAssignee = async (taskId, data) => {
+    try {
+      const updated = await delegationService.overrideAssignee(taskId, data);
+      toast.success(data.resume ? 'Automatic buddy rotation resumed' : 'Task assigned');
+      setSelectedTask(updated);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to change the assignee');
+      throw err;
+    }
   };
 
   const handleAddReminder = async (taskId, data) => {
@@ -1026,7 +1049,7 @@ export function DelegationPage() {
 
       <TaskDetailsDrawer
         isOpen={Boolean(selectedTask)}
-        onClose={() => setSelectedTask(null)}
+        onClose={handleCloseDetails}
         task={selectedTask}
         onUpdateStatus={handleUpdateStatus}
         onVerifyAndComplete={handleVerifyAndCompleteInDrawer}
@@ -1034,6 +1057,7 @@ export function DelegationPage() {
         onToggleSubtask={handleToggleSubtask}
         onAddRemark={handleAddRemark}
         onReviseDueDate={handleReviseDueDate}
+        onOverrideAssignee={handleOverrideAssignee}
         onAddReminder={handleAddReminder}
         onAddFollowUp={handleAddFollowUp}
         onDeleteTask={handleDeleteTask}

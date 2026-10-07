@@ -20,6 +20,7 @@ import {
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { BuddyBadge } from '../../components/workqueue/BuddyAssignmentPanel';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,8 @@ export function TasksTable({
   onRemark,
   onReassign,
   onNonFunctional,
+  /** Opens the Buddy System panel (backup order and history) for a row. */
+  onShowBuddy,
   hasFilters,
   onClearFilters,
   onCreateNew,
@@ -314,6 +317,7 @@ export function TasksTable({
                   {/* Owner */}
                   <td className="px-6 py-4">
                     <p className="text-xs font-bold text-slate-900">{task.doerFirstName} {task.doerLastName}</p>
+                    <BuddyBadge task={task} onClick={onShowBuddy ? () => onShowBuddy(task) : undefined} />
                     {isO2dMirror(task) && !task.doer && !isCompleted && (
                       <p className="text-[11px] font-semibold text-amber-700">Anyone in the team can complete it</p>
                     )}

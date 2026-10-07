@@ -10,6 +10,7 @@
  * who reaches these routes has that permission.
  */
 
+import mongoose from 'mongoose';
 import {
   ChecklistRoutine, ChecklistOccurrence, OCCURRENCE_REASSIGNED_AWAY,
 } from '../../models/Checklist.js';
@@ -18,6 +19,11 @@ import { WorkQueueSeen } from '../../models/WorkQueueSeen.js';
 import { isSuperAdmin, hasPermission, PERMISSIONS } from '../../middlewares/rbac.js';
 import { completeMirroredTask } from '../o2d/o2dDelegationSync.service.js';
 import { roleStageMap } from '../o2d/task.service.js';
+import { startOfOfficeDay, endOfOfficeDay, officeDaySchedule, officeDayKey } from '../../utils/officeDay.js';
+import {
+  resolveBuddyChain, resolveActiveAssignee, sameChain, splitName, assignmentEvent, runBuddySweep, BuddyChainError,
+} from '../workqueue/buddy.service.js';
+import { recordAudit } from '../../utils/auditLog.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -138,43 +144,39 @@ const refuseMirrorEdit = (res, what) =>
     code: 'O2D_MIRROR_READ_ONLY',
   });
 
-const startOfDay = (d) => {
-  const dt = new Date(d);
-  dt.setHours(0, 0, 0, 0);
-  return dt;
-};
+// Office-day boundaries (IST), not the server's own midnight — see utils/officeDay.js.
+const startOfDay = startOfOfficeDay;
+const endOfDay = endOfOfficeDay;
 
-const endOfDay = (d) => {
-  const dt = new Date(d);
-  dt.setHours(23, 59, 59, 999);
-  return dt;
-};
+/** Search text is matched literally — `(` or `C++` is a name, not a pattern. */
+const searchRegex = (text) => new RegExp(String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+/** The most occurrences one routine generates; the response says when it was hit. */
+const MAX_OCCURRENCES = 1000;
 
 /**
- * Generate all planned dates between start and end for a given frequency.
+ * Overdue: open, and its day is over. A LOCKED O2D stage's placeholder date is
+ * not a deadline, so `scheduleTbd` rows never are.
  */
-function generateDates(startDate, endDate, frequency) {
-  if (frequency === 'once') {
-    return [new Date(startDate)];
-  }
-  const dates = [];
-  const current = new Date(startDate);
-  const end = new Date(endDate || startDate);
+const overdueClause = (now = new Date()) => ({
+  scheduleTbd: { $ne: true },
+  $or: [
+    { status: 'overdue' },
+    { status: 'pending', plannedDate: { $lt: startOfDay(now) } },
+  ],
+});
 
-  while (current <= end && dates.length < 1000) {
-    dates.push(new Date(current));
-    switch (frequency) {
-      case 'daily':       current.setDate(current.getDate() + 1); break;
-      case 'weekly':      current.setDate(current.getDate() + 7); break;
-      case 'fortnightly': current.setDate(current.getDate() + 14); break;
-      case 'monthly':     current.setMonth(current.getMonth() + 1); break;
-      case 'quarterly':   current.setMonth(current.getMonth() + 3); break;
-      case 'yearly':      current.setFullYear(current.getFullYear() + 1); break;
-      default:            current.setDate(current.getDate() + 1);
-    }
-  }
-  return dates;
-}
+/**
+ * The rows a compliance rate is measured over: what has fallen due by today,
+ * plus anything already done early. A year of pre-generated future rows in
+ * the denominator read a routine done perfectly so far as ~0%, and a
+ * non-functional row (the work turned out not to be needed) is not a miss.
+ */
+const complianceBaseClause = (now = new Date()) => ({
+  status: { $ne: 'non-functional' },
+  scheduleTbd: { $ne: true },
+  $or: [{ plannedDate: { $lte: endOfDay(now) } }, { status: 'completed' }],
+});
 
 /**
  * Build the base filter for occurrence queries.
@@ -187,10 +189,15 @@ function buildOccurrenceFilter(query, user, scope = null) {
   if (query.department) filter.department = query.department;
   if (query.frequency) filter.frequency = query.frequency;
 
+  // Every `$or` goes through `$and`: search, overdue and the scope are each an
+  // `$or` of their own, and assigning `filter.$or` twice kept only the last —
+  // searching inside Overdue returned every overdue row.
+  const and = [];
+
   // Search
   if (query.search) {
-    const re = new RegExp(query.search, 'i');
-    filter.$or = [{ taskName: re }, { taskCode: re }];
+    const re = searchRegex(query.search);
+    and.push({ $or: [{ taskName: re }, { taskCode: re }] });
   }
 
   // Doer filter (admin only, on the unscoped view). Everyone else is limited by
@@ -216,10 +223,7 @@ function buildOccurrenceFilter(query, user, scope = null) {
   // Status
   const now = new Date();
   if (query.status === 'overdue') {
-    filter.$or = [
-      { status: 'overdue' },
-      { status: 'pending', plannedDate: { $lt: startOfDay(now) } },
-    ];
+    and.push(overdueClause(now));
   } else if (query.status === 'pending') {
     filter.status = 'pending';
     filter.plannedDate = { $gte: startOfDay(now) };
@@ -258,14 +262,11 @@ function buildOccurrenceFilter(query, user, scope = null) {
    * as a plain field it would be silently overwritten by `?status=pending`,
    * which is exactly the sort of filter that looks applied and is not.
    */
-  if (query.includeHeld !== 'true') {
-    filter.$and = [...(filter.$and ?? []), { status: { $ne: OCCURRENCE_REASSIGNED_AWAY } }];
-  }
+  if (query.includeHeld !== 'true') and.push({ status: { $ne: OCCURRENCE_REASSIGNED_AWAY } });
 
-  // Through `$and` for the same reason: the search and overdue branches above
-  // assign `filter.$or` outright, and the scope is an `$or` of its own.
-  if (scope) filter.$and = [...(filter.$and ?? []), scope];
+  if (scope) and.push(scope);
 
+  if (and.length > 0) filter.$and = and;
   return filter;
 }
 
@@ -275,12 +276,58 @@ function buildOccurrenceFilter(query, user, scope = null) {
  */
 function enrichStatus(task) {
   const now = new Date();
-  if (task.status === 'pending' && new Date(task.plannedDate) < startOfDay(now)) {
+  if (task.status === 'pending' && !task.scheduleTbd && new Date(task.plannedDate) < startOfDay(now)) {
     return { ...task, status: 'overdue' };
   }
   return task;
 }
 
+
+/**
+ * One page of `filter`, in the order a person works through it:
+ *
+ *   0  open and due by today (overdue first, oldest first)
+ *   1  open, due later (soonest first)
+ *   2  closed — completed, non-functional (most recent first)
+ *
+ * Sorting on `plannedDate` alone, newest first, put a routine's LAST date on
+ * page one: a daily routine running to December opened on December 31st, and
+ * today's and the overdue rows were pages away from anybody looking.
+ */
+async function findActionableFirst(filter, { skip, limit }, now = new Date()) {
+  // An aggregate does not cast the way `find` does — a doer id arriving as a
+  // string would match nothing — so cast through the model first.
+  const match = ChecklistOccurrence.find(filter).cast(ChecklistOccurrence);
+  const open = { $in: ['$status', ['pending', 'overdue']] };
+  const datedMs = { $toLong: '$plannedDate' };
+
+  return ChecklistOccurrence.aggregate([
+    { $match: match },
+    {
+      $addFields: {
+        _rank: {
+          $switch: {
+            branches: [
+              {
+                case: {
+                  $and: [open, { $ne: ['$scheduleTbd', true] }, { $lte: ['$plannedDate', endOfDay(now)] }],
+                },
+                then: 0,
+              },
+              { case: open, then: 1 },
+            ],
+            default: 2,
+          },
+        },
+      },
+    },
+    { $addFields: { _when: { $cond: [{ $lt: ['$_rank', 2] }, datedMs, { $multiply: [datedMs, -1] }] } } },
+    { $sort: { _rank: 1, _when: 1, _id: 1 } },
+    { $skip: skip },
+    { $limit: limit },
+    { $project: { _rank: 0, _when: 0 } },
+  ]);
+}
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -294,24 +341,32 @@ export async function getTasks(req, res, next) {
     const scope = visibilityScope(req.user, ability, { mine: req.query.mine === 'true' });
     const filter = buildOccurrenceFilter(req.query, req.user, scope);
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, parseInt(req.query.limit) || 25);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
     const skip = (page - 1) * limit;
 
     const [tasks, total, newIds] = await Promise.all([
-      ChecklistOccurrence.find(filter)
-        .sort({ plannedDate: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      findActionableFirst(filter, { skip, limit }),
       ChecklistOccurrence.countDocuments(filter),
       seenAtFor(req.user._id).then((seenAt) => newTaskIdsFor(req.user, ability, seenAt)),
     ]);
+
+    // The chain lives on the routine; the row needs it to show the backup order.
+    const buddyRoutines = await ChecklistRoutine.find({
+      _id: { $in: [...new Set(tasks.map((t) => String(t.routine)))] },
+      assignmentType: 'buddy',
+    }).select('buddyChain').lean();
+    const chainByRoutine = new Map(buddyRoutines.map((r) => [String(r._id), r.buddyChain]));
 
     res.json({
       success: true,
       data: {
         tasks: tasks.map((t) => {
-          const row = { ...enrichStatus(t), isNew: newIds.has(String(t._id)) };
+          const chain = chainByRoutine.get(String(t.routine));
+          const row = {
+            ...enrichStatus(t),
+            isNew: newIds.has(String(t._id)),
+            ...(chain ? { assignmentType: 'buddy', buddyChain: chain } : {}),
+          };
           return isO2dMirror(row) ? { ...row, canComplete: canCompleteO2dRow(row, req.user, ability) } : row;
         }),
         total,
@@ -347,15 +402,21 @@ export async function getSummary(req, res, next) {
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
 
-    const [total, pendingToday, overdue, completed, pendingCarriedOver] = await Promise.all([
+    // Each extra condition is AND-ed onto the base, never spread over it: the
+    // base's `status` and `$and` must survive every count.
+    const withBase = (extra) => ({ $and: [baseFilter, extra] });
+
+    const [total, pendingToday, overdue, completed, complianceBase] = await Promise.all([
       ChecklistOccurrence.countDocuments(baseFilter),
-      ChecklistOccurrence.countDocuments({ ...baseFilter, status: 'pending', plannedDate: { $gte: todayStart, $lte: todayEnd } }),
-      ChecklistOccurrence.countDocuments({ ...baseFilter, $or: [{ status: 'overdue' }, { status: 'pending', plannedDate: { $lt: todayStart } }] }),
-      ChecklistOccurrence.countDocuments({ ...baseFilter, status: 'completed' }),
-      ChecklistOccurrence.countDocuments({ ...baseFilter, $or: [{ status: 'overdue' }, { status: 'pending', plannedDate: { $lt: todayStart } }] }),
+      ChecklistOccurrence.countDocuments(withBase({ status: 'pending', plannedDate: { $gte: todayStart, $lte: todayEnd } })),
+      ChecklistOccurrence.countDocuments(withBase(overdueClause(now))),
+      ChecklistOccurrence.countDocuments(withBase({ status: 'completed' })),
+      ChecklistOccurrence.countDocuments(withBase(complianceBaseClause(now))),
     ]);
 
-    const complianceRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    // Measured over what has fallen due so far — see `complianceBaseClause`.
+    const complianceRate = complianceBase > 0 ? Math.round((completed / complianceBase) * 100) : 0;
+    const pendingCarriedOver = overdue;
 
     res.json({
       success: true,
@@ -365,6 +426,7 @@ export async function getSummary(req, res, next) {
         overdue,
         completed,
         complianceRate,
+        complianceBase,
         carriedOver: pendingCarriedOver,
       },
     });
@@ -386,7 +448,7 @@ export async function getRoutines(req, res, next) {
     const filter = {};
     if (req.query.site) filter.site = req.query.site;
     if (req.query.search) {
-      const re = new RegExp(req.query.search, 'i');
+      const re = searchRegex(req.query.search);
       filter.$or = [{ taskName: re }, { taskCode: re }];
     }
 
@@ -438,6 +500,8 @@ export async function getDepartmentReport(req, res, next) {
 
     const now = new Date();
     const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
+    const placeholder = { $eq: ['$scheduleTbd', true] };
 
     const pipeline = [
       { $match: matchFilter },
@@ -445,9 +509,23 @@ export async function getDepartmentReport(req, res, next) {
         $addFields: {
           computedStatus: {
             $cond: [
-              { $and: [{ $eq: ['$status', 'pending'] }, { $lt: ['$plannedDate', todayStart] }] },
+              {
+                $and: [
+                  { $eq: ['$status', 'pending'] },
+                  { $lt: ['$plannedDate', todayStart] },
+                  { $not: [placeholder] },
+                ],
+              },
               'overdue',
               '$status',
+            ],
+          },
+          // The compliance denominator — see `complianceBaseClause`.
+          countable: {
+            $and: [
+              { $ne: ['$status', 'non-functional'] },
+              { $not: [placeholder] },
+              { $or: [{ $lte: ['$plannedDate', todayEnd] }, { $eq: ['$status', 'completed'] }] },
             ],
           },
         },
@@ -455,7 +533,7 @@ export async function getDepartmentReport(req, res, next) {
       {
         $group: {
           _id: { department: '$department', doer: '$doer', doerFirstName: '$doerFirstName', doerLastName: '$doerLastName' },
-          total: { $sum: 1 },
+          total: { $sum: { $cond: ['$countable', 1, 0] } },
           completed: { $sum: { $cond: [{ $eq: ['$computedStatus', 'completed'] }, 1, 0] } },
           pending: { $sum: { $cond: [{ $eq: ['$computedStatus', 'pending'] }, 1, 0] } },
           missed: { $sum: { $cond: [{ $eq: ['$computedStatus', 'overdue'] }, 1, 0] } },
@@ -515,13 +593,59 @@ export async function getDepartmentReport(req, res, next) {
   }
 }
 
+/** One occurrence of `routine` on `plannedDate`, carrying the routine's current terms. */
+const occurrenceFor = (routine, plannedDate, actor, extra = {}) => ({
+  routine: routine._id,
+  taskName: routine.taskName,
+  taskCode: routine.taskCode,
+  doer: routine.doer,
+  doerFirstName: routine.doerFirstName,
+  doerLastName: routine.doerLastName,
+  department: routine.department,
+  site: routine.site,
+  frequency: routine.frequency,
+  plannedDate,
+  proofRequired: routine.proofRequired,
+  createdBy: actor._id,
+  ...extra,
+});
+
+/**
+ * The occurrences an edit or a stop may still change: not worked, and not yet
+ * past. Completed, non-functional and overdue rows are the record of what
+ * happened and are never rewritten.
+ */
+const unworkedFrom = (routineId, from) => ({ routine: routineId, status: 'pending', plannedDate: { $gte: from } });
+
 /**
  * POST /checklist/routines
  * Create a routine and generate all occurrences.
  */
 export async function createRoutine(req, res, next) {
   try {
-    const { taskName, taskCode, frequency, doer, department, site, startDate, endDate, proofRequired } = req.body;
+    const {
+      taskName, taskCode, frequency, department, site, startDate, endDate, proofRequired, assignmentType, buddyChain,
+    } = req.body;
+
+    /**
+     * Buddy System: the chain's first person is the doer every occurrence is
+     * created for; on each occurrence's own day the rotation hands it to the
+     * first available person. Putting other people on the hook as backups is
+     * assigning them work, so it is a manager's call.
+     */
+    let chain = [];
+    if (assignmentType === 'buddy') {
+      if (!isManager(req.user)) {
+        return res.status(403).json({ success: false, message: 'Only managers can set up a buddy chain.' });
+      }
+      try {
+        chain = await resolveBuddyChain(buddyChain);
+      } catch (err) {
+        if (err instanceof BuddyChainError) return res.status(400).json({ success: false, message: err.message });
+        throw err;
+      }
+    }
+    const doer = chain[0]?.userId ?? req.body.doer;
 
     if (!taskName || !taskCode || !doer || !startDate) {
       return res.status(400).json({ success: false, message: 'Task name, task code, assignee, and start date are required.' });
@@ -532,17 +656,22 @@ export async function createRoutine(req, res, next) {
     }
 
     // Look up the doer's name
-    const doerUser = await User.findById(doer).select('user email').lean();
+    const doerUser = chain[0] ? { user: chain[0].name } : await User.findById(doer).select('user email').lean();
     const nameParts = (doerUser?.user || doerUser?.email || '').split(' ');
     const doerFirstName = nameParts[0] || '';
     const doerLastName = nameParts.slice(1).join(' ') || '';
 
     const resolvedEndDate = (frequency === 'once' && !endDate) ? startDate : (endDate || startDate);
+    const resolvedFrequency = frequency || 'daily';
+
+    if (startOfDay(resolvedEndDate) < startOfDay(startDate)) {
+      return res.status(400).json({ success: false, message: 'The end date cannot be before the start date.' });
+    }
 
     const routine = await ChecklistRoutine.create({
       taskName,
       taskCode,
-      frequency: frequency || 'daily',
+      frequency: resolvedFrequency,
       doer,
       doerFirstName,
       doerLastName,
@@ -552,32 +681,24 @@ export async function createRoutine(req, res, next) {
       endDate: resolvedEndDate,
       proofRequired: proofRequired || false,
       createdBy: req.user._id,
+      assignmentType: chain.length ? 'buddy' : 'single',
+      buddyChain: chain,
     });
 
-    // Generate occurrences
-    const dates = generateDates(startDate, resolvedEndDate, frequency);
-    const occurrences = dates.map((plannedDate) => ({
-      routine: routine._id,
-      taskName,
-      taskCode,
-      doer,
-      doerFirstName,
-      doerLastName,
-      department: department || '',
-      site: site || 'HO',
-      frequency,
-      plannedDate,
-      proofRequired: proofRequired || false,
-      createdBy: req.user._id,
-    }));
+    // Generate occurrences, one per office day the routine falls due.
+    const { dates, truncated } = officeDaySchedule(startDate, resolvedEndDate, resolvedFrequency, { limit: MAX_OCCURRENCES });
+    const occurrences = dates.map((plannedDate) => occurrenceFor(routine, plannedDate, req.user));
 
     if (occurrences.length > 0) {
       await ChecklistOccurrence.insertMany(occurrences);
     }
 
+    // Today's occurrence goes to a backup now if the primary is already away.
+    if (chain.length) await runBuddySweep({ routineIds: [routine._id] });
+
     res.status(201).json({
       success: true,
-      data: { routine, occurrencesCreated: occurrences.length },
+      data: { routine, occurrencesCreated: occurrences.length, truncated },
     });
   } catch (err) {
     next(err);
@@ -602,24 +723,181 @@ export async function updateRoutine(req, res, next) {
     // like it worked until the stage moved and silently undid it.
     if (isO2dMirror(routine)) return refuseMirrorEdit(res, 'edited');
 
-    const allowed = ['taskName', 'frequency', 'doer', 'department', 'site', 'startDate', 'endDate', 'proofRequired'];
+    const before = {
+      doer: String(routine.doer ?? ''),
+      frequency: routine.frequency,
+      start: startOfDay(routine.startDate).getTime(),
+      end: startOfDay(routine.endDate ?? routine.startDate).getTime(),
+    };
+
+    let chainChange = null;
+    try {
+      chainChange = await applyRoutineChainEdit(routine, req.body);
+    } catch (err) {
+      if (err instanceof BuddyChainError) return res.status(400).json({ success: false, message: err.message });
+      throw err;
+    }
+    const isBuddy = routine.assignmentType === 'buddy';
+
+    // On a buddy routine the doer IS the chain's first person; edit the chain.
+    const allowed = ['taskName', 'frequency', 'department', 'site', 'startDate', 'endDate', 'proofRequired'];
+    if (!isBuddy) allowed.push('doer');
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) routine[key] = req.body[key];
     });
 
+    if (startOfDay(routine.endDate ?? routine.startDate) < startOfDay(routine.startDate)) {
+      return res.status(400).json({ success: false, message: 'The end date cannot be before the start date.' });
+    }
+
     // Re-resolve doer name if doer changed
-    if (req.body.doer) {
+    if (req.body.doer && !isBuddy) {
       const doerUser = await User.findById(req.body.doer).select('user email').lean();
+      if (!doerUser) return res.status(400).json({ success: false, message: 'That assignee does not exist.' });
       const nameParts = (doerUser?.user || doerUser?.email || '').split(' ');
       routine.doerFirstName = nameParts[0] || '';
       routine.doerLastName = nameParts.slice(1).join(' ') || '';
     }
 
     await routine.save();
-    res.json({ success: true, data: routine });
+    const cascade = await cascadeRoutineEdit(routine, before, req.user);
+    if (chainChange === 'on') await applyChainToOccurrences(routine, req.user);
+    else if (isBuddy && cascade.regenerated > 0) await runBuddySweep({ routineIds: [routine._id] });
+    res.json({ success: true, data: routine, ...cascade });
   } catch (err) {
     next(err);
   }
+}
+
+/**
+ * Carry a routine edit onto the work it describes.
+ *
+ * Saving the routine alone changed nothing anybody saw: every generated row
+ * kept the old name, doer and dates. Only rows not yet worked and not yet past
+ * move — today onwards, still pending — and never a row a manager placed by
+ * hand (`assignmentSource: 'manual'`). If the SCHEDULE changed, those rows are
+ * regenerated from the new one; a day already worked or pinned is kept and
+ * not generated twice.
+ *
+ * A buddy routine's doer is the chain's to decide (`applyChainToOccurrences`
+ * and the sweep), so only a single-assignee routine pushes `doer` here.
+ */
+async function cascadeRoutineEdit(routine, before, actor, now = new Date()) {
+  const from = startOfDay(now);
+  const movable = { ...unworkedFrom(routine._id, from), assignmentSource: { $ne: 'manual' } };
+  const isBuddy = routine.assignmentType === 'buddy';
+  const doerChanged = !isBuddy && String(routine.doer ?? '') !== before.doer;
+  const scheduleChanged = routine.frequency !== before.frequency
+    || startOfDay(routine.startDate).getTime() !== before.start
+    || startOfDay(routine.endDate ?? routine.startDate).getTime() !== before.end;
+  const handedOver = doerChanged
+    ? { assignedAt: now, reassigned: true, reassignedTo: routine.doer, reassignedBy: actor._id }
+    : {};
+
+  if (scheduleChanged) {
+    const removed = await ChecklistOccurrence.deleteMany(movable);
+    const kept = await ChecklistOccurrence.find({ routine: routine._id }).select('plannedDate').lean();
+    const taken = new Set(kept.map((o) => startOfDay(o.plannedDate).getTime()));
+    const { dates, truncated } = officeDaySchedule(
+      routine.startDate, routine.endDate ?? routine.startDate, routine.frequency, { limit: MAX_OCCURRENCES },
+    );
+    const fresh = dates
+      .filter((d) => d >= from && !taken.has(startOfDay(d).getTime()))
+      .map((d) => occurrenceFor(routine, d, actor, handedOver));
+    if (fresh.length > 0) await ChecklistOccurrence.insertMany(fresh);
+    return { futureUpdated: removed.deletedCount, regenerated: fresh.length, truncated };
+  }
+
+  const result = await ChecklistOccurrence.updateMany(movable, {
+    $set: {
+      taskName: routine.taskName,
+      department: routine.department,
+      site: routine.site,
+      proofRequired: routine.proofRequired,
+      ...(doerChanged
+        ? { doer: routine.doer, doerFirstName: routine.doerFirstName, doerLastName: routine.doerLastName, ...handedOver }
+        : {}),
+    },
+  });
+  return { futureUpdated: result.modifiedCount, regenerated: 0, truncated: false };
+}
+
+/**
+ * Apply a Buddy System edit to `routine` (unsaved). Returns 'on' when the
+ * routine now has a new chain, 'off' when the chain was dropped, else null.
+ */
+async function applyRoutineChainEdit(routine, body) {
+  if (body.assignmentType === undefined && body.buddyChain === undefined) return null;
+  const nextType = body.assignmentType ?? routine.assignmentType ?? 'single';
+
+  if (nextType === 'single') {
+    if (routine.assignmentType !== 'buddy') return null;
+    routine.assignmentType = 'single';
+    routine.buddyChain = [];
+    return 'off';
+  }
+  if (nextType !== 'buddy') throw new BuddyChainError(`Unknown assignment type "${nextType}".`);
+
+  const chain = await resolveBuddyChain(body.buddyChain ?? routine.buddyChain);
+  if (routine.assignmentType === 'buddy' && sameChain(chain, routine.buddyChain)) return null;
+
+  const { first, last } = splitName(chain[0].name);
+  routine.assignmentType = 'buddy';
+  routine.buddyChain = chain;
+  routine.doer = chain[0].userId;
+  routine.doerFirstName = first;
+  routine.doerLastName = last;
+  return 'on';
+}
+
+/**
+ * A new chain applies from today on.
+ *
+ * Future, unworked occurrences go back to the new primary — on their own day
+ * the rotation starts from them. Today's is re-decided now, from the top of
+ * the new chain, so a removed backup who was holding it loses it and a
+ * reordered chain takes effect at once. Past days, finished work and
+ * occurrences a manager assigned by hand are left as they are.
+ */
+async function applyChainToOccurrences(routine, actor) {
+  const now = new Date();
+  const notManual = { routine: routine._id, status: 'pending', assignmentSource: { $ne: 'manual' } };
+  const primary = routine.buddyChain[0];
+  const { first, last } = splitName(primary.name);
+
+  await ChecklistOccurrence.updateMany(
+    { ...notManual, plannedDate: { $gt: endOfDay(now) } },
+    {
+      $set: {
+        doer: primary.userId,
+        doerFirstName: first,
+        doerLastName: last,
+        assignmentSource: 'primary',
+        assignmentReason: '',
+        buddyDay: null,
+        noAssigneeDay: null,
+      },
+    },
+  );
+
+  const day = officeDayKey(now);
+  await ChecklistOccurrence.updateMany(
+    { ...notManual, plannedDate: { $gte: startOfDay(now), $lte: endOfDay(now) } },
+    {
+      $set: { buddyDay: null, noAssigneeDay: null },
+      $push: {
+        assignmentHistory: assignmentEvent({
+          day,
+          event: 'chain_changed',
+          source: 'manual',
+          reason: `Buddy chain set to ${routine.buddyChain.map((m, i) => `${i + 1}. ${m.name}`).join(', ')}`,
+          by: actor,
+        }),
+      },
+    },
+  );
+
+  await runBuddySweep({ routineIds: [routine._id], now });
 }
 
 /**
@@ -644,7 +922,18 @@ export async function stopRoutine(req, res, next) {
       { isActive: false },
       { new: true },
     );
-    res.json({ success: true, data: routine });
+
+    /**
+     * Stopping ends the work, not just the label. Nothing reads `isActive` for
+     * the rows, so every pre-generated future row used to stay pending, go
+     * overdue a day at a time and drag the doer's compliance down for a
+     * routine that no longer existed. Rows from tomorrow on that nobody worked
+     * are removed; today's stays due, and the past is the record.
+     */
+    const tomorrow = new Date(endOfDay(new Date()).getTime() + 1);
+    const removed = await ChecklistOccurrence.deleteMany(unworkedFrom(routine._id, tomorrow));
+
+    res.json({ success: true, data: routine, futureRemoved: removed.deletedCount });
   } catch (err) {
     next(err);
   }
@@ -666,6 +955,10 @@ export async function completeTask(req, res, next) {
     }
 
     if (task.status === 'completed') return res.status(400).json({ success: false, message: 'Task already completed.' });
+    // A row taken off its doer is history; the work is live on somebody else's row.
+    if (task.status === OCCURRENCE_REASSIGNED_AWAY) {
+      return res.status(409).json({ success: false, message: 'This task was moved to somebody else and can no longer be completed here.' });
+    }
 
     /**
      * A MIRRORED task is completed by completing the STAGE, never by writing
@@ -776,18 +1069,47 @@ export async function reassignTask(req, res, next) {
      */
     if (isO2dMirror(task)) return refuseMirrorEdit(res, 'reassigned');
 
-    const newDoer = await User.findById(req.body.newDoer).select('user email').lean();
-    if (!newDoer) return res.status(400).json({ success: false, message: 'New doer not found.' });
+    let newDoer;
+    try {
+      newDoer = await resolveActiveAssignee(req.body.newDoer);
+    } catch (err) {
+      if (err instanceof BuddyChainError) return res.status(400).json({ success: false, message: err.message });
+      throw err;
+    }
 
-    const nameParts = (newDoer.user || newDoer.email || '').split(' ');
-    task.doer = newDoer._id;
-    task.doerFirstName = nameParts[0] || '';
-    task.doerLastName = nameParts.slice(1).join(' ') || '';
+    const from = { userId: task.doer, name: [task.doerFirstName, task.doerLastName].filter(Boolean).join(' ') };
+    const nameParts = splitName(newDoer.name);
+    task.doer = newDoer.userId;
+    task.doerFirstName = nameParts.first;
+    task.doerLastName = nameParts.last;
     task.reassigned = true;
-    task.reassignedTo = newDoer._id;
+    task.reassignedTo = newDoer.userId;
     task.reassignedBy = req.user._id;
     task.assignedAt = new Date();
+
+    /**
+     * A manual assignment PINS this occurrence: the buddy rotation leaves a
+     * row a manager placed by hand alone. It is one day's row, so the pin
+     * lasts exactly that day — the next occurrence follows the chain again.
+     */
+    const reason = `Assigned manually by ${req.user.user || req.user.email || 'a manager'}`;
+    task.assignmentSource = 'manual';
+    task.assignmentReason = reason;
+    task.noAssigneeDay = null;
+    task.assignmentHistory.push(assignmentEvent({
+      day: officeDayKey(task.plannedDate),
+      event: 'manual_override',
+      source: 'manual',
+      from,
+      to: newDoer,
+      reason,
+      by: req.user,
+    }));
     await task.save();
+
+    await recordAudit(req.user, 'Work Queue Checklist: Manual Reassign', `${task.taskName}: ${from.name} → ${newDoer.name}`, req, {
+      meta: { occurrenceId: String(task._id), from: String(from.userId), to: String(newDoer.userId) },
+    });
 
     res.json({ success: true, data: task });
   } catch (err) {
@@ -802,7 +1124,7 @@ export async function reassignTask(req, res, next) {
 export async function addRemark(req, res, next) {
   try {
     const { taskIds, text } = req.body;
-    if (!taskIds?.length || !text) {
+    if (!Array.isArray(taskIds) || taskIds.length === 0 || !text) {
       return res.status(400).json({ success: false, message: 'taskIds and text are required.' });
     }
 
@@ -813,12 +1135,25 @@ export async function addRemark(req, res, next) {
       createdAt: new Date(),
     };
 
-    await ChecklistOccurrence.updateMany(
-      { _id: { $in: taskIds } },
-      { $push: { remarks: remark } },
-    );
+    /*
+     * Only rows this person may see — their own and the O2D tasks they work,
+     * or any for a manager — the same scope their list is built from. Before,
+     * any id in the company took the remark.
+     */
+    const ids = taskIds.filter((id) => mongoose.isValidObjectId(id));
+    const filter = isManager(req.user)
+      ? { _id: { $in: ids } }
+      : { $and: [{ _id: { $in: ids } }, visibilityScope(req.user, await o2dAbilityFor(req.user), { mine: true })] };
 
-    res.json({ success: true, data: { updated: taskIds.length } });
+    const result = await ChecklistOccurrence.updateMany(filter, { $push: { remarks: remark } });
+
+    if (result.modifiedCount === 0) {
+      return res.status(403).json({ success: false, message: 'None of those tasks are yours to remark on.' });
+    }
+    res.json({
+      success: true,
+      data: { updated: result.modifiedCount, skipped: taskIds.length - result.modifiedCount },
+    });
   } catch (err) {
     next(err);
   }
@@ -854,10 +1189,7 @@ export async function drilldown(req, res, next) {
         filter.plannedDate = { $gte: todayStart, $lte: todayEnd };
         break;
       case 'overdue':
-        filter.$or = [
-          { status: 'overdue' },
-          { status: 'pending', plannedDate: { $lt: todayStart } },
-        ];
+        filter.$and = [...(filter.$and ?? []), overdueClause(now)];
         break;
       case 'completed':
         filter.status = 'completed';

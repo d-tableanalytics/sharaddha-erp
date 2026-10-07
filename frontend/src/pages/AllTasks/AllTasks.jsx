@@ -50,6 +50,7 @@ import { StatTile } from '../../components/workqueue/StatTile';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { isTaskOverdue } from '../Delegation/taskOverdue';
 
 // Status navigation tab definitions
 const STATUS_TABS = [
@@ -101,12 +102,7 @@ function formatDueBadge(dateStr) {
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 }
 
-// Helper: Check if task is overdue
-function isTaskOverdue(task) {
-  if (!task?.dueDate) return false;
-  if (task.status === 'Completed' || task.status === 'Awaiting Verification') return false;
-  return new Date(task.dueDate).getTime() < Date.now();
-}
+// Overdue: the shared rule in Delegation/taskOverdue.js.
 
 // Helper: Check if task is blocked
 function isTaskBlocked(task) {
@@ -771,6 +767,18 @@ export function AllTasks() {
     toast.success('Due date revised successfully');
     setSelectedTaskObj(updated);
     fetchAllData();
+  };
+
+  const handleOverrideAssignee = async (taskId, data) => {
+    try {
+      const updated = await delegationService.overrideAssignee(taskId, data);
+      toast.success(data.resume ? 'Automatic buddy rotation resumed' : 'Task assigned');
+      setSelectedTaskObj(updated);
+      fetchAllData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to change the assignee');
+      throw err;
+    }
   };
 
   const handleAddReminder = async (taskId, data) => {
@@ -1619,10 +1627,11 @@ export function AllTasks() {
                       {/* Sanitized Description Preview */}
                       {task.description && (
                         <div className="border-l-2 border-primary-600 pl-3 py-1 mb-3">
-                          <div
-                            className="text-xs font-medium text-slate-600 line-clamp-3"
-                            dangerouslySetInnerHTML={{ __html: task.description }}
-                          />
+                          <p
+                            className="text-xs font-medium text-slate-600 line-clamp-3 whitespace-pre-line"
+                          >
+                            {task.description}
+                          </p>
                         </div>
                       )}
 
@@ -1695,6 +1704,7 @@ export function AllTasks() {
         onToggleSubtask={handleToggleSubtask}
         onAddRemark={handleAddRemark}
         onReviseDueDate={handleReviseDueDate}
+        onOverrideAssignee={handleOverrideAssignee}
         onAddReminder={handleAddReminder}
         onAddFollowUp={handleAddFollowUp}
         onDeleteTask={handleDeleteTask}

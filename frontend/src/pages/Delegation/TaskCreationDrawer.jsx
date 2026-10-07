@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
+import { AssignmentTypeToggle, BuddyChainEditor, buddyChainError } from '../../components/workqueue/BuddyChainField';
 import { X, Plus, Trash2, CheckSquare, ShieldCheck, Loader2, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { localDateKey } from '../../utils/localDate';
 
 export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [], onSubmit }) {
 
   const [taskTitle, setTaskTitle] = useState('');
   const [description, setDescription] = useState('');
   const [doerId, setDoerId] = useState('');
+  const [assignmentType, setAssignmentType] = useState('single');
+  const [buddyChain, setBuddyChain] = useState(['', '']);
   const [inLoopIds, setInLoopIds] = useState([]);
   const [priority, setPriority] = useState('Medium');
   const [category, setCategory] = useState('Operations');
@@ -15,9 +19,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
   const [newCategoryName, setNewCategoryName] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState([]);
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  const [startDate, setStartDate] = useState(() => localDateKey());
   const [dueDate, setDueDate] = useState('');
   const [recurrence, setRecurrence] = useState('none');
   const [verificationRequired, setVerificationRequired] = useState(true);
@@ -138,9 +140,25 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
     }
   };
 
+  const isBuddy = assignmentType === 'buddy';
+
+  const switchAssignmentType = (next) => {
+    // The chosen doer becomes the primary, so switching over loses nothing.
+    if (next === 'buddy' && !buddyChain[0] && doerId) setBuddyChain([doerId, ...buddyChain.slice(1)]);
+    setAssignmentType(next);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!taskTitle.trim() || !doerId || !dueDate) {
+    if (isBuddy) {
+      const problem = buddyChainError(buddyChain);
+      if (problem) {
+        toast.error(problem);
+        return;
+      }
+    }
+    const effectiveDoerId = isBuddy ? buddyChain[0] : doerId;
+    if (!taskTitle.trim() || !effectiveDoerId || !dueDate) {
       toast.error('Please provide a title, assignee, and due date.');
       return;
     }
@@ -158,7 +176,7 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
       }
     }
 
-    const selectedDoer = internalMembers.find((u) => u._id === doerId) || users.find((u) => u._id === doerId);
+    const selectedDoer = internalMembers.find((u) => u._id === effectiveDoerId) || users.find((u) => u._id === effectiveDoerId);
     const selectedInLoop = internalMembers
       .filter((u) => inLoopIds.includes(u._id))
       .map((u) => ({ userId: u._id, name: u.user, email: u.email }));
@@ -170,7 +188,9 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
       await onSubmit({
         taskTitle: taskTitle.trim(),
         description: description.trim(),
-        doerId,
+        doerId: effectiveDoerId,
+        assignmentType,
+        ...(isBuddy ? { buddyChain } : {}),
         doerFirstName: selectedDoer?.user?.split(' ')[0] || 'Member',
         doerLastName: selectedDoer?.user?.split(' ').slice(1).join(' ') || '',
         assigneeHierarchy: `${selectedDoer?.user || 'Member'} → ${selectedDoer?.role || 'Team'}`,
@@ -192,6 +212,8 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
       setTags([]);
       setSubtasks(['']);
       setDueDate('');
+      setAssignmentType('single');
+      setBuddyChain(['', '']);
       setIsCreatingCategory(false);
       setNewCategoryName('');
       onClose();
@@ -264,16 +286,28 @@ export function TaskCreationDrawer({ isOpen, onClose, users = [], categories = [
             />
           </div>
 
+          {/* Assignment Type */}
+          <div>
+            <span className="block text-xs font-semibold text-slate-700 mb-1.5">Assignment Type</span>
+            <AssignmentTypeToggle value={assignmentType} onChange={switchAssignmentType} />
+          </div>
+
+          {isBuddy && (
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <BuddyChainEditor users={internalMembers} chain={buddyChain} onChange={setBuddyChain} />
+            </div>
+          )}
+
           {/* Assignee & In-Loop Stakeholders */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div className={isBuddy ? 'hidden' : undefined}>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Assign To (Doer) *
               </label>
               <select
                 value={doerId}
                 onChange={(e) => setDoerId(e.target.value)}
-                required
+                required={!isBuddy}
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg shadow-sm outline-none transition-all placeholder-slate-400 text-slate-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
               >
                 {internalMembers.length === 0 ? (

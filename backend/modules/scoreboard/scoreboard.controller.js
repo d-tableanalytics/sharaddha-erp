@@ -5,6 +5,17 @@ import { ChecklistOccurrence, OCCURRENCE_REASSIGNED_AWAY } from '../../models/Ch
 import ScoreboardGoal from '../../models/ScoreboardGoal.js';
 import Employee from '../../models/hrms/Employee.js';
 import { isSuperAdmin } from '../../middlewares/rbac.js';
+import { endOfOfficeDay } from '../../utils/officeDay.js';
+
+/**
+ * The moment a row stops being on time.
+ *
+ * A hand-made task is due on a DAY — its date is stored as 00:00 UTC, 05:30 in
+ * the office — so comparing the completion to that instant scored anything
+ * finished after breakfast as late. It is on time until the office day ends.
+ * An O2D stage carries a real deadline down to the minute, and keeps it.
+ */
+const onTimeDeadline = (row, due) => (row.sourceType === 'o2d_stage' ? due : endOfOfficeDay(due));
 
 /**
  * Format a Date object to YYYY-MM-DD
@@ -215,7 +226,7 @@ export async function getScoreboard(req, res, next) {
     };
 
     const delegations = await Delegation.find(delegationQuery)
-      .select('doerId doerFirstName doerLastName dueDate completedAt status')
+      .select('doerId doerFirstName doerLastName dueDate completedAt status sourceType')
       .lean();
 
     delegations.forEach((d) => {
@@ -232,7 +243,7 @@ export async function getScoreboard(req, res, next) {
 
       const isCompleted = d.status === 'Completed' || d.status === 'Awaiting Verification' || !!d.completedAt;
       const completedAt = d.completedAt ? new Date(d.completedAt) : (isCompleted ? due : null);
-      const isOnTime = isCompleted && completedAt && completedAt <= due;
+      const isOnTime = isCompleted && completedAt && completedAt <= onTimeDeadline(d, due);
 
       // Current period
       if (due >= periodStart && due <= calcPeriodEnd) {
@@ -266,7 +277,7 @@ export async function getScoreboard(req, res, next) {
     }
 
     const occurrences = await ChecklistOccurrence.find(occurrenceQuery)
-      .select('doer doerFirstName doerLastName plannedDate completedDate status site')
+      .select('doer doerFirstName doerLastName plannedDate completedDate status site sourceType')
       .lean();
 
     occurrences.forEach((o) => {
@@ -278,7 +289,7 @@ export async function getScoreboard(req, res, next) {
 
       const isCompleted = o.status === 'completed' || !!o.completedDate;
       const completedDate = o.completedDate ? new Date(o.completedDate) : (isCompleted ? planned : null);
-      const isOnTime = isCompleted && completedDate && completedDate <= planned;
+      const isOnTime = isCompleted && completedDate && completedDate <= onTimeDeadline(o, planned);
 
       // Current period
       if (planned >= periodStart && planned <= calcPeriodEnd) {

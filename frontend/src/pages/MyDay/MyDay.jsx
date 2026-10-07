@@ -212,7 +212,9 @@ export function MyDay() {
           delegationService.getDelegations({ myWork: "true" }),
           // `mine`: this person's own rows plus the open O2D tasks they can act
           // on (their team's, the stages they cover, all of them for an admin).
-          checklistApi.getTasks({ limit: 500, mine: "true" }),
+          // 100 is the server's page cap, and it returns overdue and today's
+          // rows first — asking for 500 got 100 of the furthest-future ones.
+          checklistApi.getTasks({ limit: 100, mine: "true" }),
         ]);
 
         // Normalize delegations

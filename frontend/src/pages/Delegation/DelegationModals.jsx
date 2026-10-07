@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { isWebUrl } from './taskOverdue';
 
 // ── Revise Date Modal ────────────────────────────────────────────────────────
 export function ReviseDateModal({ isOpen, onClose, task, onRevise }) {
@@ -369,14 +370,18 @@ export function VerificationSubmitModal({ isOpen, onClose, task, onVerify }) {
             {task.evidenceUrl && (
               <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200">
                 <span className="font-bold text-slate-500">Submitted Proof:</span>
-                <a
-                  href={task.evidenceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-bold text-primary-600 hover:underline truncate max-w-[180px]"
-                >
-                  View Attachment ↗
-                </a>
+                {isWebUrl(task.evidenceUrl) ? (
+                  <a
+                    href={task.evidenceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-bold text-primary-600 hover:underline truncate max-w-[180px]"
+                  >
+                    View Attachment ↗
+                  </a>
+                ) : (
+                  <span className="font-bold text-slate-700 truncate max-w-[180px]">{task.evidenceUrl}</span>
+                )}
               </div>
             )}
             {task.evidenceNotes && (

@@ -49,7 +49,8 @@ export const checklistApi = {
   // Write
   createRoutine:    (data)     => post('/routines', data),
   updateRoutine:    (id, data) => put(`/routines/${id}`, data),
-  stopRoutine:      (id)       => patch(`/routines/${id}/stop`),
+  // The whole envelope: `futureRemoved` sits beside `data`, and the page reports it.
+  stopRoutine:      (id)       => api.patch(`${PREFIX}/routines/${id}/stop`).then((res) => res.data),
   completeTask:     (id, data) => patch(`/tasks/${id}/complete`, data),
   markNonFunctional:(id, data) => patch(`/tasks/${id}/non-functional`, data),
   reassignTask:     (id, data) => patch(`/tasks/${id}/reassign`, data),

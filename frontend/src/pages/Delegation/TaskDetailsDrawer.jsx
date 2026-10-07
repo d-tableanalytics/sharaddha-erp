@@ -26,6 +26,8 @@ import toast from 'react-hot-toast';
 import delegationService from '../../services/delegation';
 import { usePermissions } from '../../hooks/usePermissions';
 import { isO2dMirror } from './TaskListView';
+import { isTaskOverdue, isWebUrl, relationTo } from './taskOverdue';
+import { BuddyAssignmentPanel } from '../../components/workqueue/BuddyAssignmentPanel';
 
 function getInitials(first = '', last = '') {
   const f = first ? first.charAt(0) : '';
@@ -53,6 +55,7 @@ export function TaskDetailsDrawer({
   onAddReminder,
   onAddFollowUp,
   onDeleteTask,
+  onOverrideAssignee,
 }) {
   /**
    * WHAT THIS DRAWER OFFERS, DECIDED ONCE.
@@ -74,10 +77,13 @@ export function TaskDetailsDrawer({
    * The server enforces all three on every route these call. This decides what
    * is on screen.
    */
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
   const canEdit = can('work_queue', 'tasks', 'edit');
   const canVerify = can('work_queue', 'completion', 'edit');
   const canDelete = can('work_queue', 'tasks', 'delete');
+  // Choosing who does the work is the assignment cell; the server also checks
+  // that the caller owns the task.
+  const canAssign = can('work_queue', 'assignment', 'edit');
 
   const [remarkText, setRemarkText] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -104,10 +110,22 @@ export function TaskDetailsDrawer({
   if (!isOpen || !task) return null;
 
   const currentStepIndex = LIFECYCLE_STEPS.findIndex((s) => s.id === task.status);
-  const isOverdue =
-    task.dueDate &&
-    task.status !== 'Completed' &&
-    new Date(task.dueDate).getTime() < Date.now();
+  const isOverdue = isTaskOverdue(task);
+
+  /*
+   * The cells say what KIND of thing this viewer may do; the task says whether
+   * they may do it HERE — the same rule the server applies. The doer moves the
+   * work and submits it; the assigner (or a manager) verifies it and moves its
+   * deadline. Nobody verifies their own work unless they also set it.
+   */
+  const rel = relationTo(task, user);
+  const mayVerify = canVerify && rel.owner && !(rel.doer && !rel.assigner && task.verificationRequired);
+  const mayReviseDate = rel.owner && !mirrored && task.status !== 'Completed';
+  const doerSubmits = !rel.owner && task.verificationRequired;
+  const quickStatuses = !rel.owner && task.status === 'Completed'
+    ? []
+    : ['In Progress', doerSubmits ? 'Awaiting Verification' : 'Completed'];
+  const quickLabel = (st) => (st === 'Awaiting Verification' ? 'Submit for verification' : st);
 
   // Subtask progress
   const totalSubtasks = task.subtasks?.length || 0;
@@ -230,6 +248,14 @@ export function TaskDetailsDrawer({
               </div>
             </div>
 
+            <BuddyAssignmentPanel
+              task={task}
+              doerId={task.doerId}
+              doerName={`${task.doerFirstName || ''} ${task.doerLastName || ''}`.trim()}
+              onOverride={onOverrideAssignee && canAssign ? (payload) => onOverrideAssignee(task._id, payload) : undefined}
+              loadUsers={delegationService.getUsers}
+            />
+
             {/* Lifecycle Progress Stepper */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
@@ -274,7 +300,7 @@ export function TaskDetailsDrawer({
               {(canVerify || canEdit) && (
               <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                 {task.status === 'Awaiting Verification' ? (
-                  canVerify ? (
+                  mayVerify ? (
                   <button
                     type="button"
                     onClick={() => setIsVerifyOpen(true)}
@@ -288,10 +314,10 @@ export function TaskDetailsDrawer({
                       Waiting on the assigner to verify this task.
                     </p>
                   )
-                ) : canEdit ? (
+                ) : canEdit && quickStatuses.length > 0 ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500">Quick status:</span>
-                    {['In Progress', 'Completed'].map((st) => (
+                    {quickStatuses.map((st) => (
                       <button
                         key={st}
                         type="button"
@@ -303,7 +329,7 @@ export function TaskDetailsDrawer({
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
-                        {st}
+                        {quickLabel(st)}
                       </button>
                     ))}
                   </div>
@@ -315,6 +341,7 @@ export function TaskDetailsDrawer({
             {/* Quick Action Pills: Revise Date, Reminder, Follow Up */}
             {canEdit && (
             <div className="grid grid-cols-3 gap-2">
+              {mayReviseDate && (
               <button
                 type="button"
                 onClick={() => setIsReviseDateOpen(true)}
@@ -330,6 +357,7 @@ export function TaskDetailsDrawer({
                     : 'Not set'}
                 </span>
               </button>
+              )}
 
               <button
                 type="button"
@@ -367,10 +395,11 @@ export function TaskDetailsDrawer({
                 <h4 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-2">
                   Task Instructions & Details
                 </h4>
-                <div
-                  className="p-4 rounded-lg bg-slate-50/60 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: task.description }}
-                />
+                {/* Plain text, never HTML: a stored description used to run as markup
+                    in whoever opened the task. */}
+                <p className="p-4 rounded-lg bg-slate-50/60 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed whitespace-pre-line">
+                  {task.description}
+                </p>
               </div>
             )}
 
@@ -388,15 +417,19 @@ export function TaskDetailsDrawer({
                 </div>
                 {task.evidenceUrl ? (
                   <div className="pt-2 border-t border-primary-200/60 text-xs">
-                    <a
-                      href={task.evidenceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary-600 font-bold hover:underline flex items-center gap-1"
-                    >
-                      <span>{task.evidenceUrl}</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                    {isWebUrl(task.evidenceUrl) ? (
+                      <a
+                        href={task.evidenceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary-600 font-bold hover:underline flex items-center gap-1"
+                      >
+                        <span>{task.evidenceUrl}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <span className="text-slate-700 font-bold break-all">{task.evidenceUrl}</span>
+                    )}
                     {task.evidenceNotes && (
                       <p className="text-slate-600 mt-1 italic">"{task.evidenceNotes}"</p>
                     )}

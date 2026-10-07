@@ -11,6 +11,7 @@ import { runAcademyReminderSweep } from './modules/hrms/academy/reminder.service
 import { seedO2dStages } from './config/seedO2dStages.js';
 import { runEscalationSweep, sendDailySummary } from './modules/o2d/escalation.service.js';
 import { retryFailedInvoices } from './modules/o2d/invoicing.service.js';
+import { runScheduledBuddySweep } from './modules/workqueue/buddy.service.js';
 
 dotenv.config();
 
@@ -130,6 +131,35 @@ const O2D_CRON_TIMEZONE = process.env.O2D_CRON_TIMEZONE || 'Asia/Kolkata';
  * `maxAttempts` stops a permanently broken invoice from being retried forever.
  */
 const O2D_INVOICE_RETRY_SCHEDULE = process.env.O2D_INVOICE_RETRY_SCHEDULE || '15 * * * *';
+
+/**
+ * Work Queue Buddy System rotation.
+ *
+ * ON unless `WORK_QUEUE_BUDDY_CRON=disabled` — unlike the sweeps above, because
+ * a buddy task whose rotation never runs silently stays with an absent primary,
+ * which is the one thing the feature exists to prevent. It only ever touches
+ * tasks somebody set up with a buddy chain, and every write is a
+ * compare-and-set, so running it often (or twice) changes nothing twice.
+ *
+ * Every 15 minutes: leave approved this morning, or an absence marked at
+ * 10:00, reaches the backup within the quarter hour.
+ */
+const BUDDY_CRON_ENABLED = process.env.WORK_QUEUE_BUDDY_CRON !== 'disabled';
+const BUDDY_CRON_SCHEDULE = process.env.WORK_QUEUE_BUDDY_SCHEDULE || '*/15 * * * *';
+
+const runBuddyRotation = () =>
+  runScheduledBuddySweep()
+    .then((r) => {
+      // Logged only when something moved, like the O2D sweep.
+      if (r.activated || r.restored || r.noAssignee || r.failed) {
+        console.log(
+          `[WorkQueue] Buddy rotation ${r.day}: ${r.activated} backup(s) activated, `
+            + `${r.restored} returned to primary, ${r.noAssignee} with nobody available`
+            + `${r.failed ? `, ${r.failed} failed` : ''}.`,
+        );
+      }
+    })
+    .catch((err) => console.error('[WorkQueue] Buddy rotation failed:', err.message));
 
 const startServer = async () => {
   await connectDatabase();
@@ -260,6 +290,15 @@ const startServer = async () => {
     );
   } else {
     console.log('[O2D] Background sweeps DISABLED (O2D_CRON is not "enabled").');
+  }
+
+  if (BUDDY_CRON_ENABLED) {
+    cron.schedule(BUDDY_CRON_SCHEDULE, runBuddyRotation, { timezone: 'Asia/Kolkata' });
+    // And once at boot, so a restart mid-morning does not wait for the next tick.
+    runBuddyRotation();
+    console.log(`[WorkQueue] Buddy rotation scheduled: ${BUDDY_CRON_SCHEDULE} Asia/Kolkata.`);
+  } else {
+    console.log('[WorkQueue] Buddy rotation DISABLED (WORK_QUEUE_BUDDY_CRON=disabled).');
   }
 
   server.listen(PORT, () => {
