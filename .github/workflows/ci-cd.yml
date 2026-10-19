@@ -1,0 +1,109 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  frontend:
+    name: Frontend lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      # Empty VITE_API_URL = same origin; nginx proxies /api to the backend.
+      - run: npm run build
+        env:
+          VITE_API_URL: ''
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  deploy:
+    name: Deploy to EC2
+    needs: [backend, frontend]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      APP_DIR: /var/www/shraddha-employee-portal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload backend and frontend
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+        run: |
+          RSYNC="rsync -az --delete -e 'ssh -i ~/.ssh/deploy.pem'"
+          eval $RSYNC --exclude node_modules --exclude tests --exclude .env --exclude uploads backend/ "$TARGET:$APP_DIR/backend/"
+          eval $RSYNC frontend/dist/ "$TARGET:$APP_DIR/frontend/dist/"
+          eval $RSYNC ecosystem.config.cjs "$TARGET:$APP_DIR/ecosystem.config.cjs"
+
+      - name: Install and restart
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy.pem "$TARGET" "bash -se" <<EOF
+          set -e
+          cd $APP_DIR/backend
+          ln -sf $APP_DIR/.env .env
+          npm ci --omit=dev --no-audit --no-fund
+          pm2 startOrReload $APP_DIR/ecosystem.config.cjs --update-env
+          pm2 save
+          EOF
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 15); do
+            curl -fsS "http://${{ secrets.EC2_HOST }}/health" && exit 0
+            sleep 4
+          done
+          echo "Health check failed" && exit 1
