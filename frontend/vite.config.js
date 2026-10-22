@@ -80,5 +80,11 @@ export default defineConfig({
     // Node also resolves `@shared`; without this the shared module is loaded
     // twice under two identities and instanceof checks across it would fail.
     alias: { '@shared': shared },
+    // The default 5s is too tight for the user-event-heavy page tests once
+    // files run in parallel on a small CI runner: the work is CPU-bound jsdom
+    // rendering, and under contention three of them timed out while passing
+    // alone. A longer budget, not a retry — a genuine hang still fails.
+    testTimeout: 30000,
+    hookTimeout: 30000,
   },
 })
