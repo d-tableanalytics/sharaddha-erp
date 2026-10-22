@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-import { useUserStore } from '../../store/userStore';
 import delegationService from '../../services/delegation';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -129,25 +128,17 @@ export function DeletedTasks() {
   const navigate = useNavigate();
 
   // ── Access Control Evaluation ──────────────────────────────────────────
-  const userFromStore = useUserStore((s) => s.user);
-  const storedUser = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
-
-  const currentUser = userFromStore || storedUser?.user || storedUser;
-  const userRole = String(currentUser?.role || '').toUpperCase();
-  const isAdmin = ['ADMIN', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGEMENT'].includes(userRole);
+  // The matrix cell, not a role list: the sidebar row, the route guard and
+  // GET /delegation/deleted all ask this same cell, so the page cannot refuse
+  // somebody the other three admitted (or admit somebody they refused).
+  const { can } = usePermissions();
+  const isAdmin = can('work_queue', 'trash', 'view');
 
   // ── State variables ────────────────────────────────────────────────────
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { can } = usePermissions();
   const canRestore = can('work_queue', 'trash', 'approve');
 
   const [restoringId, setRestoringId] = useState(null);

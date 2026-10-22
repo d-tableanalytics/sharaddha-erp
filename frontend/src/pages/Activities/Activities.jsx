@@ -21,6 +21,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { useUserStore } from '../../store/userStore';
+import { usePermissions } from '../../hooks/usePermissions';
 import activityService from '../../services/activity';
 import delegationService from '../../services/delegation';
 import TaskDetailsDrawer from '../Delegation/TaskDetailsDrawer';
@@ -154,14 +155,11 @@ export function Activities() {
   const navigate = useNavigate();
   const { user } = useUserStore();
 
-  // Role Scoping: Admin / SuperAdmin / Management / Leadership roles
-  const isAdmin = useMemo(() => {
-    if (!user) return false;
-    const role = String(user.role || '').toUpperCase();
-    if (['ADMIN', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGEMENT'].includes(role)) return true;
-    const des = String(user.designation || '').toLowerCase();
-    return /\b(ceo|managing director|md|director|lead|admin)\b/.test(des);
-  }, [user]);
+  // The matrix cell is the whole answer - the same one the sidebar row, the
+  // route guard and GET /activities ask. A hardcoded role list here let the
+  // first three say yes and this page say no.
+  const { can } = usePermissions();
+  const isAdmin = can('work_queue', 'activity', 'view');
 
   // Filter States
   const [dateRange, setDateRange] = useState('This Month');
