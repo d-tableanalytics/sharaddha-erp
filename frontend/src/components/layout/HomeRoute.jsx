@@ -1,55 +1,66 @@
-import { Navigate } from "react-router-dom";
+import { lazy } from "react";
 import { Loader2, ShieldAlert, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 
-import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
 import { useHrmsStore } from "../../store/hrmsStore";
 import { useUserStore } from "../../store/userStore";
 import { canOpenUserManagement, canManageRoles } from "../../utils/permissions";
+import { useHomeContext } from "../../pages/Home/useHomeSources";
+import { hasAnyHomeContent } from "../../pages/Home/homeAccess";
+
+// Lazy, like every other page: MainLayout's Suspense covers it.
+const HomeDashboard = lazy(() => import("../../pages/Home/HomeDashboard").then((m) => ({ default: m.HomeDashboard })));
 
 /**
- * The front door, and the one route that had to be INVENTED for the split.
+ * The front door: the common home dashboard, for every account.
  *
  * ---------------------------------------------------------------------------
- * Why "/" cannot simply redirect to /hrms/dashboard
+ * What changed, and why
  * ---------------------------------------------------------------------------
- * `HrmsProtectedRoute` sends an account with no HRMS access to "/". In the
- * Customer Portal that was a real destination — the booking dashboard — so the
- * redirect landed somewhere useful and the shared shell carried on.
+ * "/" used to redirect HRMS users to /hrms/dashboard and tell everybody else
+ * they had "No Employee Portal access". That was wrong for a whole class of
+ * accounts: Billing and Accounts hold no HRMS role at all, yet work FMS orders
+ * and the Work Queue every day — and they were greeted with a refusal on every
+ * sign-in, one click away from screens they could open.
  *
- * Here there is no booking dashboard. A blanket `"/" -> "/hrms/dashboard"`
- * would bounce such an account back into the guard, which would bounce it to
- * "/" again: an infinite redirect for exactly the accounts AD-4 is about.
+ * Now "/" renders the home dashboard, which asks each module the same
+ * permission question its own route asks and shows only what answers yes. The
+ * HR Dashboard stays where it was, as the deep HR view the home page links to.
  *
- * So "/" resolves the actor first, and only then decides. An HRMS user goes
- * where they always went. An account without HRMS access is TOLD so — this is
- * the one place in the app where saying it out loud is right, because unlike
- * the shared shell there is nothing else here for them to be doing, and a
- * silent bounce would look like a broken sign-in.
+ * ---------------------------------------------------------------------------
+ * Why it still waits for the HRMS actor
+ * ---------------------------------------------------------------------------
+ * The page's HRMS cards are decided by the actor `/hrms/me` resolves. Rendering
+ * before it lands would request the Work Queue sources, then re-render and
+ * request the HRMS ones a moment later — and, for an account that turns out to
+ * have nothing, flash a dashboard before the refusal.
  *
- * A portal administrator who is not an HRMS user is the case worth handling:
- * they may hold MANAGE_USERS or MANAGE_ROLES and be here precisely to grant
- * somebody HRMS access, so they are offered Administration rather than a dead
- * end.
+ * ---------------------------------------------------------------------------
+ * The refusal is kept, for accounts with genuinely nothing
+ * ---------------------------------------------------------------------------
+ * No module, no quick action. Saying so is right: a blank dashboard would look
+ * like a broken sign-in. A portal administrator is still offered Roles &
+ * Permissions, since they may be here precisely to grant access.
  */
 export const HomeRoute = () => {
   const loaded = useHrmsStore((s) => s.loaded);
   const loading = useHrmsStore((s) => s.loading);
-  const { hasAccess } = useHrmsPermissions();
-  const { user, logout } = useUserStore();
+  const userLoading = useUserStore((s) => s.loading);
+  const { user, ctx } = useHomeContext();
+  const logout = useUserStore((s) => s.logout);
 
-  if (!loaded || loading) {
+  if (!loaded || loading || userLoading) {
     return (
       <div className="w-full flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Loader2 className="animate-spin text-primary-600" size={28} />
         <span className="text-sm font-semibold text-slate-500 select-none">
-          Checking HRMS access…
+          Loading your dashboard…
         </span>
       </div>
     );
   }
 
-  if (hasAccess) return <Navigate to="/hrms/dashboard" replace />;
+  if (hasAnyHomeContent(user, ctx)) return <HomeDashboard />;
 
   const canAdminister = canOpenUserManagement(user) || canManageRoles(user);
 
@@ -62,8 +73,8 @@ export const HomeRoute = () => {
         <h1 className="text-lg font-black text-slate-900">No Employee Portal access</h1>
         <p className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">
           You are signed in as <span className="font-bold text-slate-700">{user?.email}</span>, but
-          this account holds no HRMS role. Ask an administrator to grant one from Roles &amp;
-          Permissions.
+          this account has not been granted any Employee Portal module yet. Ask an administrator
+          to grant access from Roles &amp; Permissions.
         </p>
 
         <div className="flex items-center justify-center gap-2 mt-6">

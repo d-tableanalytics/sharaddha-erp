@@ -97,6 +97,8 @@ export const o2dApi = {
 
   // ── Analytics ───────────────────────────────────────────────────────────
   analytics: (params = {}) => o2dClient.get("/analytics", params),
+  /** The headline counts alone, for the home dashboard. */
+  analyticsSummary: (params = {}) => o2dClient.get("/analytics/summary", params),
   slaCompliance: (params = {}) => o2dClient.get("/analytics/sla", params),
   delays: (params = {}) => o2dClient.get("/analytics/delays", params),
   people: (params = {}) => o2dClient.get("/analytics/people", params),

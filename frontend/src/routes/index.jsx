@@ -146,6 +146,14 @@ export const router = createBrowserRouter([
             element: <HomeRoute />,
           },
           {
+            // The old `/dashboard` URL now means the home dashboard. It used to
+            // forward to My Work, behind the Work Queue guard — so an account
+            // without that grant was bounced to "/" anyway. Outside every guard
+            // on purpose: "/" is open to all, and decides what to show itself.
+            path: "dashboard",
+            element: <Navigate to="/" replace />,
+          },
+          {
             // Administration of the SHARED users and roles collections. Both
             // repositories carry these screens and both write the same
             // documents; each page re-checks its permission itself, and every
@@ -479,7 +487,6 @@ export const router = createBrowserRouter([
               { path: "my-work/:taskId", element: <MyDay /> },
               { path: "my-tasks", element: <Navigate to="/work-queue" replace /> },
               { path: "my-tasks/:taskId", element: <MyDay /> },
-              { path: "dashboard", element: <Navigate to="/work-queue" replace /> },
               { path: "in-loop-tasks", element: <InLoopTasks /> },
               { path: "in-loop-tasks/:taskId", element: <InLoopTasks /> },
               { path: "all-tasks", element: <AllTasks /> },

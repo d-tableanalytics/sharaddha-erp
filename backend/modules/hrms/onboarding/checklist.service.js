@@ -141,10 +141,11 @@ export async function listChecklists(query = {}, actor) {
 
   if (scope === null) return { data: [], total: 0, page, pageSize };
 
+  // A requested `employeeId` NARROWS the scope; spread after it, it used to
+  // overwrite the scope's own `employeeId` and expose anyone's checklist.
   const filter = {
-    ...scope,
+    $and: [scope, ...(employeeId ? [{ employeeId: oid(employeeId) }] : [])],
     ...(status ? { status } : {}),
-    ...(employeeId ? { employeeId: oid(employeeId) } : {}),
   };
 
   const [rows, total] = await Promise.all([

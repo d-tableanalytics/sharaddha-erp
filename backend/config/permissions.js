@@ -90,6 +90,18 @@ export const PERMISSIONS = {
    * copied onto their own order rows, which they may already read.
    */
   VIEW_PRICING: 'view_pricing',
+  /**
+   * Change the price schedule itself - the four tier prices on Product.prices,
+   * one SKU at a time from Inventory Master or in bulk through the SKU Pricing
+   * import. Seeing a SKU's current prices comes with it: the editor shows them.
+   *
+   * Separate from VIEW_PRICING because quoting from the schedule and rewriting
+   * it are different authorities. Held by Admin (wildcard), Sales, Inventory
+   * Manager, Management and Import Team (decided 2026-10-21); NOT by Warehouse
+   * User, which must not see pricing. Grantable to other roles through the
+   * Customer Pricing row's Edit cell.
+   */
+  MANAGE_PRICING: 'manage_pricing',
 
   // ── Inventory Management System ─────────────────────────────────────────
   // The full set is declared here in one pass rather than being reopened for
@@ -108,6 +120,9 @@ export const PERMISSIONS = {
   APPROVE_ADJUSTMENT: 'approve_adjustment',             // (M7) approve above threshold
   PERFORM_COUNT: 'perform_count',                       // (M7) enter counts
   APPROVE_COUNT: 'approve_count',                       // (M7) approve variances and post
+  // Choose which customer indent gets arriving stock — run the FIFO auto-assign,
+  // assign to a specific indent, or move an allocation to another indent.
+  ASSIGN_INDENT_STOCK: 'assign_indent_stock',
   TRANSFER_STOCK: 'transfer_stock',                     // (M7) inter-location transfers
   /**
    * (M1) Remove a SKU from the catalogue entirely.
@@ -410,6 +425,9 @@ export const BASELINE_ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_CUSTOMER_USERS,
     PERMISSIONS.EDIT_BOOKING_PRE_PO,
     PERMISSIONS.RAISE_PO,
+    // Booking status is moved on the Sales Desk (decided 2026-10-19), and with
+    // it the delivery schedule and cancelling on a customer's behalf.
+    PERMISSIONS.MANAGE_ORDERS,
     // Sales quotes the customer, so Sales sees the price schedule. Admin holds
     // it through the wildcard. No other built-in role does — a warehouse or
     // import user has no reason to know what anyone is charged — and a Super
@@ -420,12 +438,16 @@ export const BASELINE_ROLE_PERMISSIONS = {
     // Sales needs to know what can be sold - availability only, never the
     // ledger, costs or adjustments.
     PERMISSIONS.VIEW_INVENTORY,
+    // Sales decides which customer's indent arriving stock goes to.
+    PERMISSIONS.ASSIGN_INDENT_STOCK,
     // O2D stages 1 and 2: Sales receives the customer PO and hands it to
     // Billing. No override — amending a booking is not approving an exception.
     PERMISSIONS.VIEW_O2D,
     PERMISSIONS.CREATE_O2D_ORDER,
     PERMISSIONS.WORK_O2D_STAGE,
     ...WORK_QUEUE_DOER,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
   ],
 
   'Inventory Manager': [
@@ -441,6 +463,8 @@ export const BASELINE_ROLE_PERMISSIONS = {
     PERMISSIONS.APPROVE_COUNT,
     PERMISSIONS.TRANSFER_STOCK,
     PERMISSIONS.VIEW_REPORTS,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
   ],
 
   'Warehouse User': [
@@ -477,6 +501,8 @@ export const BASELINE_ROLE_PERMISSIONS = {
     PERMISSIONS.APPROVE_COUNT,
     PERMISSIONS.VIEW_REPORTS,
     ...WORK_QUEUE_DOER,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
   ],
 
   /**
@@ -519,6 +545,10 @@ export const BASELINE_ROLE_PERMISSIONS = {
     PERMISSIONS.EXPORT_INVENTORY,
     PERMISSIONS.VIEW_STOCK_LEDGER,
     PERMISSIONS.POST_STOCK_IN,
+    // They receive the stock, so they may say which indent it goes to.
+    PERMISSIONS.ASSIGN_INDENT_STOCK,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
   ],
 
   /**

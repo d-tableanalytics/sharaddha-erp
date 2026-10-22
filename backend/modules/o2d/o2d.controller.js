@@ -568,6 +568,21 @@ export const dashboard = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/v1/o2d/analytics/summary - the headline figures alone.
+ *
+ * The portal home dashboard shows four order counts. `/analytics` would answer
+ * them too, but only after running all six aggregations on every sign-in, so
+ * the home page asks for the one it renders.
+ */
+export const summary = async (req, res, next) => {
+  try {
+    res.status(200).json({ success: true, data: await analytics.dashboardSummary(req.query) });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /** GET /api/v1/o2d/analytics/sla */
 export const slaCompliance = async (req, res, next) => {
   try {
@@ -791,7 +806,7 @@ export default {
   cancelOrder, voidOrder, reviveOrder, exitRegister, exitsByStage, orderHistory,
   listNotifications, readNotifications,
   history,
-  dashboard, slaCompliance, delays, people, customers, exportDataset,
+  dashboard, summary, slaCompliance, delays, people, customers, exportDataset,
   createInvoice,
   myTasks, myTaskCounts, listStageMasters, stageBoard,
 };

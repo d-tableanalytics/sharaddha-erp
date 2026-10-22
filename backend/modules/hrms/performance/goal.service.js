@@ -166,12 +166,20 @@ export async function listGoals(query = {}, actor) {
 
   if (scope === null) return { data: [], total: 0, page, pageSize };
 
+  /**
+   * A requested `employeeId` NARROWS the scope; it never replaces it.
+   *
+   * Both are conditions on the same field, so spreading the request after the
+   * scope used to overwrite the scope's own `employeeId` — and a self-scope
+   * employee could read anyone's goals by naming them. In `$and`, asking for
+   * somebody outside your scope is simply an empty page, the same answer the
+   * single-goal read gives (a 404).
+   */
   const filter = {
-    ...scope,
+    $and: [scope, ...(employeeId ? [{ employeeId: oid(employeeId) }] : [])],
     deletedAt: null,
     ...(status ? { status } : {}),
     ...(cycleId ? { cycleId: oid(cycleId) } : {}),
-    ...(employeeId ? { employeeId: oid(employeeId) } : {}),
     ...(search ? { title: { $regex: `^${escapeRegex(search)}`, $options: 'i' } } : {}),
   };
 

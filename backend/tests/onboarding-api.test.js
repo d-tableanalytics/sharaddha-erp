@@ -472,6 +472,11 @@ describe('who can see a checklist', () => {
 
       // Somebody else's is a 404, not a 403 — its existence is not their business.
       assert.equal((await get(url, `${P}/checklists/${theirChecklistId}`)).status, 404);
+
+      // …and naming them in the list filter cannot widen the scope either.
+      const named = await get(url, `${P}/checklists?employeeId=${theirs.id}`);
+      assert.equal(named.status, 200);
+      assert.equal(named.body.data.total, 0);
     });
   });
 

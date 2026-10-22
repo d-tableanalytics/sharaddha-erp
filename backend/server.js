@@ -4,6 +4,7 @@ import cron from 'node-cron';
 
 import app from './app.js';
 import { connectDatabase } from './config/database.js';
+import { seedBrands, loadBrands } from './utils/brandRegistry.js';
 import { describePortal } from './config/portal.js';
 import { bootstrapHrms } from './modules/hrms/hrms.bootstrap.js';
 import { runHrmsRetentionSweep } from './modules/hrms/retention/retention.sweep.js';
@@ -163,6 +164,15 @@ const runBuddyRotation = () =>
 
 const startServer = async () => {
   await connectDatabase();
+
+  /*
+   * The brand list (utils/brandRegistry.js, shared with the Customer Portal,
+   * where brands are created). Loaded before the first request and re-read
+   * every minute, so a brand created there appears on User Management here
+   * without a restart, and an account saved here keeps its flag for it.
+   */
+  await seedBrands();
+  setInterval(() => { loadBrands(); }, Number(process.env.BRAND_CACHE_REFRESH_MS) || 60_000).unref();
 
   // Register the HRMS retention handlers, reference providers and file access
   // rules. Explicit and central, so what is armed in a running system is

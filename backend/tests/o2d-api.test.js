@@ -228,6 +228,23 @@ describe('the guards are really mounted', () => {
     });
   });
 
+  test('the headline summary is behind the analytics permission, not VIEW_O2D', async () => {
+    await withServer(app(), async (url) => {
+      // Sales works orders but holds no analytics grant; Management holds it.
+      const sales = await accountFor('Sales');
+      const management = await accountFor('Management');
+      assert.equal((await get(url, `${P}/analytics/summary`, sales.auth)).status, 403);
+
+      await seedOrder(url);
+      const res = await get(url, `${P}/analytics/summary`, management.auth);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data.open, 1);
+      assert.equal(res.body.data.total, 1);
+      // The summary alone — none of the heavier blocks `/analytics` assembles.
+      assert.equal(res.body.data.sla, undefined);
+    });
+  });
+
   test('the domain fence 404s when this deployment is not the Employee Portal', async () => {
     const previous = process.env.PORTAL;
     process.env.PORTAL = 'customer';

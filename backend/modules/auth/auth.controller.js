@@ -31,6 +31,18 @@ import {
   menuFor,
 } from '../../utils/roleResolver.js';
 import { isHrmsRoleKey } from '../../shared/permissions/constants.js';
+import { listBrands } from '../../utils/brandRegistry.js';
+import { hasPermission, PERMISSIONS } from '../../middlewares/rbac.js';
+
+const MANAGES_ACCOUNTS = [
+  PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_CUSTOMER_USERS,
+  PERMISSIONS.CREATE_USERS, PERMISSIONS.EDIT_USERS,
+];
+
+/** Brands from utils/brandRegistry.js, for whoever ticks them on accounts. */
+const brandsForAccountForms = (user) => (MANAGES_ACCOUNTS.some((p) => hasPermission(user, p))
+  ? listBrands().map(({ name, key, hiddenFromMsil }) => ({ name, key, hiddenFromMsil }))
+  : []);
 
 /** The device label stored against a session, so a person can recognise it. */
 const agentOf = (req) => String(req?.headers?.['user-agent'] ?? '').slice(0, 255) || null;
@@ -462,6 +474,9 @@ export const getMe = async (req, res, next) => {
       data: {
         ...user,
         permissions: resolveUserPermissions(user),
+        // The configured brands, for the brand checkboxes on User Management —
+        // only to someone who manages accounts; nothing else here reads them.
+        brands: brandsForAccountForms(user),
         grants: grantsForUser(user),
         menu: menuFor(user),
         /**

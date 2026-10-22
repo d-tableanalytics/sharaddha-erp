@@ -197,6 +197,46 @@ describe('goals', () => {
     });
   });
 
+  test('naming an employee narrows the list — it never widens it past the caller scope', async () => {
+    const hr = await makeEmployee({ roles: [R.HR_ADMIN] });
+    const manager = await makeEmployee({ roles: [R.MANAGER] });
+    const report = await makeEmployee({
+      reportingManagerId: manager.employee._id,
+      managerChain: [manager.employee._id],
+    });
+    const stranger = await makeEmployee();
+
+    await withServer(appFor(hr.user), async (url) => {
+      for (const who of [report, stranger]) {
+        const res = await post(url, `${P}/goals`, { title: `Goal for ${who.id}`, employeeId: who.id });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+      }
+    });
+
+    // A self-scope employee asking for somebody else's goals gets nothing.
+    await withServer(appFor(report.user), async (url) => {
+      const res = await get(url, `${P}/goals?employeeId=${stranger.id}`);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data.total, 0);
+    });
+
+    // A manager may narrow to their report, but not reach outside their team.
+    await withServer(appFor(manager.user), async (url) => {
+      const mine = await get(url, `${P}/goals?employeeId=${report.id}`);
+      assert.equal(mine.body.data.total, 1);
+      assert.equal(mine.body.data.data[0].employeeId, report.id);
+
+      const outside = await get(url, `${P}/goals?employeeId=${stranger.id}`);
+      assert.equal(outside.body.data.total, 0);
+    });
+
+    // Org scope still reads anyone.
+    await withServer(appFor(hr.user), async (url) => {
+      const res = await get(url, `${P}/goals?employeeId=${stranger.id}`);
+      assert.equal(res.body.data.total, 1);
+    });
+  });
+
   test('🔴 an illegal status transition is refused — the reference writes any status', async () => {
     const staff = await makeEmployee();
     await withServer(appFor(staff.user), async (url) => {

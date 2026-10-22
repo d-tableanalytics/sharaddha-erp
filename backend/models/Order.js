@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 
 const orderSchema = new mongoose.Schema({
+  // A configured brand (models/Brand.js). No enum: brands are created at
+  // runtime, and the value is always copied from the product being ordered,
+  // which already carries a real one.
   brand: {
     type: String,
-    enum: ['Koken', 'BIX', 'IMADA'],
     required: true
   },
   user: {

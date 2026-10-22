@@ -170,6 +170,10 @@ const DELIBERATE_ADDITIONS = {
     PERMISSIONS.VIEW_O2D,
     PERMISSIONS.CREATE_O2D_ORDER,
     PERMISSIONS.WORK_O2D_STAGE,
+    // Indent Stock Assignment (Customer Portal): which indent arriving stock goes to.
+    PERMISSIONS.ASSIGN_INDENT_STOCK,
+    // Booking status on the Sales Desk (Customer Portal).
+    PERMISSIONS.MANAGE_ORDERS,
     ...WORK_QUEUE_DOER,
   ]),
   // O2D stage 7's acknowledgement and stage 9's dispatch.
@@ -184,7 +188,8 @@ const DELIBERATE_ADDITIONS = {
     PERMISSIONS.EXIT_O2D,
   ]),
   // §20: read-only visibility from stage 6.
-  'Import Team': new Set([PERMISSIONS.VIEW_O2D]),
+  // ...and Indent Stock Assignment (Customer Portal): they receive the stock.
+  'Import Team': new Set([PERMISSIONS.VIEW_O2D, PERMISSIONS.ASSIGN_INDENT_STOCK]),
 };
 
 for (const [role, before] of Object.entries(BEFORE)) {

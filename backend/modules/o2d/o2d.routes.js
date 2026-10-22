@@ -248,6 +248,7 @@ router.get('/orders/:id/activity', canView, controller.orderHistory);
 // ---------------------------------------------------------------------------
 
 router.get('/analytics', canSeeAnalytics, validate({ query: analyticsQuery }), controller.dashboard);
+router.get('/analytics/summary', canSeeAnalytics, validate({ query: analyticsQuery }), controller.summary);
 router.get('/analytics/sla', canSeeAnalytics, validate({ query: analyticsQuery }), controller.slaCompliance);
 router.get('/analytics/delays', canSeeAnalytics, validate({ query: analyticsQuery }), controller.delays);
 router.get('/analytics/people', canSeeAnalytics, validate({ query: analyticsQuery }), controller.people);

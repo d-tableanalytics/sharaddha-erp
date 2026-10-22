@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { X, ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3 } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3, LayoutDashboard } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUIStore } from "../../store/uiStore";
 import { useUserStore } from "../../store/userStore";
@@ -389,9 +389,23 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
       : [];
 
 
+  /**
+   * The home dashboard, first and for everyone.
+   *
+   * Not gated: "/" is where every account lands, and the page itself shows only
+   * what the viewer may open (or says plainly that there is nothing). The HRMS
+   * group keeps its own "HR Dashboard" — the deep HR view this one links to.
+   */
+  const homeGroups = [{
+    key: "home",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    items: [{ id: "home", key: "home", label: "Dashboard", path: "/", icon: LayoutDashboard }],
+  }];
+
   // Administration sits at the BOTTOM of the rail, under everything it
   // administers — the same order the Customer Portal settled on.
-  const groups = [...hrmsGroups, ...o2dGroups, ...workQueue, ...adminGroups];
+  const groups = [...homeGroups, ...hrmsGroups, ...o2dGroups, ...workQueue, ...adminGroups];
 
   /**
    * Exactly ONE item is highlighted, and it is the most specific match.
@@ -590,7 +604,7 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
           }`}
       >
         <NavLink
-          to="/hrms/dashboard"
+          to="/"
           className={`bg-white rounded-xl flex items-center justify-center transition-all duration-300 ${expanded ? "w-44 h-14 p-2" : "w-11 h-11 p-1"
             }`}
         >
