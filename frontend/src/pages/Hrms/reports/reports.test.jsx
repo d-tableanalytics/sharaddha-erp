@@ -19,7 +19,7 @@ vi.mock("../../../services/api", () => ({ api: { request: vi.fn() } }));
 import { api } from "../../../services/api";
 import { ReportsPage } from "./ReportsPage";
 import { HrmsProtectedRoute } from "../../../components/hrms/HrmsProtectedRoute";
-import { REPORTS_ENTRY_GRANTS } from "../../../components/hrms/navItems";
+import { REPORTS_ENTRY_GRANTS, HRMS_NAV_ITEMS } from "../../../components/hrms/navItems";
 import { toQuery, monthRange, currentMonth } from "../../../services/hrms/reports";
 import { useHrmsStore } from "../../../store/hrmsStore";
 import { buildHrmsActor } from "@shared/permissions/has-permission.js";
@@ -601,7 +601,9 @@ describe("the shipped route config", () => {
     const reports = find(hrms.children, "reports");
     expect(reports).toBeTruthy();
     expect(reports.element.props.module).toBe("reports");
-    expect(reports.element.props.anyOf).toBe(REPORTS_ENTRY_GRANTS);
+    // The route asks the nav item's own `requires`, which IS the entry list.
+    expect(reports.element.props.navKey).toBe("hrms-reports");
+    expect(HRMS_NAV_ITEMS.find((i) => i.key === "hrms-reports").requires).toBe(REPORTS_ENTRY_GRANTS);
     // And the report key is addressable.
     expect(reports.children.map((c) => c.path)).toContain(":key");
   });

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import { useHrmsStore } from "../../store/hrmsStore";
 import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
+import { HRMS_NAV_ITEMS } from "./navItems";
 
 /**
  * Route guard for everything under /hrms.
@@ -33,8 +34,15 @@ import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
  *   gating on `reports` alone would show four roles a nav item that bounces
  *   them. `module` is still required and still decides whether the module is
  *   BUILT — `anyOf` replaces only the permission half of that check.
+ * @param {string} [navKey]
+ *   The key of the sidebar item this route is the destination of. The route
+ *   then asks EXACTLY the question the sidebar asked — that item's `requires`
+ *   list — instead of the looser "holds any grant on the module". Without it a
+ *   self-scope account, which sees no Employees link, could still open
+ *   /hrms/employees by URL: `usesModule` is true for any grant at all. One list
+ *   decides both, so a link and its page cannot disagree about who may be here.
  */
-export function HrmsProtectedRoute({ module, anyOf = null }) {
+export function HrmsProtectedRoute({ module, anyOf = null, navKey = null }) {
   const load = useHrmsStore((s) => s.load);
   const loaded = useHrmsStore((s) => s.loaded);
   const loading = useHrmsStore((s) => s.loading);
@@ -68,13 +76,26 @@ export function HrmsProtectedRoute({ module, anyOf = null }) {
   // With `anyOf`, the two halves are checked separately — built is still
   // `implementedModules`, but permitted is the wider ANY-OF, so this matches
   // whatever `visibleHrmsNavItems` used to decide the nav entry.
-  const permitted = anyOf
-    ? anyOf.some((r) => can(r.module, r.action, r.scope))
-    : usesModule(module);
-  const built = !anyOf || implementedModules.includes(module);
+  const navItem = navKey ? HRMS_NAV_ITEMS.find((item) => item.key === navKey) : null;
+  // A navKey that matches nothing fails closed: a typo must not open a page.
+  if (navKey && !navItem) return <Navigate to="/" replace />;
 
-  if (module && !(permitted && built)) {
-    return <Navigate to="/hrms/dashboard" replace />;
+  const gateModule = navItem?.module ?? module;
+  const specs = navItem?.requires ?? anyOf;
+  const permitted = specs
+    ? specs.some((r) => can(r.module, r.action, r.scope))
+    : usesModule(module);
+  const built = !specs || implementedModules.includes(gateModule);
+
+  if (gateModule && !(permitted && built)) {
+    // The HR dashboard is the usual landing spot, but it is itself gated — an
+    // actor refused HERE would loop on a redirect to it. Fall back to "/".
+    const dashboard = HRMS_NAV_ITEMS.find((item) => item.key === "hrms-dashboard");
+    const dashboardOpen =
+      dashboard.requires.some((r) => can(r.module, r.action, r.scope)) &&
+      implementedModules.includes(dashboard.module);
+    const onDashboard = location.pathname.startsWith(dashboard.path);
+    return <Navigate to={dashboardOpen && !onDashboard ? dashboard.path : "/"} replace />;
   }
 
   return <Outlet />;

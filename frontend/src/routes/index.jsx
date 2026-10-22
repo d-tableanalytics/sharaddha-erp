@@ -7,7 +7,8 @@ import { HomeRoute } from "../components/layout/HomeRoute";
 import { HrmsProtectedRoute } from "../components/hrms/HrmsProtectedRoute";
 import { O2dProtectedRoute } from "../components/o2d/O2dProtectedRoute";
 import { ModuleProtectedRoute } from "../components/auth/ModuleProtectedRoute";
-import { REPORTS_ENTRY_GRANTS } from "../components/hrms/navItems";
+import { PredicateProtectedRoute } from "../components/auth/PredicateProtectedRoute";
+import { canOpenUserManagement, canManageRoles, hasPermission, PERMISSIONS } from "../utils/permissions";
 
 /**
  * The Employee Portal router.
@@ -29,6 +30,8 @@ import { REPORTS_ENTRY_GRANTS } from "../components/hrms/navItems";
  * actor instead of rendering a booking dashboard, and Administration is
  * reachable directly rather than through the ERP menu.
  */
+
+const canCreateO2dOrder = (user) => hasPermission(user, PERMISSIONS.CREATE_O2D_ORDER);
 
 const AuthLayout = lazy(() => import("../pages/Auth/AuthLayout").then(m => ({ default: m.AuthLayout })));
 const Login = lazy(() => import("../pages/Auth/Login").then(m => ({ default: m.Login })));
@@ -158,15 +161,19 @@ export const router = createBrowserRouter([
             // repositories carry these screens and both write the same
             // documents; each page re-checks its permission itself, and every
             // underlying API is guarded server-side.
+            // Guarded by the same predicates the sidebar's Administration
+            // group uses, so a URL cannot open what the rail does not offer.
             path: "admin/users",
+            element: <PredicateProtectedRoute allow={canOpenUserManagement} />,
             // Internal User Management. The employee domain has no Customer
             // Management route at all — customers are a customer-domain concern,
             // and the module registry says so.
-            element: <UserManagement audience="internal" />,
+            children: [{ index: true, element: <UserManagement audience="internal" /> }],
           },
           {
             path: "admin/permissions",
-            element: <PermissionMatrix />,
+            element: <PredicateProtectedRoute allow={canManageRoles} />,
+            children: [{ index: true, element: <PermissionMatrix /> }],
           },
           {
             /**
@@ -187,7 +194,13 @@ export const router = createBrowserRouter([
             element: <O2dProtectedRoute />,
             children: [
               { index: true, element: <Navigate to="/fms/o2d/tasks" replace /> },
-              { path: "orders/new", element: <O2dNewOrderPage /> },
+              {
+                // Intake needs its own grant: `view_o2d` opens the section, but
+                // creating an order is `create_o2d_order`, which the endpoint
+                // also demands.
+                element: <PredicateProtectedRoute allow={canCreateO2dOrder} redirectTo="/fms/o2d/tasks" />,
+                children: [{ path: "orders/new", element: <O2dNewOrderPage /> }],
+              },
               { path: ":tab", element: <O2dPage /> },
             ],
           },
@@ -222,7 +235,11 @@ export const router = createBrowserRouter([
             element: <HrmsProtectedRoute />,
             children: [
               { index: true, element: <Navigate to="/hrms/dashboard" replace /> },
-              { path: "dashboard", element: <HrmsDashboard /> },
+              {
+                path: "dashboard",
+                element: <HrmsProtectedRoute module="dashboard" navKey="hrms-dashboard" />,
+                children: [{ index: true, element: <HrmsDashboard /> }],
+              },
               {
                 // "My Profile". A redirect to the actor's own employee record.
                 // Behind the employees module because that is where it lands,
@@ -230,7 +247,7 @@ export const router = createBrowserRouter([
                 // link the router would then refuse is exactly the dead end the
                 // nav gate exists to prevent.
                 path: "me",
-                element: <HrmsProtectedRoute module="employees" />,
+                element: <HrmsProtectedRoute module="employees" navKey="hrms-me" />,
                 children: [{ index: true, element: <HrmsMyProfilePage /> }],
               },
               {
@@ -238,7 +255,7 @@ export const router = createBrowserRouter([
                 // happens in a drawer over the directory, and only editing gets
                 // its own page.
                 path: "employees",
-                element: <HrmsProtectedRoute module="employees" />,
+                element: <HrmsProtectedRoute module="employees" navKey="hrms-employees" />,
                 children: [
                   { index: true, element: <HrmsEmployeesPage /> },
                   { path: ":id", element: <HrmsEmployeeProfilePage /> },
@@ -249,7 +266,7 @@ export const router = createBrowserRouter([
                 // Org Structure. The tab lives in the URL, so a tab is linkable
                 // and the Departments employee-count link can point at one.
                 path: "org",
-                element: <HrmsProtectedRoute module="org-structure" />,
+                element: <HrmsProtectedRoute module="org-structure" navKey="hrms-org" />,
                 children: [
                   { index: true, element: <HrmsOrgStructurePage /> },
                   { path: ":tab", element: <HrmsOrgStructurePage /> },
@@ -259,7 +276,7 @@ export const router = createBrowserRouter([
                 // Leave, with Holidays as one of its tabs — which is why there
                 // is no separate holidays module.
                 path: "leave",
-                element: <HrmsProtectedRoute module="leave" />,
+                element: <HrmsProtectedRoute module="leave" navKey="hrms-leave" />,
                 children: [
                   { index: true, element: <HrmsLeavePage /> },
                   { path: ":tab", element: <HrmsLeavePage /> },
@@ -269,7 +286,7 @@ export const router = createBrowserRouter([
                 // Helpdesk: my tickets, the resolver queue for the categories
                 // my team answers for, the knowledge base, and the catalogue.
                 path: "helpdesk",
-                element: <HrmsProtectedRoute module="helpdesk" />,
+                element: <HrmsProtectedRoute module="helpdesk" navKey="hrms-helpdesk" />,
                 children: [
                   { index: true, element: <HrmsHelpdeskPage /> },
                   { path: ":tab", element: <HrmsHelpdeskPage /> },
@@ -279,7 +296,7 @@ export const router = createBrowserRouter([
                 // Documents: the company library, policies with
                 // acknowledgment, my own records, and the folder tree.
                 path: "documents",
-                element: <HrmsProtectedRoute module="documents" />,
+                element: <HrmsProtectedRoute module="documents" navKey="hrms-documents" />,
                 children: [
                   { index: true, element: <HrmsDocumentsPage /> },
                   { path: ":tab", element: <HrmsDocumentsPage /> },
@@ -289,7 +306,7 @@ export const router = createBrowserRouter([
                 // Assets: my kit, the request queue, the inventory and the
                 // category catalogue.
                 path: "assets",
-                element: <HrmsProtectedRoute module="assets" />,
+                element: <HrmsProtectedRoute module="assets" navKey="hrms-assets" />,
                 children: [
                   { index: true, element: <HrmsAssetsPage /> },
                   { path: ":tab", element: <HrmsAssetsPage /> },
@@ -299,7 +316,7 @@ export const router = createBrowserRouter([
                 // Exits: the offboarding workflow — my exit, the HR/manager
                 // queue, and the clearances assigned to me.
                 path: "exits",
-                element: <HrmsProtectedRoute module="exits" />,
+                element: <HrmsProtectedRoute module="exits" navKey="hrms-exits" />,
                 children: [
                   { index: true, element: <HrmsExitsPage /> },
                   { path: ":tab", element: <HrmsExitsPage /> },
@@ -309,7 +326,7 @@ export const router = createBrowserRouter([
                 // Expenses: claims, the approver queue, and the category
                 // catalogue.
                 path: "expenses",
-                element: <HrmsProtectedRoute module="expenses" />,
+                element: <HrmsProtectedRoute module="expenses" navKey="hrms-expenses" />,
                 children: [
                   { index: true, element: <HrmsExpensesPage /> },
                   { path: ":tab", element: <HrmsExpensesPage /> },
@@ -318,7 +335,7 @@ export const router = createBrowserRouter([
               {
                 // Attendance: punches, history, team view and corrections.
                 path: "attendance",
-                element: <HrmsProtectedRoute module="attendance" />,
+                element: <HrmsProtectedRoute module="attendance" navKey="hrms-attendance" />,
                 children: [
                   { index: true, element: <HrmsAttendancePage /> },
                   { path: ":tab", element: <HrmsAttendancePage /> },
@@ -327,7 +344,7 @@ export const router = createBrowserRouter([
               {
                 // Payroll.
                 path: "payroll",
-                element: <HrmsProtectedRoute module="payroll" />,
+                element: <HrmsProtectedRoute module="payroll" navKey="hrms-payroll" />,
                 children: [
                   { index: true, element: <HrmsPayrollPage /> },
                   { path: ":tab", element: <HrmsPayrollPage /> },
@@ -338,7 +355,7 @@ export const router = createBrowserRouter([
                 // here: it is the /careers tree above, outside the session
                 // guard.
                 path: "hiring",
-                element: <HrmsProtectedRoute module="hiring" />,
+                element: <HrmsProtectedRoute module="hiring" navKey="hrms-hiring" />,
                 children: [
                   { index: true, element: <HrmsHiringPage /> },
                   { path: ":tab", element: <HrmsHiringPage /> },
@@ -348,7 +365,7 @@ export const router = createBrowserRouter([
                 // Onboarding. Defaults to the new hire's own portal rather
                 // than to an HR screen.
                 path: "onboarding",
-                element: <HrmsProtectedRoute module="onboarding" />,
+                element: <HrmsProtectedRoute module="onboarding" navKey="hrms-onboarding" />,
                 children: [
                   { index: true, element: <HrmsOnboardingPage /> },
                   { path: ":tab", element: <HrmsOnboardingPage /> },
@@ -371,7 +388,7 @@ export const router = createBrowserRouter([
                  * every time the tab strip re-rendered.
                  */
                 path: "academy",
-                element: <HrmsProtectedRoute module="academy" />,
+                element: <HrmsProtectedRoute module="academy" navKey="hrms-academy" />,
                 children: [
                   { index: true, element: <HrmsAcademyPage /> },
                   // A learner's path detail, and the player inside it.
@@ -391,7 +408,7 @@ export const router = createBrowserRouter([
                 // Performance. Defaults to the employee's own goals rather
                 // than to an HR screen.
                 path: "performance",
-                element: <HrmsProtectedRoute module="performance" />,
+                element: <HrmsProtectedRoute module="performance" navKey="hrms-performance" />,
                 children: [
                   { index: true, element: <HrmsPerformancePage /> },
                   { path: ":tab", element: <HrmsPerformancePage /> },
@@ -401,7 +418,7 @@ export const router = createBrowserRouter([
                 // Engage. Every tab is visible to everyone — Engage has no
                 // team scope; what HR alone gets is the write controls inside.
                 path: "engage",
-                element: <HrmsProtectedRoute module="engage" />,
+                element: <HrmsProtectedRoute module="engage" navKey="hrms-engage" />,
                 children: [
                   { index: true, element: <HrmsEngagePage /> },
                   { path: ":tab", element: <HrmsEngagePage /> },
@@ -413,7 +430,7 @@ export const router = createBrowserRouter([
                 // `edit:org` adds the write controls, which the server enforces
                 // regardless of what renders.
                 path: "planning",
-                element: <HrmsProtectedRoute module="planning" />,
+                element: <HrmsProtectedRoute module="planning" navKey="hrms-planning" />,
                 children: [
                   { index: true, element: <HrmsPlanningPage /> },
                   { path: ":tab", element: <HrmsPlanningPage /> },
@@ -428,7 +445,7 @@ export const router = createBrowserRouter([
                 // reports exist for this viewer is decided by the server, on
                 // every request, from each report's own data module.
                 path: "reports",
-                element: <HrmsProtectedRoute module="reports" anyOf={REPORTS_ENTRY_GRANTS} />,
+                element: <HrmsProtectedRoute module="reports" navKey="hrms-reports" />,
                 children: [
                   { index: true, element: <HrmsReportsPage /> },
                   { path: ":key", element: <HrmsReportsPage /> },
@@ -439,14 +456,14 @@ export const router = createBrowserRouter([
                 // roles that cannot open Settings, which is exactly why the
                 // server redacts credentials out of the trail.
                 path: "audit-logs",
-                element: <HrmsProtectedRoute module="audit-logs" />,
+                element: <HrmsProtectedRoute module="audit-logs" navKey="hrms-audit" />,
                 children: [{ index: true, element: <HrmsAuditLogsPage /> }],
               },
               {
                 // Settings: company profile and branding, the role matrix and
                 // its custom-role builder, SSO providers and integrations.
                 path: "settings",
-                element: <HrmsProtectedRoute module="settings" />,
+                element: <HrmsProtectedRoute module="settings" navKey="hrms-settings" />,
                 children: [
                   { index: true, element: <HrmsSettingsPage /> },
                   { path: ":tab", element: <HrmsSettingsPage /> },
@@ -458,7 +475,7 @@ export const router = createBrowserRouter([
                 // which the server enforces by putting the actor's own employee
                 // id in every filter.
                 path: "inbox",
-                element: <HrmsProtectedRoute module="inbox" />,
+                element: <HrmsProtectedRoute module="inbox" navKey="hrms-inbox" />,
                 children: [{ index: true, element: <HrmsInboxPage /> }],
               },
             ],

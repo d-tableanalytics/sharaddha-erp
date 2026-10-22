@@ -11,6 +11,7 @@ import {
 } from "../../utils/permissions";
 import { o2dRoute } from "@shared/constants/o2d.js";
 import {
+  HRMS_NAV_ITEMS,
   visibleHrmsNavItems,
   groupHrmsNavItems,
   HRMS_SIDEBAR_GROUP_KEY,
@@ -175,6 +176,19 @@ export const Sidebar = () => {
       .join(" · ") || "System Account";
 
   const { can, implementedModules, hasAccess: hasHrmsAccess } = useHrmsPermissions();
+
+  // The footer identity chip links to /hrms/me, which is gated on the same
+  // grant as the "My Profile" nav item. Without it the chip is plain text — a
+  // link the router would bounce is the dead end this sidebar exists to avoid.
+  const profileItem = HRMS_NAV_ITEMS.find((item) => item.key === "hrms-me");
+  const canOpenProfile =
+    hasHrmsAccess &&
+    implementedModules.includes(profileItem.module) &&
+    profileItem.requires.some((r) => can(r.module, r.action, r.scope));
+  const ProfileTag = canOpenProfile ? NavLink : "div";
+  const profileProps = canOpenProfile
+    ? { to: "/hrms/me", title: expanded ? "View your profile" : user?.user || user?.name || "Profile" }
+    : { title: user?.user || user?.name || "Profile" };
 
   const hrmsSections = hasHrmsAccess
     ? groupHrmsNavItems(visibleHrmsNavItems(can, implementedModules)).map((section) => ({
@@ -771,10 +785,9 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
           className={`flex items-center rounded-lg border border-white/10 bg-white/5 ${expanded ? "gap-2 p-2.5" : "flex-col gap-2 p-2"
             }`}
         >
-          <NavLink
-            to="/hrms/me"
-            title={expanded ? "View your profile" : user?.user || user?.name || "Profile"}
-            className="flex items-center gap-3 min-w-0 flex-1 rounded-md hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          <ProfileTag
+            {...profileProps}
+            className={`flex items-center gap-3 min-w-0 flex-1 rounded-md ${canOpenProfile ? "hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70" : ""}`}
           >
             {user?.avatar ? (
               <img
@@ -798,7 +811,7 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
                 </p>
               </div>
             )}
-          </NavLink>
+          </ProfileTag>
 
           <button
             onClick={handleLogout}
