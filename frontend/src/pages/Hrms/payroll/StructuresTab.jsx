@@ -245,39 +245,41 @@ function PreviewDialog({ structure, onClose }) {
             ))}
           </div>
 
-          <table className="w-full border border-slate-200 rounded-lg overflow-hidden">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Component
-                </th>
-                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Monthly
-                </th>
-                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Annual
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {result.lines.map((line) => (
-                <tr key={line.componentCode}>
-                  <td className="px-3 py-1.5 text-xs text-slate-700">
-                    {line.componentName}
-                    <Badge variant={TYPE_TONES[line.type] ?? "neutral"} className="ml-2">
-                      {TYPE_LABELS[line.type] ?? line.type}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-1.5 text-xs text-right tabular-nums">
-                    ₹ {formatMoney(line.monthly)}
-                  </td>
-                  <td className="px-3 py-1.5 text-xs text-right tabular-nums text-slate-500">
-                    ₹ {formatMoney(line.annual)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border border-slate-200 rounded-lg overflow-hidden">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Component
+                  </th>
+                  <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Monthly
+                  </th>
+                  <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Annual
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {result.lines.map((line) => (
+                  <tr key={line.componentCode}>
+                    <td className="px-3 py-1.5 text-xs text-slate-700">
+                      {line.componentName}
+                      <Badge variant={TYPE_TONES[line.type] ?? "neutral"} className="ml-2">
+                        {TYPE_LABELS[line.type] ?? line.type}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs text-right tabular-nums">
+                      ₹ {formatMoney(line.monthly)}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs text-right tabular-nums text-slate-500">
+                      ₹ {formatMoney(line.annual)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </Modal>

@@ -213,58 +213,60 @@ function ModuleRows({
         </p>
       )}
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-            <th scope="col" className="w-28 py-1 font-medium">Action</th>
-            {scopes.map((s) => (
-              <th key={s} scope="col" className="py-1 text-center font-medium">
-                {s}
-              </th>
-            ))}
-            <th scope="col" className="w-12 py-1 text-center font-medium">Row</th>
-          </tr>
-        </thead>
-        <tbody>
-          {actions.map((action) => {
-            const rowKeys = scopes.map((s) => permKey(module, action, s));
-            const rowAll = rowKeys.every((k) => selected.has(k));
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
+              <th scope="col" className="w-28 py-1 font-medium">Action</th>
+              {scopes.map((s) => (
+                <th key={s} scope="col" className="py-1 text-center font-medium">
+                  {s}
+                </th>
+              ))}
+              <th scope="col" className="w-12 py-1 text-center font-medium">Row</th>
+            </tr>
+          </thead>
+          <tbody>
+            {actions.map((action) => {
+              const rowKeys = scopes.map((s) => permKey(module, action, s));
+              const rowAll = rowKeys.every((k) => selected.has(k));
 
-            return (
-              <tr key={action} className="border-t border-dashed border-slate-200">
-                <td className="py-1 text-[13px] text-slate-600">{action}</td>
+              return (
+                <tr key={action} className="border-t border-dashed border-slate-200">
+                  <td className="py-1 text-[13px] text-slate-600">{action}</td>
 
-                {scopes.map((scope) => {
-                  const key = permKey(module, action, scope);
-                  return (
-                    <td key={scope} className="py-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(key)}
-                        disabled={readOnly}
-                        onChange={() => onToggle(module, action, scope)}
-                        aria-label={`${action} ${module} at ${scope} scope`}
-                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:cursor-default"
-                      />
-                    </td>
-                  );
-                })}
+                  {scopes.map((scope) => {
+                    const key = permKey(module, action, scope);
+                    return (
+                      <td key={scope} className="py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(key)}
+                          disabled={readOnly}
+                          onChange={() => onToggle(module, action, scope)}
+                          aria-label={`${action} ${module} at ${scope} scope`}
+                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:cursor-default"
+                        />
+                      </td>
+                    );
+                  })}
 
-                <td className="py-1 text-center">
-                  <input
-                    type="checkbox"
-                    checked={rowAll}
-                    disabled={readOnly}
-                    onChange={() => onBulkToggle(rowKeys, !rowAll)}
-                    aria-label={`${action} ${module} at every scope`}
-                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:cursor-default"
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td className="py-1 text-center">
+                    <input
+                      type="checkbox"
+                      checked={rowAll}
+                      disabled={readOnly}
+                      onChange={() => onBulkToggle(rowKeys, !rowAll)}
+                      aria-label={`${action} ${module} at every scope`}
+                      className="h-4 w-4 cursor-pointer rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:cursor-default"
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

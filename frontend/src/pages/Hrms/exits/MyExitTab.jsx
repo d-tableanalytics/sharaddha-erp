@@ -284,18 +284,20 @@ function LineTable({ title, lines }) {
       <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
         {title}
       </h4>
-      <table className="w-full text-sm">
-        <tbody>
-          {lines.map((line) => (
-            <tr key={line.code} className="border-b border-slate-100 last:border-0">
-              <td className="py-1.5 text-slate-700">{line.label}</td>
-              <td className="py-1.5 text-right tabular-nums text-slate-900">
-                {formatMoney(line.amount)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.code} className="border-b border-slate-100 last:border-0">
+                <td className="py-1.5 text-slate-700">{line.label}</td>
+                <td className="py-1.5 text-right tabular-nums text-slate-900">
+                  {formatMoney(line.amount)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

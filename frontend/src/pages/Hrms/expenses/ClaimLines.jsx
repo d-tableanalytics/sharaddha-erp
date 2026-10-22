@@ -33,42 +33,44 @@ export function ClaimLines({ claim, canUpload = false, onChange }) {
   }
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-          <th className="px-3 py-2 font-semibold">Date</th>
-          <th className="px-3 py-2 font-semibold">Category</th>
-          <th className="px-3 py-2 text-right font-semibold">Amount</th>
-          <th className="px-3 py-2 font-semibold">Description</th>
-          <th className="px-3 py-2 font-semibold">Receipt</th>
-        </tr>
-      </thead>
-      <tbody>
-        {lines.map((line) => (
-          <tr key={line.id} className="border-b border-slate-100 last:border-0">
-            <td className="whitespace-nowrap px-3 py-2 text-slate-600">{formatDay(line.date)}</td>
-            <td className="px-3 py-2">
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
-                {line.categoryCode ?? "—"}
-              </span>{" "}
-              <span className="text-slate-600">{line.categoryName ?? ""}</span>
-            </td>
-            <td className="px-3 py-2">
-              <Money value={line.amount} />
-            </td>
-            <td className="px-3 py-2 text-slate-700">{line.description}</td>
-            <td className="px-3 py-2">
-              <ReceiptCell
-                claimId={claim.id}
-                line={line}
-                canUpload={canUpload}
-                onChange={onChange}
-              />
-            </td>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+            <th className="px-3 py-2 font-semibold">Date</th>
+            <th className="px-3 py-2 font-semibold">Category</th>
+            <th className="px-3 py-2 text-right font-semibold">Amount</th>
+            <th className="px-3 py-2 font-semibold">Description</th>
+            <th className="px-3 py-2 font-semibold">Receipt</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {lines.map((line) => (
+            <tr key={line.id} className="border-b border-slate-100 last:border-0">
+              <td className="whitespace-nowrap px-3 py-2 text-slate-600">{formatDay(line.date)}</td>
+              <td className="px-3 py-2">
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
+                  {line.categoryCode ?? "—"}
+                </span>{" "}
+                <span className="text-slate-600">{line.categoryName ?? ""}</span>
+              </td>
+              <td className="px-3 py-2">
+                <Money value={line.amount} />
+              </td>
+              <td className="px-3 py-2 text-slate-700">{line.description}</td>
+              <td className="px-3 py-2">
+                <ReceiptCell
+                  claimId={claim.id}
+                  line={line}
+                  canUpload={canUpload}
+                  onChange={onChange}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

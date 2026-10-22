@@ -512,63 +512,65 @@ function ClearancesEditor({ exit, onChanged }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <h4 className="mb-3 text-sm font-semibold text-slate-900">Clearances</h4>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-            <th className="py-2 font-semibold">Area</th>
-            <th className="py-2 font-semibold">Assignee</th>
-            <th className="py-2 font-semibold">Status</th>
-            <th className="py-2 font-semibold" />
-          </tr>
-        </thead>
-        <tbody>
-          {exit.clearances.map((clearance) => {
-            const done = ["completed", "waived"].includes(clearance.status);
-            return (
-              <tr key={clearance.id} className="border-b border-slate-100 last:border-0">
-                <td className="py-2 font-medium text-slate-700">
-                  {CLEARANCE_AREA_LABELS[clearance.area] ?? clearance.area}
-                </td>
-                <td className="py-2 text-slate-600">
-                  {clearance.assigneeName ?? (
-                    <span className="text-warning-600">Unassigned</span>
-                  )}
-                </td>
-                <td className="py-2">
-                  <ClearanceStatusBadge status={clearance.status} />
-                </td>
-                <td className="py-2 text-right">
-                  {/*
-                    Only HR gets controls here, and only while clearances are
-                    open. An assignee works their own from the Clearance Queue
-                    tab. The reference shows a Waive button to every viewer,
-                    which is a guaranteed 403 for anyone but the assignee or HR.
-                  */}
-                  {isHr && open && !done && !exit.isOwnExit && (
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={busyId === clearance.id}
-                        onClick={() => change(clearance, "waived")}
-                      >
-                        Waive
-                      </Button>
-                      <Button
-                        size="xs"
-                        disabled={busyId === clearance.id}
-                        onClick={() => change(clearance, "completed")}
-                      >
-                        Mark done
-                      </Button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+              <th className="py-2 font-semibold">Area</th>
+              <th className="py-2 font-semibold">Assignee</th>
+              <th className="py-2 font-semibold">Status</th>
+              <th className="py-2 font-semibold" />
+            </tr>
+          </thead>
+          <tbody>
+            {exit.clearances.map((clearance) => {
+              const done = ["completed", "waived"].includes(clearance.status);
+              return (
+                <tr key={clearance.id} className="border-b border-slate-100 last:border-0">
+                  <td className="py-2 font-medium text-slate-700">
+                    {CLEARANCE_AREA_LABELS[clearance.area] ?? clearance.area}
+                  </td>
+                  <td className="py-2 text-slate-600">
+                    {clearance.assigneeName ?? (
+                      <span className="text-warning-600">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    <ClearanceStatusBadge status={clearance.status} />
+                  </td>
+                  <td className="py-2 text-right">
+                    {/*
+                      Only HR gets controls here, and only while clearances are
+                      open. An assignee works their own from the Clearance Queue
+                      tab. The reference shows a Waive button to every viewer,
+                      which is a guaranteed 403 for anyone but the assignee or HR.
+                    */}
+                    {isHr && open && !done && !exit.isOwnExit && (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          disabled={busyId === clearance.id}
+                          onClick={() => change(clearance, "waived")}
+                        >
+                          Waive
+                        </Button>
+                        <Button
+                          size="xs"
+                          disabled={busyId === clearance.id}
+                          onClick={() => change(clearance, "completed")}
+                        >
+                          Mark done
+                        </Button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
