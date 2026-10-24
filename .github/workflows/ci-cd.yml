@@ -103,7 +103,7 @@ jobs:
       - name: Health check
         run: |
           for i in $(seq 1 15); do
-            curl -fsS "http://${{ secrets.EC2_HOST }}/health" && exit 0
+            curl -fsSL https://app.shraddhaimpex.net/health && exit 0
             sleep 4
           done
           echo "Health check failed" && exit 1
