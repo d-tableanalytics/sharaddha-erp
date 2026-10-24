@@ -10,7 +10,7 @@
  * backend/tests/leave-api.test.js. Both halves read the same matrix.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor, within, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -273,6 +273,17 @@ describe("my leave", () => {
 // ===========================================================================
 
 describe("applying for leave", () => {
+  // The drawer defaults its dates to today, so on a weekend the estimate reads
+  // "no working days". Pin Date only (not timers, which user-event relies on)
+  // to a Wednesday so these tests do not depend on the day CI runs.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-21T10:00:00+05:30"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const openDrawer = async () => {
     signIn([R.EMPLOYEE]);
     at("/hrms/leave/me");
