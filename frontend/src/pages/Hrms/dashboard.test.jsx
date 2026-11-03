@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 
 vi.mock("../../services/api", () => ({ api: { request: vi.fn() } }));
 
@@ -379,5 +379,27 @@ describe("login activity", () => {
     expect(screen.queryByText("Login activity")).toBeNull();
     // The rest of the HR dashboard is unaffected.
     expect(screen.getByText("Pending actions")).toBeTruthy();
+  });
+});
+
+describe("cards open their module", () => {
+  function Where() {
+    return <output data-testid="where">{useLocation().pathname}</output>;
+  }
+
+  it("a click anywhere on a widget card opens what its View all opens", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/hrms/dashboard"]}>
+        <Routes>
+          <Route path="/hrms/dashboard" element={<HrmsDashboard />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // A holiday row is plain text, not a link of its own.
+    await user.click(await screen.findByText("Diwali"));
+    expect((await screen.findByTestId("where")).textContent).toBe("/hrms/leave/holidays");
   });
 });

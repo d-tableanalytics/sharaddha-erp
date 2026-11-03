@@ -239,14 +239,19 @@ function TodayCard({ attendance, leave, onRetry }) {
             ) : (
               <ul className="grid grid-cols-2 gap-2">
                 {(leave.data ?? []).slice(0, 4).map((b) => (
-                  <li key={b.leaveTypeId ?? b.code} className="rounded-lg bg-slate-50 px-3 py-2 min-w-0">
-                    <p className="text-[10.5px] font-semibold text-slate-500 truncate" title={b.leaveTypeName}>
-                      {b.leaveTypeName ?? b.code}
-                    </p>
-                    <p className="text-lg font-bold text-slate-900 tabular-nums">
-                      {Number(b.balance ?? 0).toLocaleString("en-IN")}
-                      <span className="text-[10.5px] font-semibold text-slate-400"> days</span>
-                    </p>
+                  <li key={b.leaveTypeId ?? b.code} className="min-w-0">
+                    <Link
+                      to={`${H}/leave/me`}
+                      className="block rounded-lg bg-slate-50 px-3 py-2 min-w-0 transition-colors hover:bg-primary-50"
+                    >
+                      <p className="text-[10.5px] font-semibold text-slate-500 truncate" title={b.leaveTypeName}>
+                        {b.leaveTypeName ?? b.code}
+                      </p>
+                      <p className="text-lg font-bold text-slate-900 tabular-nums">
+                        {Number(b.balance ?? 0).toLocaleString("en-IN")}
+                        <span className="text-[10.5px] font-semibold text-slate-400"> days</span>
+                      </p>
+                    </Link>
                   </li>
                 ))}
               </ul>

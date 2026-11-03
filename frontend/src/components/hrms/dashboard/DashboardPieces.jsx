@@ -4,6 +4,7 @@ import * as Icons from "lucide-react";
 
 import { EmptyState } from "../../ui/EmptyState";
 import { TILE_TONE } from "../../ui/tileTokens";
+import { useCardLink } from "./useCardLink";
 
 /**
  * The dashboard's building blocks.
@@ -45,12 +46,18 @@ export function SectionTitle({ title, subtitle, action }) {
  * error handling at all — one failed query blanks the whole dashboard — and the
  * server here settles each widget independently so a card can be empty while
  * its neighbours are fine.
+ *
+ * With a `viewAllTo`, a click anywhere on the card opens it (see useCardLink).
  */
 export function WidgetCard({ title, icon: Icon, viewAllTo, viewAllLabel = "View all", children, isEmpty, emptyTitle, emptyDescription, className }) {
+  const card = useCardLink(viewAllTo);
+
   return (
     <section
+      onClick={card.onClick}
       className={twMerge(
         "flex flex-col bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden",
+        card.className,
         className,
       )}
     >

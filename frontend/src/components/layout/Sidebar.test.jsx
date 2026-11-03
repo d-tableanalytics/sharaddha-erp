@@ -1,6 +1,6 @@
-import { describe, test, expect, vi, beforeEach } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 
 vi.mock("../../hooks/useHrmsPermissions", () => ({
   // HRMS is out of scope here; an account with no HRMS access renders the rail
@@ -313,5 +313,123 @@ describe("the menu is a tree, not a flat list", () => {
     } finally {
       window.matchMedia = realMatchMedia;
     }
+  });
+});
+
+// ===========================================================================
+// Arriving on a page
+// ===========================================================================
+
+/** A Billing user who also has the Work Queue, so the rail has two groups. */
+const signInWithWorkQueue = () =>
+  useUserStore.setState({
+    user: {
+      _id: "u1", user: "A Person", role: "Billing", status: "Active",
+      permissions: [PERMISSIONS.VIEW_O2D],
+      grants: [{ module: "work_queue", submodule: "tasks", actions: ["view"] }],
+    },
+  });
+
+/** Stands in for a dashboard card: navigates from inside the router. */
+const GoTo = ({ to }) => {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(to)}>open card</button>;
+};
+
+describe("arriving on a page reveals it in the rail", () => {
+  test("a collapsed group and sub-module open to show the active row", () => {
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    useUIStore.setState({ sidebarOpen: true, collapsedNavGroups: ["o2d", "o2d:o2d"] });
+    draw("/fms/o2d/stages");
+
+    expect(classList(screen.getByRole("link", { name: "Stages" }))).toContain("nav-active");
+    expect(screen.getByRole("button", { name: /FMS/ }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: /O2D/ }).getAttribute("aria-expanded")).toBe("true");
+    // Saved like a manual toggle, so it is still open on the next page load.
+    expect(useUIStore.getState().collapsedNavGroups).toEqual([]);
+  });
+
+  test("groups that do not hold the page stay as the user left them", () => {
+    signInWithWorkQueue();
+    useUIStore.setState({ sidebarOpen: true, collapsedNavGroups: ["o2d", "workQueue"] });
+    draw("/fms/o2d/stages");
+
+    expect(screen.getByRole("link", { name: "Stages" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "My Work" })).toBeNull();
+    expect(useUIStore.getState().collapsedNavGroups).toEqual(["workQueue"]);
+  });
+
+  test("navigating from the dashboard opens the destination's branch", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    useUIStore.setState({ sidebarOpen: true, collapsedNavGroups: ["o2d"] });
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Sidebar />
+        <GoTo to="/fms/o2d/orders" />
+      </MemoryRouter>,
+    );
+    // On the dashboard, FMS is shut as the user left it.
+    expect(screen.queryByRole("link", { name: "Order Tracker" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "open card" }));
+
+    expect(classList(screen.getByRole("link", { name: "Order Tracker" }))).toContain("nav-active");
+  });
+
+  test("a group the user closes on the page stays closed", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    useUIStore.setState({ sidebarOpen: true, collapsedNavGroups: ["o2d"] });
+    draw("/fms/o2d/stages");
+    expect(screen.getByRole("link", { name: "Stages" })).toBeTruthy();
+
+    // Revealed once per destination — not re-opened on every render, which
+    // would make the disclosure impossible to use.
+    await userEvent.click(screen.getByRole("button", { name: /FMS/ }));
+    expect(screen.queryByRole("link", { name: "Stages" })).toBeNull();
+  });
+});
+
+describe("the rail scrolls the active row into view", () => {
+  const box = (top, bottom) => ({ top, bottom, height: bottom - top, left: 0, right: 256, width: 256, x: 0, y: top });
+  let realScrollTo;
+
+  /** Lay the rail out: a 300px tall nav, and the active row at `row`. */
+  const layOut = (row) => {
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function () {
+      if (this.tagName === "NAV") return box(0, 300);
+      if (this.getAttribute("data-nav-active") === "true") return box(...row);
+      return box(0, 0);
+    });
+  };
+
+  beforeEach(() => {
+    realScrollTo = Element.prototype.scrollTo;
+    Element.prototype.scrollTo = vi.fn();
+  });
+
+  afterEach(() => {
+    Element.prototype.scrollTo = realScrollTo;
+    vi.restoreAllMocks();
+  });
+
+  test("a row below the fold is centred in the rail", () => {
+    layOut([900, 936]);
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw("/fms/o2d/exits");
+
+    const nav = screen.getByRole("navigation");
+    // 900 - (300 - 36) / 2 — the row in the middle, its neighbours around it.
+    // Instant on page load: the rail arriving in place is not a movement.
+    expect(nav.scrollTo).toHaveBeenCalledWith({ top: 768, behavior: "auto" });
+  });
+
+  test("a row already in view leaves the rail where it is", () => {
+    layOut([100, 136]);
+    signIn("Billing", [PERMISSIONS.VIEW_O2D]);
+    draw("/fms/o2d/exits");
+
+    expect(Element.prototype.scrollTo).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Trophy,
-  Building2,
   Download,
   Search,
   Target,
@@ -228,7 +227,6 @@ function PodiumCard({ row, rankIdx }) {
  */
 export function ExecutiveScoreboard() {
   const [period, setPeriod] = useState('week'); // 'week' | 'month' | 'year'
-  const [scope, setScope] = useState('all'); // 'all' | 'HO' | 'Bhandup'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
@@ -270,7 +268,7 @@ export function ExecutiveScoreboard() {
     if (!isSilent) setLoading(true);
     setRefreshing(true);
     try {
-      const res = await scoreboardApi.getScoreboard({ period, scope });
+      const res = await scoreboardApi.getScoreboard({ period });
       if (res) {
         setData(res);
       }
@@ -280,7 +278,7 @@ export function ExecutiveScoreboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [period, scope]);
+  }, [period]);
 
   useEffect(() => {
     loadData();
@@ -475,30 +473,6 @@ export function ExecutiveScoreboard() {
               </button>
             ))}
           </div>
-
-          {/* Scope Selector Pill Group */}
-          <div className="bg-slate-100 rounded-lg p-1 border border-slate-200 flex items-center gap-1 shadow-enterprise shrink-0">
-            <Building2 size={14} className="ml-2 mr-0.5 text-slate-400 shrink-0" />
-            {[
-              { id: 'all', label: 'Overall' },
-              { id: 'HO', label: 'HO' },
-              { id: 'Bhandup', label: 'Bhandup' },
-            ].map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setScope(s.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  scope === s.id
-                    ? 'bg-primary-600 text-white shadow-enterprise'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
 
           {/* Excel Export Button */}
           <Button size="sm" onClick={exportToExcel}>

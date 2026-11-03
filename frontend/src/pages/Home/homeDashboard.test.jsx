@@ -13,8 +13,9 @@
 
 import { Suspense } from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen, within, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const {
   delegation, checklist, scoreboard, activity, o2d, hrmsDashboard, inbox, attendance, leave, learning, goals, reviews, requisitions, interviews,
@@ -383,6 +384,46 @@ describe("an executive (Super Admin, HRMS super admin)", () => {
     expect(await screen.findByText("Couldn't load this right now.")).toBeTruthy();
     expect(await screen.findByText("POSH Awareness")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "My Work" })).toBeTruthy();
+  });
+});
+
+describe("a card opens the module it summarises", () => {
+  const CHECKLIST = { module: "work_queue", submodule: "checklist", actions: ["view"] };
+
+  /** Where the router is, after a click. */
+  function Where() {
+    return <output data-testid="where">{useLocation().pathname}</output>;
+  }
+  const where = () => screen.getByTestId("where").textContent;
+
+  beforeEach(() => signIn({ permissions: ["view_o2d"], grants: [...WQ_TASKS, CHECKLIST] }));
+
+  it("from anywhere on it, not only its header link", async () => {
+    const user = userEvent.setup();
+    renderAt(<><HomeDashboard /><Where /></>);
+
+    // Checklist's figures carry no link of their own.
+    await user.click(await screen.findByText("Compliance"));
+    expect(where()).toBe("/wq/checklist");
+  });
+
+  it("but a figure with a link of its own opens that instead", async () => {
+    const user = userEvent.setup();
+    renderAt(<><HomeDashboard /><Where /></>);
+
+    // The My Work card opens /work-queue; this figure lists something else.
+    await user.click(await screen.findByRole("link", { name: /To verify/ }));
+    expect(where()).toBe("/wq/delegation");
+  });
+
+  it("and Retry retries rather than leaving the page", async () => {
+    const user = userEvent.setup();
+    o2d.taskCounts.mockRejectedValueOnce(new Error("FMS down"));
+    renderAt(<><HomeDashboard /><Where /></>);
+
+    await user.click(await screen.findByRole("button", { name: /Retry/ }));
+    await waitFor(() => expect(o2d.taskCounts).toHaveBeenCalledTimes(2));
+    expect(where()).toBe("/");
   });
 });
 

@@ -96,6 +96,18 @@ export const useUIStore = create((set) => ({
       writeCollapsedGroups(next);
       return { collapsedNavGroups: next };
     }),
+  /**
+   * Open these groups/sections if they are collapsed — what the sidebar does
+   * when the user arrives on a page inside one. Saved like a manual toggle, so
+   * the rail stays open there until the user closes it again.
+   */
+  expandNavGroups: (keys) =>
+    set((state) => {
+      const next = state.collapsedNavGroups.filter((k) => !keys.includes(k));
+      if (next.length === state.collapsedNavGroups.length) return state;
+      writeCollapsedGroups(next);
+      return { collapsedNavGroups: next };
+    }),
   toggleSidebar: () =>
     set((state) => {
       const next = !state.sidebarOpen;

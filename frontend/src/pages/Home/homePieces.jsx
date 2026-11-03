@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge";
 import { AlertTriangle, ArrowRight, CheckCircle2, RefreshCw } from "lucide-react";
 
 import { TILE_TONE } from "../../components/ui/tileTokens";
+import { useCardLink } from "../../components/hrms/dashboard/useCardLink";
 
 /**
  * The home dashboard's own building blocks.
@@ -45,16 +46,24 @@ const formatValue = (value, suffix) => {
 /**
  * One module's headline numbers.
  *
- * Every metric links to the screen that lists what it counts, so a number on
- * the home page is always one click from the rows behind it.
+ * A click anywhere on the card opens its module (see useCardLink); a metric
+ * with a link of its own opens the screen that lists what it counts instead.
  *
  * Renders its own loading and error states: each module loads independently
  * (see useHomeSources), and a failed module says so in place rather than
  * disappearing — a card that silently vanishes reads as "nothing to do".
  */
 export function ModuleCard({ title, icon: Icon, to, linkLabel = "Open", status, onRetry, metrics = [], children, footer }) {
+  const card = useCardLink(to);
+
   return (
-    <section className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden">
+    <section
+      onClick={card.onClick}
+      className={twMerge(
+        "flex flex-col bg-white border border-slate-200 rounded-xl shadow-enterprise overflow-hidden",
+        card.className,
+      )}
+    >
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && (

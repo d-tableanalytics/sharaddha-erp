@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { X, ChevronLeft, ChevronRight, ChevronDown, LogOut, Circle, ShieldCheck, Users, Key, Truck, ListChecks, Ban, LayoutGrid, History, LineSquiggle, Rows2Icon, BookAIcon, CheckSquare, StepBackIcon, Forward, Table, RefreshCwIcon, Table2, Trash2, BarChart, Trophy, BarChart3, LayoutDashboard } from "lucide-react";
 import toast from "react-hot-toast";
@@ -101,9 +101,38 @@ const useIsDesktop = () => {
   return isDesktop;
 };
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined"
+  && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+
+/**
+ * Scroll the rail — and only the rail — so `row` is in view.
+ *
+ * Not `row.scrollIntoView()`: that scrolls every scrollable ancestor too, and
+ * the app shell is an `overflow-hidden` box the browser will still scroll,
+ * shifting the whole page when only the rail was meant to move. Measuring
+ * against the <nav> keeps the movement inside it.
+ *
+ * A row already fully in view is left alone, so the rail never jumps for a
+ * page the user could already see. Otherwise it is centred, which brings its
+ * neighbours — the rest of the sub-module — into view with it.
+ */
+const scrollRowIntoView = (nav, row, smooth) => {
+  const navBox = nav.getBoundingClientRect();
+  // Not laid out (display:none, or jsdom): there is nothing to measure.
+  if (!navBox.height) return;
+  const rowBox = row.getBoundingClientRect();
+  const margin = 8;
+  if (rowBox.top >= navBox.top + margin && rowBox.bottom <= navBox.bottom - margin) return;
+
+  const top = Math.max(0, nav.scrollTop + (rowBox.top - navBox.top) - (navBox.height - rowBox.height) / 2);
+  if (typeof nav.scrollTo === "function") nav.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+  else nav.scrollTop = top;
+};
+
 export const Sidebar = () => {
   const {
-    sidebarOpen, toggleSidebar, collapsedNavGroups, toggleNavGroup,
+    sidebarOpen, toggleSidebar, collapsedNavGroups, toggleNavGroup, expandNavGroups,
     mobileNavOpen, closeMobileNav,
   } = useUIStore();
   const { user, logout } = useUserStore();
@@ -470,6 +499,54 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
     return null;
   })();
 
+  /**
+   * WHERE YOU ARE, brought into view.
+   *
+   * Arriving on a page — from a dashboard card, any other link, or a typed URL
+   * — used to leave the rail as it was: a collapsed group kept the active row
+   * hidden, and in a long rail the row could sit below the fold. Each new
+   * destination now opens the group and sub-module holding it, and the rail
+   * scrolls to it.
+   *
+   * ONCE per destination. `revealedItemRef` remembers the row last revealed, so
+   * a group the user closes while on the page stays closed; reopening it on the
+   * next render would make the disclosure impossible to use.
+   *
+   * Layout effects, so the branch opens and the rail scrolls before the browser
+   * paints — no frame of the group shut and then open.
+   */
+  const navRef = useRef(null);
+  const revealedItemRef = useRef(null);
+  const scrollPendingRef = useRef(false);
+  const scrolledOnceRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!activeItemId || revealedItemRef.current === activeItemId) return;
+    revealedItemRef.current = activeItemId;
+    scrollPendingRef.current = true;
+    const closed = [activeGroupKey, activeSectionKey].filter((k) => k && collapsedNavGroups.includes(k));
+    if (closed.length > 0) expandNavGroups(closed);
+  }, [activeItemId, activeGroupKey, activeSectionKey, collapsedNavGroups, expandNavGroups]);
+
+  // Switching between icons and labels, or opening the drawer, moves the
+  // active row: bring it back into view.
+  useLayoutEffect(() => {
+    scrollPendingRef.current = true;
+  }, [expanded, mobileNavOpen]);
+
+  // After every render on purpose: when a branch had to be opened first, the
+  // row only exists from the render after that, and this is where it lands.
+  useLayoutEffect(() => {
+    if (!scrollPendingRef.current) return;
+    const nav = navRef.current;
+    const row = nav?.querySelector('[data-nav-active="true"]');
+    if (!row) return;
+    scrollPendingRef.current = false;
+    // The first one is part of the page loading, not a movement to follow.
+    scrollRowIntoView(nav, row, scrolledOnceRef.current && !prefersReducedMotion());
+    scrolledOnceRef.current = true;
+  });
+
   const iconFor = (icon) => icon || Circle;
 
   /**
@@ -549,6 +626,7 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
       <NavLink
         key={item.id}
         to={item.path}
+        data-nav-active={isActive ? "true" : undefined}
         title={expanded ? undefined : newCount ? `${item.label} — ${newCount} new` : item.label}
         className={() => linkClass(isActive)}
       >
@@ -640,7 +718,7 @@ No “Delegation” submenu. No separate “Checklist” page. Just one single w
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 overscroll-contain [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
+      <nav ref={navRef} className="flex-1 overflow-y-auto py-4 px-3 space-y-1 overscroll-contain [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
         {groups.map((group) => {
           // A module with a single destination is rendered as a plain link. A
           // disclosure triangle that opens to reveal one row is a control that
