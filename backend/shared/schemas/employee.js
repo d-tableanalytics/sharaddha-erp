@@ -165,6 +165,17 @@ export const revealSensitiveSchema = z.object({
   reason: z.string().trim().max(300).optional(),
 });
 
+/**
+ * Permanently deleting an employee.
+ *
+ * The employee code, typed back. Whether it MATCHES is the service's question,
+ * since only the service has the record; this only refuses a request that
+ * could not possibly be a confirmation.
+ */
+export const eraseEmployeeSchema = z.object({
+  confirmEmployeeCode: z.string().trim().min(1).max(30),
+});
+
 // ---------------------------------------------------------------------------
 // Custom field definitions
 // ---------------------------------------------------------------------------

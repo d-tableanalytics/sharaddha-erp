@@ -31,6 +31,7 @@ import {
   employeeListQuerySchema,
   assignRolesSchema,
   revealSensitiveSchema,
+  eraseEmployeeSchema,
   createCustomFieldSchema,
   updateCustomFieldSchema,
 } from '../../../shared/schemas/employee.js';
@@ -125,6 +126,25 @@ router.delete(
   '/:id',
   requirePermission({ module: M.EMPLOYEES, action: A.DELETE, scope: S.ORG }),
   controller.deactivateEmployee,
+);
+
+/**
+ * Permanent delete — the employee, their login and their HRMS records; see
+ * employeeErasure.js. The same grant as deactivating. A POST with the typed
+ * employee code rather than a DELETE, because the confirmation is part of the
+ * request and a DELETE body is not something every client and proxy passes on.
+ */
+router.get(
+  '/:id/erasure-preview',
+  requirePermission({ module: M.EMPLOYEES, action: A.DELETE, scope: S.ORG }),
+  controller.previewEmployeeErasure,
+);
+
+router.post(
+  '/:id/erase',
+  requirePermission({ module: M.EMPLOYEES, action: A.DELETE, scope: S.ORG }),
+  validate({ body: eraseEmployeeSchema }),
+  controller.eraseEmployee,
 );
 
 /**

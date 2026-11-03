@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import { HrmsPageLayout } from "../../../components/hrms/HrmsPageLayout";
 import { HrmsDataTable } from "../../../components/hrms/HrmsDataTable";
@@ -8,7 +8,9 @@ import { FilterBar } from "../../../components/hrms/FilterBar";
 import { HrmsStatusBadge } from "../../../components/hrms/HrmsStatusBadge";
 import { PermissionGate } from "../../../components/hrms/PermissionGate";
 import { Button } from "../../../components/ui/Button";
+import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
 import { EmployeeFormDrawer } from "./EmployeeFormDrawer";
+import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
 import {
   employeesApi,
   departmentsApi,
@@ -52,6 +54,8 @@ const initialsOf = (name) =>
 
 export function EmployeesPage() {
   const navigate = useNavigate();
+  const { can } = useHrmsPermissions();
+  const canDelete = can(M.EMPLOYEES, A.DELETE, S.ORG);
 
   /**
    * Filters are seeded from the URL so a deep link lands pre-filtered.
@@ -75,6 +79,8 @@ export function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  /** The row whose permanent delete is being confirmed, if any. */
+  const [deleting, setDeleting] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,8 +182,31 @@ export function EmployeesPage() {
         sortable: true,
         cell: (r) => <HrmsStatusBadge status={r.status} />,
       },
+      ...(canDelete
+        ? [
+            {
+              header: "",
+              className: "w-12 text-right",
+              cell: (row) => (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  aria-label={`Delete ${row.displayName}`}
+                  title="Delete permanently"
+                  onClick={(e) => {
+                    // The row itself opens the profile.
+                    e.stopPropagation();
+                    setDeleting(row);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-error-600" aria-hidden="true" />
+                </Button>
+              ),
+            },
+          ]
+        : []),
     ],
-    [],
+    [canDelete],
   );
 
   return (
@@ -275,6 +304,19 @@ export function EmployeesPage() {
         departments={departments}
         locations={locations}
       />
+
+      {deleting && (
+        <DeleteEmployeeDialog
+          employee={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            // Nobody can be given a manager who no longer exists.
+            setManagerOptions((opts) => opts.filter((o) => o.value !== deleting.id));
+            setDeleting(null);
+            load();
+          }}
+        />
+      )}
     </HrmsPageLayout>
   );
 }

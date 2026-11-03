@@ -30,6 +30,19 @@ export const employeesApi = {
   deactivate: (id) => hrmsClient.delete(`/employees/${id}`),
 
   /**
+   * What a permanent delete would remove, and anything refusing it.
+   * Returns `{ employeeCode, displayName, login, records, warnings, blockers }`.
+   */
+  erasurePreview: (id) => hrmsClient.get(`/employees/${id}/erasure-preview`),
+
+  /**
+   * Permanent delete: the employee, their login and their HRMS records. The
+   * employee code must be typed back; the server checks it.
+   */
+  erase: (id, confirmEmployeeCode) =>
+    hrmsClient.post(`/employees/${id}/erase`, { confirmEmployeeCode }),
+
+  /**
    * Reveal ONE sensitive value in full.
    *
    * Separate from the read on purpose: the profile shows presence only, and

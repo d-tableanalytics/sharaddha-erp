@@ -639,6 +639,147 @@ describe("employee profile", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Permanent delete
+// ---------------------------------------------------------------------------
+
+describe("permanent delete", () => {
+  const PREVIEW = {
+    id: PRIYA.id,
+    employeeCode: "SI-001",
+    displayName: "Priya Sharma",
+    login: { email: "priya@shraddha.test" },
+    records: [
+      { key: "attendance", label: "Attendance days", count: 214 },
+      { key: "payslips", label: "Payslips", count: 9 },
+    ],
+    warnings: [
+      {
+        code: "HOLDS_ASSETS",
+        count: 1,
+        message: "1 asset is still issued to them. Mark it returned in Assets.",
+      },
+    ],
+    blockers: [],
+  };
+
+  /** The preview and the erase for Priya; `onErase` sees the request. */
+  const withPreview = (preview = PREVIEW, onErase) =>
+    installTransport({
+      [`GET /hrms/employees/${PRIYA.id}/erasure-preview`]: () => envelope(preview),
+      [`POST /hrms/employees/${PRIYA.id}/erase`]: (config) => {
+        onErase?.(config);
+        return envelope({ id: PRIYA.id, employeeCode: "SI-001", displayName: "Priya Sharma", erased: {}, files: 0 });
+      },
+    });
+
+  /** The directory, with a profile route that would show if a row click leaked. */
+  const openDirectory = async (roles) => {
+    signIn(roles);
+    render(
+      <MemoryRouter initialEntries={["/hrms/employees"]}>
+        <Routes>
+          <Route path="/hrms/employees" element={<EmployeesPage />} />
+          <Route path="/hrms/employees/:id" element={<p>A profile</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText("Priya Sharma");
+  };
+
+  const directoryQueries = () =>
+    calls.filter((c) => c.url === "/hrms/employees" && c.params?.pageSize !== 200).length;
+
+  it("is offered on each directory row only with the delete grant", async () => {
+    withPreview();
+    await openDirectory([R.HR_ADMIN]);
+    expect(screen.queryByRole("button", { name: "Delete Priya Sharma" })).toBeNull();
+
+    cleanup();
+    useHrmsStore.getState().clear();
+    await openDirectory([R.SUPER_ADMIN]);
+    expect(screen.getByRole("button", { name: "Delete Priya Sharma" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete Rahul Verma" })).toBeTruthy();
+  });
+
+  it("shows what would be deleted, without opening the profile behind it", async () => {
+    withPreview();
+    await openDirectory([R.SUPER_ADMIN]);
+    await userEvent.click(screen.getByRole("button", { name: "Delete Priya Sharma" }));
+
+    expect(await screen.findByText("Attendance days")).toBeTruthy();
+    expect(screen.getByText("214")).toBeTruthy();
+    expect(screen.getByText("priya@shraddha.test", { selector: "strong" })).toBeTruthy();
+    expect(screen.getByText(/1 asset is still issued to them/)).toBeTruthy();
+    expect(screen.getByText(/It cannot be undone/)).toBeTruthy();
+    expect(screen.queryByText("A profile")).toBeNull();
+  });
+
+  it("deletes only once the employee code is typed back, then reloads the directory", async () => {
+    let erased = null;
+    withPreview(PREVIEW, (config) => {
+      erased = config;
+    });
+    await openDirectory([R.SUPER_ADMIN]);
+    await userEvent.click(screen.getByRole("button", { name: "Delete Priya Sharma" }));
+    await screen.findByText("Attendance days");
+
+    const confirm = screen.getByRole("button", { name: /Delete permanently/i });
+    expect(confirm.disabled).toBe(true);
+
+    const box = screen.getByLabelText("Type SI-001 to confirm");
+    await userEvent.type(box, "SI-00");
+    expect(confirm.disabled).toBe(true);
+    await userEvent.type(box, "1");
+    expect(confirm.disabled).toBe(false);
+
+    const before = directoryQueries();
+    await userEvent.click(confirm);
+
+    await waitFor(() => expect(erased).not.toBeNull());
+    expect(erased.data).toEqual({ confirmEmployeeCode: "SI-001" });
+    await waitFor(() => expect(directoryQueries()).toBe(before + 1));
+    expect(screen.queryByText("Attendance days")).toBeNull();
+  });
+
+  it("says what is in the way, and offers no confirmation, when the server would refuse", async () => {
+    withPreview({
+      ...PREVIEW,
+      warnings: [],
+      blockers: [
+        { code: "HAS_DIRECT_REPORTS", message: "This employee has 2 direct reports. Reassign them first." },
+      ],
+    });
+    await openDirectory([R.SUPER_ADMIN]);
+    await userEvent.click(screen.getByRole("button", { name: "Delete Priya Sharma" }));
+
+    expect(await screen.findByText(/2 direct reports\. Reassign them first/)).toBeTruthy();
+    expect(screen.queryByLabelText(/to confirm/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Delete permanently/i }).disabled).toBe(true);
+  });
+
+  it("is offered on the profile beside Deactivate, and returns to the directory afterwards", async () => {
+    withPreview();
+    signIn([R.SUPER_ADMIN]);
+    render(
+      <MemoryRouter initialEntries={[`/hrms/employees/${PRIYA.id}`]}>
+        <Routes>
+          <Route path="/hrms/employees" element={<p>The directory</p>} />
+          <Route path="/hrms/employees/:id" element={<EmployeeProfilePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findAllByText("Priya Sharma");
+    expect(screen.getByRole("button", { name: /Deactivate/i })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
+    await userEvent.type(await screen.findByLabelText("Type SI-001 to confirm"), "si-001");
+    await userEvent.click(screen.getByRole("button", { name: /Delete permanently/i }));
+
+    expect(await screen.findByText("The directory")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Edit form
 // ---------------------------------------------------------------------------
 

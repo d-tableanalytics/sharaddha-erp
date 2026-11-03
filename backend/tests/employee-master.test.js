@@ -96,11 +96,16 @@ test('the reference filters and scopes are indexed (AD-13)', () => {
   assert.ok(indexed.some((i) => i.includes('reportingManagerId')));
 });
 
-test('deletion is soft — a hard delete would strand dependent records', async () => {
+test('deactivation is soft — only the permanent delete removes the row, and it takes the records with it', async () => {
   assert.ok(Employee.schema.path('deletedAt'), 'soft-delete marker must exist');
   const service = await src('../modules/hrms/employees/employee.service.js');
   assert.match(service, /deletedAt: new Date\(\)/);
   assert.doesNotMatch(service, /Employee\.deleteOne|Employee\.findByIdAndDelete/);
+  // A hard delete on its own would strand attendance, leave and payroll rows.
+  // The one that exists deletes those first; employee-erasure.test.js proves
+  // it against a real database.
+  const erasure = await src('../modules/hrms/employees/employeeErasure.js');
+  assert.match(erasure, /Employee\.deleteOne/);
 });
 
 test('a document validates, and rejects more than two emergency contacts', async () => {

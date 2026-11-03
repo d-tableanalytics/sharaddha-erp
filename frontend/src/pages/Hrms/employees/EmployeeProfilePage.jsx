@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Pencil, Eye, ShieldOff, KeyRound, ArrowLeft } from "lucide-react";
+import { Pencil, Eye, ShieldOff, KeyRound, ArrowLeft, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { HrmsPageLayout } from "../../../components/hrms/HrmsPageLayout";
@@ -12,6 +12,7 @@ import { ConfirmationDialog } from "../../../components/ui/ConfirmationDialog";
 import { Modal } from "../../../components/ui/Modal";
 import { employeesApi, HrmsApiError } from "../../../services/hrms";
 import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
+import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
 import {
   HRMS_MODULES as M,
   HRMS_ACTIONS as A,
@@ -72,6 +73,7 @@ export function EmployeeProfilePage() {
 
   const [revealed, setRevealed] = useState({});
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tempPassword, setTempPassword] = useState(null);
 
@@ -144,7 +146,7 @@ export function EmployeeProfilePage() {
       onRetry={load}
       actions={
         employee && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={() => navigate("/hrms/employees")}>
               <ArrowLeft size={14} className="mr-1.5" />
               Directory
@@ -186,6 +188,14 @@ export function EmployeeProfilePage() {
               <Button variant="danger" onClick={() => setConfirmDeactivate(true)}>
                 <ShieldOff size={14} className="mr-1.5" />
                 Deactivate
+              </Button>
+              {/*
+                Deactivate keeps the record and its history; Delete erases them.
+                Both on the same grant, so whoever may do one may do the other.
+              */}
+              <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+                <Trash2 size={14} className="mr-1.5" />
+                Delete
               </Button>
             </PermissionGate>
           </div>
@@ -344,6 +354,14 @@ export function EmployeeProfilePage() {
         description="The record is kept and marked as exited, and their login is suspended immediately. Attendance, leave and payroll history stay intact. This cannot be undone from here."
         confirmText="Deactivate"
       />
+
+      {confirmDelete && employee && (
+        <DeleteEmployeeDialog
+          employee={employee}
+          onClose={() => setConfirmDelete(false)}
+          onDeleted={() => navigate("/hrms/employees")}
+        />
+      )}
 
       <Modal
         isOpen={Boolean(tempPassword)}

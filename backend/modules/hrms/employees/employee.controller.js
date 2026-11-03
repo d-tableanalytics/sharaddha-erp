@@ -8,6 +8,7 @@
  */
 
 import * as service from './employee.service.js';
+import * as erasure from './employeeErasure.js';
 import { recordAudit } from '../../../utils/auditLog.js';
 import { AUDIT_ACTIONS } from '../../../shared/constants/hrms.js';
 
@@ -128,6 +129,42 @@ export const deactivateEmployee = async (req, res, next) => {
       req.user,
       'hrms.employee.deactivated',
       `Deactivated employee ${result.employeeCode}; login suspended and sessions revoked`,
+      req,
+      { meta: result },
+    );
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** GET /api/v1/hrms/employees/:id/erasure-preview — what a permanent delete would remove. */
+export const previewEmployeeErasure = async (req, res, next) => {
+  try {
+    const data = await erasure.previewErasure(req.params.id, req.hrmsActor);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/hrms/employees/:id/erase — permanent delete.
+ *
+ * The audit entry is written after the fact and is the one record left of who
+ * this was, so it names them; everything else about them is gone.
+ */
+export const eraseEmployee = async (req, res, next) => {
+  try {
+    const result = await erasure.eraseEmployee(req.params.id, req.hrmsActor, {
+      confirmEmployeeCode: req.body?.confirmEmployeeCode,
+    });
+
+    await recordAudit(
+      req.user,
+      'hrms.employee.erased',
+      `Permanently deleted employee ${result.employeeCode} (${result.displayName}), their login and their HRMS records`,
       req,
       { meta: result },
     );
@@ -283,6 +320,8 @@ export default {
   createEmployee,
   updateEmployee,
   deactivateEmployee,
+  previewEmployeeErasure,
+  eraseEmployee,
   revealSensitiveField,
   getEmployeeRoles,
   assignEmployeeRoles,

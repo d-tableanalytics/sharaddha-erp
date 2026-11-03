@@ -71,8 +71,11 @@ const addMonths = (date, months) => {
  * The portal's established pattern — see `utils/mongoSession.js`. Employee
  * creation writes a User AND an Employee, so a partial failure would otherwise
  * leave an orphaned login with no employee record.
+ *
+ * Exported for employeeErasure.js, which deletes across the same two
+ * collections and many more.
  */
-async function withTransaction(fn) {
+export async function withTransaction(fn) {
   const session = await mongoose.startSession();
   try {
     let out;
