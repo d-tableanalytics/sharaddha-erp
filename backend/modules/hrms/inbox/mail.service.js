@@ -35,6 +35,7 @@
 import Employee from '../../../models/hrms/Employee.js';
 import User from '../../../models/User.js';
 import { sendEmail } from '../../../utils/mailer.js';
+import { portalLink } from '../../../utils/portalUrl.js';
 import { HRMS_ROUTE_PREFIX } from '../../../shared/constants/hrms.js';
 import { hrefFor } from '../../../shared/constants/inbox.js';
 import { renderInboxMail, hasMailTemplate } from './mailTemplates.js';
@@ -93,8 +94,10 @@ export async function sendInboxMail({ type, title, recipients = [] }) {
 
   const rendered = renderInboxMail(type, {
     title,
-    // The same derived link the inbox row carries — never a stored href.
-    href: `${process.env.APP_BASE_URL ?? ''}${hrefFor(type, HRMS_ROUTE_PREFIX)}`,
+    // The same derived link the inbox row carries — never a stored href. Made
+    // absolute against APP_BASE_URL, else FRONTEND_URL. With neither set the
+    // button is left out: a relative href in an email goes nowhere.
+    href: portalLink('APP_BASE_URL', hrefFor(type, HRMS_ROUTE_PREFIX)),
   });
   if (!rendered) return 0;
 

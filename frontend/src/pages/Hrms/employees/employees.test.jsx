@@ -639,6 +639,97 @@ describe("employee profile", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Work email
+// ---------------------------------------------------------------------------
+
+describe("edit work email", () => {
+  const WITH_LOGIN = { ...PRIYA, userId: "652f0000000000000000u001" };
+
+  const open = async (roles, overrides = {}) => {
+    signIn(roles);
+    installTransport({
+      [`GET /hrms/employees/${PRIYA.id}`]: () => envelope(WITH_LOGIN),
+      ...overrides,
+    });
+    at(`/hrms/employees/${PRIYA.id}`, <EmployeeProfilePage />);
+    await screen.findAllByText("Priya Sharma");
+  };
+
+  const workEmailRow = () => screen.getByText("Work email").closest("div");
+
+  it("offers Edit on the work email to HR", async () => {
+    await open([R.HR_ADMIN]);
+    expect(within(workEmailRow()).getByRole("button", { name: /Edit/i })).toBeTruthy();
+  });
+
+  it("does not offer it to an ordinary employee", async () => {
+    await open([R.EMPLOYEE]);
+    expect(within(workEmailRow()).queryByRole("button", { name: /Edit/i })).toBeNull();
+  });
+
+  it("does not offer it when the employee has no portal login", async () => {
+    await open([R.HR_ADMIN], {
+      [`GET /hrms/employees/${PRIYA.id}`]: () => envelope(PRIYA),
+    });
+    expect(within(workEmailRow()).queryByRole("button", { name: /Edit/i })).toBeNull();
+  });
+
+  it("rejects a malformed address without calling the server", async () => {
+    await open([R.HR_ADMIN]);
+    await userEvent.click(within(workEmailRow()).getByRole("button", { name: /Edit/i }));
+
+    const input = await screen.findByDisplayValue("priya@shraddha.test");
+    await userEvent.clear(input);
+    await userEvent.type(input, "not-an-email");
+    await userEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    expect(await screen.findByText(/Enter a valid email address/i)).toBeTruthy();
+    expect(calls.some((c) => c.url.endsWith("/email"))).toBe(false);
+  });
+
+  it("PATCHes only the email and shows the new address", async () => {
+    await open([R.HR_ADMIN], {
+      [`PATCH /hrms/employees/${PRIYA.id}/email`]: (c) =>
+        envelope({ ...WITH_LOGIN, email: c.data.email }),
+    });
+    await userEvent.click(within(workEmailRow()).getByRole("button", { name: /Edit/i }));
+
+    const input = await screen.findByDisplayValue("priya@shraddha.test");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Priya.Sharma@Shraddha.test");
+    await userEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await waitFor(() =>
+      expect(within(workEmailRow()).getByText("priya.sharma@shraddha.test")).toBeTruthy(),
+    );
+    const sent = calls.find((c) => c.url.endsWith("/email"));
+    expect(sent.method).toBe("patch");
+    expect(sent.data).toEqual({ email: "priya.sharma@shraddha.test" });
+  });
+
+  it("shows the server's duplicate-email refusal in the dialog", async () => {
+    await open([R.HR_ADMIN], {
+      [`PATCH /hrms/employees/${PRIYA.id}/email`]: () => {
+        const err = new Error("Request failed");
+        err.response = {
+          status: 409,
+          data: { success: false, message: "That email address is already in use.", code: "EMAIL_IN_USE" },
+        };
+        throw err;
+      },
+    });
+    await userEvent.click(within(workEmailRow()).getByRole("button", { name: /Edit/i }));
+
+    const input = await screen.findByDisplayValue("priya@shraddha.test");
+    await userEvent.clear(input);
+    await userEvent.type(input, "rahul@shraddha.test");
+    await userEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    expect(await screen.findByText(/already in use/i)).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Permanent delete
 // ---------------------------------------------------------------------------
 
@@ -802,7 +893,8 @@ describe("edit employee", () => {
 
     expect(screen.getByDisplayValue("priya@shraddha.test").disabled).toBe(true);
     expect(screen.getByDisplayValue("SI-001").disabled).toBe(true);
-    expect(screen.getByText(/cannot be changed here/i)).toBeTruthy();
+    // Locked on this form; the profile page is where HR changes it.
+    expect(screen.getByText(/HR can change it with Edit next to Work email/i)).toBeTruthy();
   });
 
   it("never pre-fills a sensitive value", async () => {

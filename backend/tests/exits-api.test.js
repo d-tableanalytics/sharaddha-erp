@@ -1300,3 +1300,89 @@ test('AD-4: a Customer reaches no exit endpoint', async () => {
     }
   });
 });
+
+// ===========================================================================
+// HA2 / HA7 — settlement amounts and HR's own exit
+// ===========================================================================
+
+test('🔴 HA2: settlement amounts are redacted for exit viewers without payroll/HR authority', async () => {
+  const org = await seedOrg();
+  await seedCompensation(org.staff.employee._id, { elDays: 4 });
+
+  let id;
+  await withServer(appFor(org.hr.user), async (url) => {
+    id = await driveToCleared(org, url);
+    const row = envelope(await post(url, `${P}/${id}/fnf`, {}), 201);
+    assert.ok(row.fullAndFinal.netPayable, 'HR computes it, so HR sees it');
+  });
+
+  // IT holds exits:view:org only for the asset step; the manager sees the
+  // exit through the chain. Neither may read money.
+  for (const viewer of [org.it, org.manager]) {
+    await withServer(appFor(viewer.user), async (url) => {
+      const row = envelope(await get(url, `${P}/${id}`));
+      assert.equal(row.fullAndFinal.redacted, true);
+      assert.ok(row.fullAndFinal.computedAt);
+      for (const k of ['gross', 'deductions', 'netPayable', 'earnings', 'gratuity', 'leaveEncashment']) {
+        assert.equal(row.fullAndFinal[k], undefined, k);
+      }
+      const list = envelope(await get(url, P));
+      const listed = (list.data ?? list).find((r) => r.id === id);
+      assert.ok(listed);
+      assert.equal(listed.fullAndFinal.netPayable, undefined, 'the list redacts too');
+    });
+  }
+
+  // The leaver and payroll (employees:compensation:view:org) see the amounts.
+  for (const viewer of [org.staff, org.finance]) {
+    await withServer(appFor(viewer.user), async (url) => {
+      const row = envelope(await get(url, `${P}/${id}`));
+      assert.ok(row.fullAndFinal.netPayable, 'full settlement visible');
+      assert.equal(row.fullAndFinal.redacted, undefined);
+    });
+  }
+});
+
+test('🔴 HA7: HR cannot settle, edit or open clearances on their own exit; another HR can', async () => {
+  const hrLeaver = await makePerson([R.HR_ADMIN], { firstName: 'Lena' });
+  const otherHr = await makePerson([R.HR_ADMIN], { firstName: 'Omar' });
+  await seedCompensation(hrLeaver.employee._id);
+
+  const cleared = await ExitRequest.create({
+    employeeId: hrLeaver.employee._id,
+    employeeName: 'Lena Person',
+    reason: 'Leaving.',
+    requestedLastDay: dayFromNow(10),
+    status: 'in_notice',
+  });
+
+  await withServer(appFor(hrLeaver.user), async (url) => {
+    errorBody(await post(url, `${P}/${cleared._id}/open-clearances`, {}), 403);
+  });
+  await ExitRequest.updateOne({ _id: cleared._id }, { $set: { status: 'cleared' } });
+
+  await withServer(appFor(hrLeaver.user), async (url) => {
+    errorBody(await post(url, `${P}/${cleared._id}/fnf`, {}), 403);
+    errorBody(await patch(url, `${P}/${cleared._id}`, { actualLastDay: dayFromNow(1) }), 403);
+  });
+  const untouched = await ExitRequest.findById(cleared._id).lean();
+  assert.equal(untouched.fullAndFinal ?? null, null);
+  assert.equal(untouched.actualLastDay, null);
+
+  await ExitRequest.updateOne(
+    { _id: cleared._id },
+    { $set: { status: 'f_and_f_pending', fullAndFinal: {
+      gross: mongoose.Types.Decimal128.fromString('10.00'),
+      deductions: mongoose.Types.Decimal128.fromString('0.00'),
+      netPayable: mongoose.Types.Decimal128.fromString('10.00'),
+      computedAt: new Date(),
+    } } },
+  );
+  await withServer(appFor(hrLeaver.user), async (url) => {
+    errorBody(await post(url, `${P}/${cleared._id}/fnf/disburse`, {}), 403);
+  });
+  await withServer(appFor(otherHr.user), async (url) => {
+    const row = envelope(await post(url, `${P}/${cleared._id}/fnf/disburse`, {}));
+    assert.equal(row.status, 'closed');
+  });
+});

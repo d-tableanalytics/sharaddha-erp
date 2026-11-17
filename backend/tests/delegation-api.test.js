@@ -17,6 +17,8 @@ import mongoose from 'mongoose';
 
 import User from '../models/User.js';
 import Delegation from '../models/Delegation.js';
+import Role from '../models/Role.js';
+import { loadRoles } from '../utils/roleResolver.js';
 import delegationRoutes from '../modules/delegation/delegation.routes.js';
 import { buildTestApp, stubProtect, withServer, get, post, put, patch, del } from './helpers/http.js';
 import { startTestMongo, stopTestMongo, syncIndexes, clearCollections } from './helpers/mongo.js';
@@ -409,6 +411,37 @@ describe('Delegation Module — Soft Delete, Trash Bin & Bulk Operations', () =>
       doerId: assigneeUser2._id,
       status: 'Pending',
       dueDate: new Date(),
+    });
+  });
+
+  test('EA7: the Trash Bin is scoped like the live list - a non-manager sees only their own deleted tasks', async () => {
+    await Delegation.updateMany(
+      { _id: { $in: [task1._id, task2._id] } },
+      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: delegatorUser._id } },
+    );
+
+    // A non-manager role that HAS the trash cell (the gate is not the scope).
+    await Role.create({
+      name: 'Trash Reader',
+      isSystem: false,
+      grants: [{ module: 'work_queue', submodule: 'trash', actions: ['view'] }],
+    });
+    await loadRoles();
+    const trashReader = { ...assigneeUser1.toObject(), role: 'Trash Reader' };
+
+    // trashReader is the doer of task1 only; task2 belongs to someone else.
+    await withServer(createApp(trashReader), async (url) => {
+      const res = await get(url, `${P}/deleted`);
+      assert.equal(res.status, 200);
+      const ids = res.body.data.map((t) => t._id);
+      assert.ok(ids.includes(String(task1._id)), 'own deleted task is listed');
+      assert.ok(!ids.includes(String(task2._id)), "another person's deleted task must not leak");
+    });
+
+    // A manager (Admin) keeps the company-wide trash.
+    await withServer(createApp(delegatorUser), async (url) => {
+      const ids = (await get(url, `${P}/deleted`)).body.data.map((t) => t._id);
+      assert.ok(ids.includes(String(task1._id)) && ids.includes(String(task2._id)));
     });
   });
 

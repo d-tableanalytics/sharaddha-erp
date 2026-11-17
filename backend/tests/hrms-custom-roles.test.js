@@ -640,3 +640,76 @@ test('mongo ids are validated at the boundary, not by a CastError', async () => 
     );
   });
 });
+
+// ===========================================================================
+// HB3 - grant ceiling and self-held roles
+// ===========================================================================
+
+test('🔴 HB3: a non-super-admin role editor cannot grant what they lack, nor edit a role they hold', async () => {
+  const { user: admin } = await makePerson([R.SUPER_ADMIN]);
+  const { user: delegate, employee } = await makePerson([R.EMPLOYEE]);
+
+  const DELEGATE = {
+    key: 'hrms_settings_delegate',
+    label: 'Settings Delegate',
+    description: 'May maintain roles, nothing payroll-related.',
+    permissions: [
+      { module: M.SETTINGS, action: A.VIEW, scope: S.ORG },
+      { module: M.SETTINGS, action: A.EDIT, scope: S.ORG },
+      { module: M.LEAVE, action: A.APPROVE, scope: S.ORG },
+    ],
+  };
+
+  let regionalId;
+  await withServer(settingsApp(admin), async (url) => {
+    assert.equal((await post(url, `${API}/roles`, DELEGATE)).status, 201);
+    regionalId = (await post(url, `${API}/roles`, REGIONAL)).body.data.id;
+    envelope(
+      await patch(url, `/api/v1/hrms/employees/${employee._id}/roles`, {
+        roleKeys: [R.EMPLOYEE, DELEGATE.key],
+      }),
+    );
+  });
+  const delegateRole = await HrmsRole.findOne({ key: DELEGATE.key }).lean();
+  const compensation = { module: M.EMPLOYEES_COMPENSATION, action: A.VIEW, scope: S.ORG };
+
+  await withServer(settingsApp(delegate), async (url) => {
+    // Creating a role carrying a grant the delegate does not hold.
+    const created = await post(url, `${API}/roles`, {
+      key: 'hrms_shadow_payroll',
+      label: 'Shadow Payroll',
+      permissions: [compensation],
+    });
+    assert.equal(created.status, 403, JSON.stringify(created.body));
+    assert.equal(await HrmsRole.countDocuments({ key: 'hrms_shadow_payroll' }), 0);
+
+    // Widening another role beyond the delegate's own grants.
+    const widened = await patch(url, `${API}/roles/${regionalId}`, {
+      permissions: [...REGIONAL.permissions, compensation],
+    });
+    assert.equal(widened.status, 403, JSON.stringify(widened.body));
+
+    // Editing the role the delegate holds - even within their own grants.
+    const own = await patch(url, `${API}/roles/${delegateRole._id}`, { label: 'Renamed' });
+    assert.equal(own.status, 403, JSON.stringify(own.body));
+
+    // Legitimate: a role built only from grants the delegate holds.
+    const ok = await post(url, `${API}/roles`, {
+      key: 'hrms_leave_desk',
+      label: 'Leave Desk',
+      permissions: [{ module: M.LEAVE, action: A.APPROVE, scope: S.TEAM }],
+    });
+    assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  });
+
+  const regional = await HrmsRole.findById(regionalId).lean();
+  assert.equal(regional.permissions.length, 1, 'the refused widening wrote nothing');
+
+  // A super admin is not capped.
+  await withServer(settingsApp(admin), async (url) => {
+    const res = await patch(url, `${API}/roles/${regionalId}`, {
+      permissions: [...REGIONAL.permissions, compensation],
+    });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+  });
+});

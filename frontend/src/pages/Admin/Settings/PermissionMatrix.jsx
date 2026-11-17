@@ -10,6 +10,7 @@ import { useUserStore } from '../../../store/userStore';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
+import { ConfirmationDialog } from '../../../components/ui/ConfirmationDialog';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import { canManageRoles, canAction } from '../../../utils/permissions';
@@ -17,6 +18,7 @@ import {
   ACTION_LABELS, mapToGrants, sameGrants, toggleCell, mergeGrantLists,
 } from '../../../utils/grants';
 import { HrmsRolesPanel } from './HrmsRolesPanel';
+import { ModuleInfoButton } from "../../../components/common/ModuleInfoButton";
 
 /**
  * The Super Admin's control panel for access - requirement 3.
@@ -63,35 +65,22 @@ import { HrmsRolesPanel } from './HrmsRolesPanel';
  */
 
 /**
- * The role's CURRENT effective grants, seeded for the matrix.
+ * The role's grants as STORED, seeded for the matrix.
  *
- * ---------------------------------------------------------------------------
- * NO LOCKED CELLS — EVERY CHECKBOX SHOWS WHAT IS TRUE, AND CAN BE CHANGED
- * ---------------------------------------------------------------------------
- * The floor a role starts from — its BASELINE, see BASELINE_ROLE_PERMISSIONS in
- * backend/config/permissions.js — is still enforced server-side:
- * `resolveRolePermissions` unions baseline with whatever is stored, one
- * directionally, and nothing sent from this screen can change that. What
- * changed is how the screen ADMITS it.
- *
- * The previous version rendered a baseline cell ticked-and-disabled behind a
- * padlock, so an admin could see it but never touch it, and a super-admin
- * role's whole matrix the same way. This renders every cell as an ordinary
- * checkbox, seeded from baseline UNION the role's own grants — so a box starts
- * by telling the truth about what the role can do today, and can be freely
- * unchecked and rechecked from there like any other.
- *
- * Unchecking a baseline cell and saving does exactly what it looks like: the
- * tick clears, and the role's stored grants no longer list it. It does not
- * remove the role's actual access, because the compiled floor still unions
- * back in at authorization time — the same "no existing access is lost"
- * guarantee this system has always made. The visible effect is that the cell
- * is ticked again the next time this role is opened, because the seed always
- * re-reads the true current state rather than remembering a click that did
- * not change anything real. Nothing here pretends otherwise with a lock icon;
- * the box just shows what is actually granted, every time.
+ * A stored role is the whole answer on the server (utils/roleResolver.js): its
+ * built-in baseline applies only to a role that has no stored row at all. This
+ * screen used to seed the draft from baseline UNION the stored grants and save
+ * that union back, so every save quietly re-granted any baseline cell an Admin
+ * had unticked - here or on the Customer Portal. The draft is now exactly what
+ * is stored, so a box shows what the role can really do and unticking it
+ * really revokes it. (The Customer Portal's screen already worked this way.)
  */
-const mergedInitialGrants = (role) => mergeGrantLists(role?.baselineGrants, role?.grants);
+const mergedInitialGrants = (role) => (
+  // A full-access role really does hold every cell, so it shows them all.
+  role?.isSuperAdmin || (role?.effectivePermissions || []).includes('*')
+    ? mergeGrantLists(role?.baselineGrants, [...(role?.effectiveGrants || []), ...(role?.grants || [])])
+    : mergeGrantLists([], role?.grants)
+);
 
 // ---------------------------------------------------------------------------
 // Small pieces
@@ -400,15 +389,30 @@ export const PermissionMatrix = () => {
     setSelectedId(res.role._id);
   };
 
-  const handleDelete = async () => {
-    if (!selected) return;
-    const res = await deleteRole(selected._id);
+  /**
+   * Delete THE ROLE THAT WAS CLICKED, after a confirmation.
+   *
+   * The row menu used to call setSelectedId(row) and then handleDelete() in the
+   * same click, and handleDelete read `selected` from the render before the
+   * state change - so it deleted whichever role was open before, without
+   * asking. The role now travels as an argument, and nothing is deleted until
+   * the dialog is confirmed.
+   */
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async (role) => {
+    if (!role) return;
+    setDeleting(true);
+    const res = await deleteRole(role._id);
+    setDeleting(false);
+    setConfirmDelete(null);
     if (!res.success) {
       toast.error(res.error);
       return;
     }
-    toast.success(`Role "${selected.name}" deleted.`);
-    setSelectedId(null);
+    toast.success(`Role "${role.name}" deleted.`);
+    if (selected?._id === role._id) setSelectedId(null);
   };
 
   /**
@@ -473,7 +477,10 @@ export const PermissionMatrix = () => {
           Administration <span className="mx-1 text-slate-300">/</span>
           <span className="text-slate-600">Roles &amp; Permissions</span>
         </nav>
-        <h2 className="text-xl font-bold text-slate-900">Roles &amp; Permissions</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-xl font-bold text-slate-900">Roles &amp; Permissions</h2>
+          <ModuleInfoButton />
+        </div>
         <p className="text-sm text-slate-500 mt-0.5">
           Create and manage roles, and set access to modules and sub-modules.
         </p>
@@ -666,7 +673,7 @@ export const PermissionMatrix = () => {
                           {mayDeleteRole && (
                             <button
                               type="button"
-                              onClick={() => { setSelectedId(role._id); setMenuFor(null); handleDelete(); }}
+                              onClick={() => { setMenuFor(null); setConfirmDelete(role); }}
                               className="w-full text-left px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-50"
                             >
                               Delete role
@@ -715,7 +722,7 @@ export const PermissionMatrix = () => {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={handleDelete}
+                      onClick={() => setConfirmDelete(selected)}
                       aria-label={`Delete ${selected.name}`}
                     >
                       <Trash2 size={15} className="text-error-600" />
@@ -903,6 +910,19 @@ export const PermissionMatrix = () => {
           }}
         />
       )}
+
+      <ConfirmationDialog
+        isOpen={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => handleDelete(confirmDelete)}
+        title="Delete role?"
+        description={confirmDelete
+          ? `"${confirmDelete.name}" will be deleted permanently. A role that anyone still holds cannot be deleted.`
+          : ''}
+        confirmText="Delete role"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

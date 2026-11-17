@@ -1179,6 +1179,20 @@ export async function getDeletedDelegations(req, res, next) {
     // Declared before the status filter, which reads it for "Overdue".
     const now = new Date();
 
+    // EA7: the trash is scoped like the live All Tasks list. A non-manager
+    // sees only deleted tasks they assigned, did, were in loop on, or deleted
+    // themselves - never every deleted delegation in the company.
+    if (!isManager(req.user)) {
+      conditions.push({
+        $or: [
+          { assignerId: currentUserId },
+          { doerId: currentUserId },
+          { 'inLoop.userId': currentUserId },
+          { deletedBy: currentUserId },
+        ],
+      });
+    }
+
     // Search
     if (search) {
       const regex = searchRegex(search);

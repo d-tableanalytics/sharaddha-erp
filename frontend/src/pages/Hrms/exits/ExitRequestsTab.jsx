@@ -334,7 +334,16 @@ function ExitDetailDrawer({ exit, onClose, onChanged }) {
         {isHr && exit.status === "cleared" && !exit.fullAndFinal && (
           <SettlementPreview exitId={exit.id} />
         )}
-        {exit.fullAndFinal && <SettlementCard fnf={exit.fullAndFinal} />}
+        {/* The server redacts settlement amounts for viewers without payroll/HR authority. */}
+        {exit.fullAndFinal && !exit.fullAndFinal.redacted && (
+          <SettlementCard fnf={exit.fullAndFinal} />
+        )}
+        {exit.fullAndFinal?.redacted && (
+          <p className="text-xs text-slate-500">
+            A full and final settlement has been computed
+            {exit.fullAndFinal.disbursedAt ? " and disbursed" : ""}. Amounts are visible to HR and payroll only.
+          </p>
+        )}
       </div>
     </Drawer>
   );

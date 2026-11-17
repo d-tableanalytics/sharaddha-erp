@@ -13,6 +13,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { employeesApi, HrmsApiError } from "../../../services/hrms";
 import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
 import { DeleteEmployeeDialog } from "./DeleteEmployeeDialog";
+import { EditWorkEmailDialog } from "./EditWorkEmailDialog";
 import {
   HRMS_MODULES as M,
   HRMS_ACTIONS as A,
@@ -76,6 +77,7 @@ export function EmployeeProfilePage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tempPassword, setTempPassword] = useState(null);
+  const [editEmail, setEditEmail] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +96,7 @@ export function EmployeeProfilePage() {
   }, [load]);
 
   const canSeeSensitive = can(M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG);
+  const canEditWorkEmail = can(M.EMPLOYEES, A.EDIT, S.ORG);
 
   const reveal = async (field) => {
     try {
@@ -238,7 +241,26 @@ export function EmployeeProfilePage() {
             <Row label="Portal login">
               {employee.userId ? employee.email : "No portal login"}
             </Row>
-            <Row label="Work email">{employee.email}</Row>
+            <Row label="Work email">
+              <span className="flex flex-wrap items-center gap-3">
+                <span>{employee.email ?? "—"}</span>
+                {/*
+                  HR / admin only (employees:edit:org). An employee cannot
+                  change their own sign-in address; the server refuses it too.
+                  Not offered without a login: there is no address to change.
+                */}
+                {canEditWorkEmail && employee.userId && (
+                  <button
+                    type="button"
+                    onClick={() => setEditEmail(true)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-800"
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </button>
+                )}
+              </span>
+            </Row>
             <Row label="Personal email">{employee.personalEmail}</Row>
             <Row label="Phone 1">{employee.phone}</Row>
             <Row label="Phone 2">{employee.phone2}</Row>
@@ -360,6 +382,17 @@ export function EmployeeProfilePage() {
           employee={employee}
           onClose={() => setConfirmDelete(false)}
           onDeleted={() => navigate("/hrms/employees")}
+        />
+      )}
+
+      {editEmail && employee && (
+        <EditWorkEmailDialog
+          employee={employee}
+          onClose={() => setEditEmail(false)}
+          onSaved={(updated) => {
+            setEmployee(updated);
+            setEditEmail(false);
+          }}
         />
       )}
 

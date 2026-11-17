@@ -55,6 +55,12 @@ export const employeesApi = {
   getRoles: (id) => hrmsClient.get(`/employees/${id}/roles`),
   assignRoles: (id, roleKeys) => hrmsClient.patch(`/employees/${id}/roles`, { roleKeys }),
 
+  /**
+   * Change the work (login) email. HR / admin only. Password and sessions are
+   * untouched. Returns the updated employee.
+   */
+  changeWorkEmail: (id, email) => hrmsClient.patch(`/employees/${id}/email`, { email }),
+
   /** Super admin only. Returns a one-time password. */
   resetPassword: (id) => hrmsClient.post(`/employees/${id}/reset-password`),
 };

@@ -180,7 +180,7 @@ describe("access", () => {
     });
     renderGuarded();
 
-    expect(screen.getByText("Portal home")).toBeTruthy();
+    expect(screen.getByText(/don.t have access to this screen/)).toBeTruthy();
     expect(screen.queryByText(/No employee record/i)).toBeNull();
   });
 

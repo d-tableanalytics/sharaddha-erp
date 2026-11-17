@@ -42,6 +42,7 @@ import {
   HrmsConflictError,
   HrmsValidationError,
 } from '../hrms.errors.js';
+import { inSet, within, redactApplication } from './hiringScope.js';
 
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
@@ -109,10 +110,12 @@ async function enrich(rows) {
   });
 }
 
-export async function listApplications(query = {}) {
+export async function listApplications(query = {}, reach = null) {
   const { page = 1, pageSize = PAGE_SIZE_DEFAULT, requisitionId, candidateId, stage } = query;
 
   const filter = {
+    // HB1: team-scoped viewers see only applications within their reach.
+    ...(reach ? { _id: inSet(reach.applications) } : {}),
     ...(requisitionId ? { requisitionId: oid(requisitionId) } : {}),
     ...(candidateId ? { candidateId: oid(candidateId) } : {}),
     ...(stage ? { stage } : {}),
@@ -127,7 +130,8 @@ export async function listApplications(query = {}) {
     Application.countDocuments(filter),
   ]);
 
-  return { data: await enrich(rows), total, page, pageSize };
+  const data = (await enrich(rows)).map((d) => redactApplication(d, reach));
+  return { data, total, page, pageSize };
 }
 
 /**
@@ -138,16 +142,23 @@ export async function listApplications(query = {}) {
  * one requisition's applicants, and the cap below keeps a runaway posting from
  * loading unboundedly — with a count so the UI can say what it is not showing.
  */
-export async function pipelineBoard(requisitionId, { limitPerColumn = 200 } = {}) {
+export async function pipelineBoard(requisitionId, { limitPerColumn = 200 } = {}, reach = null) {
   if (!mongoose.isValidObjectId(requisitionId)) throw new HrmsNotFoundError('Requisition');
+  // HB1: a team-scoped viewer gets the board only for a requisition in reach,
+  // and only the cards within it.
+  if (!within(reach, 'requisitions', requisitionId)) throw new HrmsNotFoundError('Requisition');
+  const boardFilter = {
+    requisitionId: oid(requisitionId),
+    ...(reach ? { _id: inSet(reach.applications) } : {}),
+  };
 
-  const rows = await Application.find({ requisitionId: oid(requisitionId) })
+  const rows = await Application.find(boardFilter)
     .sort({ currentStageAt: -1 })
     .limit(limitPerColumn * PIPELINE_COLUMNS.length)
     .lean();
 
-  const total = await Application.countDocuments({ requisitionId: oid(requisitionId) });
-  const enriched = await enrich(rows);
+  const total = await Application.countDocuments(boardFilter);
+  const enriched = (await enrich(rows)).map((d) => redactApplication(d, reach));
 
   const columns = PIPELINE_COLUMNS.map((stage) => ({
     stage,
@@ -157,9 +168,10 @@ export async function pipelineBoard(requisitionId, { limitPerColumn = 200 } = {}
   return { requisitionId: idStr(requisitionId), columns, total, loaded: enriched.length };
 }
 
-export async function getApplication(id) {
+export async function getApplication(id, reach = null) {
+  if (!within(reach, 'applications', id)) throw new HrmsNotFoundError('Application');
   const row = await loadApplication(id);
-  return (await enrich([row]))[0];
+  return redactApplication((await enrich([row]))[0], reach);
 }
 
 /**

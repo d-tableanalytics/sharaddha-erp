@@ -78,10 +78,14 @@ const SALES = {
   portalOnly: false,
   userCount: 12,
   updatedAt: '2026-01-01T00:00:00.000Z',
-  grants: [{ module: 'fms', submodule: 'my_tasks', actions: ['view'] }],
-  // The compiled-in floor: View on Order Tracker. Still enforced server-side
-  // regardless of what this screen sends — see resolveRolePermissions in
-  // backend/utils/roleResolver.js — but no longer rendered as a lock here.
+  // What the role has STORED. A stored role is the whole answer on the server
+  // (backend/utils/roleResolver.js), so these are exactly the boxes ticked.
+  grants: [
+    { module: 'fms', submodule: 'my_tasks', actions: ['view'] },
+    { module: 'fms', submodule: 'order_tracker', actions: ['view'] },
+  ],
+  // The compiled-in default for a role with NO stored row. Informational here:
+  // it must never be re-ticked behind the admin's back.
   baselineGrants: [{ module: 'fms', submodule: 'order_tracker', actions: ['view'] }],
 };
 
@@ -285,7 +289,7 @@ describe('the matrix', () => {
    * `disabled`, no lock icon, no special title. It looks exactly like every
    * other checkbox on the screen.
    */
-  it('renders a baseline grant ticked, but as a plain, freely-editable checkbox', async () => {
+  it('renders a stored grant ticked, as a plain, freely-editable checkbox', async () => {
     signIn();
     render(<PermissionMatrix />);
 
@@ -331,7 +335,7 @@ describe('the matrix', () => {
 });
 
 describe('editing and saving', () => {
-  it('sends exactly the ticked grants, baseline included', async () => {
+  it('sends exactly the ticked grants', async () => {
     const user = userEvent.setup();
     signIn();
     render(<PermissionMatrix />);
@@ -396,7 +400,7 @@ describe('editing and saving', () => {
    * again. Not because the click was ignored, but because the box never
    * remembers a click, only the role's current effective state.
    */
-  it('a baseline cell re-appears ticked the moment the role reloads, because it is still true', async () => {
+  it('an unticked cell stays unticked after the role reloads: the revocation is real', async () => {
     const user = userEvent.setup();
     signIn();
     render(<PermissionMatrix />);
@@ -407,7 +411,28 @@ describe('editing and saving', () => {
 
     await user.click(screen.getByRole('button', { name: /Save Changes/i }));
 
-    await waitFor(() => expect(cell('Order Tracker', 'view').checked).toBe(true));
+    await waitFor(() => expect(putBody).toBeTruthy());
+    // The saved role comes back without it, and the screen believes the save.
+    await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
+    expect(cell('Order Tracker', 'view').checked).toBe(false);
+  });
+
+  it('a built-in default the role no longer stores is not re-ticked, nor re-sent on save', async () => {
+    const user = userEvent.setup();
+    const revoked = { ...SALES, grants: [{ module: 'fms', submodule: 'my_tasks', actions: ['view'] }] };
+    installTransport({ roles: [revoked, ADMIN, PORTAL] });
+    signIn();
+    render(<PermissionMatrix />);
+
+    await screen.findByText('Order Tracker');
+    expect(cell('Order Tracker', 'view').checked).toBe(false);
+
+    await user.click(cell('My Tasks', 'edit'));
+    await user.click(screen.getByRole('button', { name: /Save Changes/i }));
+
+    await waitFor(() => expect(putBody).toBeTruthy());
+    const cells = putBody.grants.map((g) => `${g.module}.${g.submodule}`);
+    expect(cells).not.toContain('fms.order_tracker');
   });
 
   it('Cancel throws the edit away and puts the button back to sleep', async () => {

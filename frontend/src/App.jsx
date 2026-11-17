@@ -7,6 +7,7 @@ import { router } from "./routes";
 import { useUserStore } from "./store/userStore";
 import { useThemeStore } from "./store/themeStore";
 import { useHrmsStore } from "./store/hrmsStore";
+import { startAccessSync } from "./services/accessSync";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +39,10 @@ function App() {
     fetchUser();
     loadHrms();
   }, [fetchUser, initTheme, loadHrms]);
+
+  // Follow access changes made by an Admin while this tab is open: the
+  // sidebar, routes and buttons update without signing out.
+  useEffect(() => startAccessSync(), []);
 
   return (
     <QueryClientProvider client={queryClient}>

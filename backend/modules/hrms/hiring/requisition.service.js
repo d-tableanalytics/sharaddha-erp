@@ -53,6 +53,7 @@ import {
   HrmsValidationError,
   HrmsForbiddenError,
 } from '../hrms.errors.js';
+import { inSet, within, redactRequisition } from './hiringScope.js';
 
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
@@ -137,11 +138,13 @@ async function enrich(rows) {
 // Requisition reads
 // ---------------------------------------------------------------------------
 
-export async function listRequisitions(query = {}) {
+export async function listRequisitions(query = {}, reach = null) {
   const { page = 1, pageSize = PAGE_SIZE_DEFAULT, status, departmentId, locationId } = query;
 
   const filter = {
     deletedAt: null,
+    // HB1: a team-scoped viewer sees only requisitions they own or interview on.
+    ...(reach ? { _id: inSet(reach.requisitions) } : {}),
     ...(status ? { status } : {}),
     ...(departmentId ? { departmentId: oid(departmentId) } : {}),
     ...(locationId ? { locationId: oid(locationId) } : {}),
@@ -156,14 +159,17 @@ export async function listRequisitions(query = {}) {
     JobRequisition.countDocuments(filter),
   ]);
 
-  return { data: await enrich(rows), total, page, pageSize };
+  const data = (await enrich(rows)).map((d) => redactRequisition(d, reach));
+  return { data, total, page, pageSize };
 }
 
-export async function getRequisition(id) {
+export async function getRequisition(id, reach = null) {
   if (!mongoose.isValidObjectId(id)) throw new HrmsNotFoundError('Requisition');
+  // HB1: out of reach reads exactly like a missing row.
+  if (!within(reach, 'requisitions', id)) throw new HrmsNotFoundError('Requisition');
   const row = await JobRequisition.findOne({ _id: id, deletedAt: null }).lean();
   if (!row) throw new HrmsNotFoundError('Requisition');
-  return (await enrich([row]))[0];
+  return redactRequisition((await enrich([row]))[0], reach);
 }
 
 // ---------------------------------------------------------------------------
@@ -443,12 +449,14 @@ function buildSlug(title) {
   return `${base}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
-export async function listPostings(query = {}) {
+export async function listPostings(query = {}, reach = null) {
   const { page = 1, pageSize = PAGE_SIZE_DEFAULT, requisitionId, published } = query;
 
   const filter = {
     deletedAt: null,
     ...(requisitionId ? { requisitionId: oid(requisitionId) } : {}),
+    // HB1: and only for requisitions within a team-scoped viewer's reach.
+    ...(reach ? { $and: [{ requisitionId: inSet(reach.requisitions) }] } : {}),
     ...(published === true ? { publishedAt: { $ne: null }, closedAt: null } : {}),
   };
 

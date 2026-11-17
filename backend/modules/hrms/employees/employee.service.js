@@ -14,6 +14,8 @@ import EmployeeCustomField from '../../../models/hrms/EmployeeCustomField.js';
 import Department from '../../../models/hrms/Department.js';
 import Location from '../../../models/hrms/Location.js';
 import User from '../../../models/User.js';
+import ArchivedUser from '../../../models/ArchivedUser.js';
+import Delegation from '../../../models/Delegation.js';
 import { hashPassword } from '../../../utils/password.js';
 import { isDuplicateKeyError, isTransactionUnsupported } from '../../../utils/mongoSession.js';
 import { hasHrmsPermission } from '../../../shared/permissions/has-permission.js';
@@ -53,6 +55,8 @@ import {
   HrmsNotImplementedError,
   HrmsValidationError,
 } from '../hrms.errors.js';
+import { actOnAccountProblem, keysBeyond, isUnrestricted } from '../../../utils/accessGuard.js';
+import { resolveUserPermissions } from '../../../utils/roleResolver.js';
 
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const toDate = (v) => (v ? new Date(`${v}T00:00:00.000Z`) : null);
@@ -449,6 +453,7 @@ export async function createEmployee(dto, actor) {
   // plaintext in the oplog, on every replica, and in any backup taken between.
   const { clean: customFieldValues, extracted } = sanitiseCustomFields(dto.customFieldValues);
   const sensitiveInput = { ...extracted, ...pickSensitive(dto) };
+  assertCanWriteSensitive(actor, sensitiveInput); // HA1
 
   const tempPassword = crypto.randomBytes(9).toString('base64url'); // ~12 chars
   const passwordHash = await hashPassword(tempPassword);
@@ -587,6 +592,28 @@ export async function createEmployee(dto, actor) {
   return { employee, tempPassword, academy };
 }
 
+/**
+ * HA1: writing a sensitive identifier or bank field needs the same authority
+ * that writes compensation (employees:compensation:edit:org, the gate payroll
+ * uses for /compensation writes). There is no approval flow for bank changes,
+ * so an employee cannot change their own bank details directly either.
+ *
+ * Exported for the import persistence port, which writes the same fields.
+ */
+export function assertCanWriteSensitive(actor, sensitiveInput, { isSelf = false } = {}) {
+  const fields = Object.keys(sensitiveInput ?? {}).filter((f) =>
+    SENSITIVE_EMPLOYEE_FIELD_LIST.includes(f),
+  );
+  if (fields.length === 0) return;
+  if (hasHrmsPermission(actor, M.EMPLOYEES_COMPENSATION, A.EDIT, S.ORG)) return;
+  throw new HrmsForbiddenError(
+    isSelf
+      ? `Your ${fields.join(', ')} cannot be changed from your profile. Ask payroll to update it.`
+      : `Changing ${fields.join(', ')} needs compensation (payroll) authority.`,
+    { code: 'SENSITIVE_WRITE_FORBIDDEN' },
+  );
+}
+
 /** The sensitive values present on a payload, without touching the others. */
 function pickSensitive(dto) {
   const out = {};
@@ -658,10 +685,13 @@ export async function updateEmployee(id, dto, actor) {
     ? sanitiseCustomFields(dto.customFieldValues)
     : { clean: undefined, extracted: {} };
 
-  const sensitive = await buildSensitiveUpdate(
-    { ...extracted, ...pickSensitive(dto) },
-    { employeeId: existing._id },
-  );
+  const sensitiveInput = { ...extracted, ...pickSensitive(dto) };
+  // HA1: bank/PAN/Aadhaar/UAN/ESI/passport are compensation data. Reading them
+  // already needs employees:compensation, so writing them (where a changed
+  // bank account redirects salary) must too - employees:edit is not enough.
+  assertCanWriteSensitive(actor, sensitiveInput, { isSelf });
+
+  const sensitive = await buildSensitiveUpdate(sensitiveInput, { employeeId: existing._id });
 
   const $set = { updatedById: actor.userId, ...sensitive };
 
@@ -819,7 +849,7 @@ export async function getEmployeeRoles(id, actor) {
   };
 }
 
-export async function assignEmployeeRoles(id, roleKeys, actor) {
+export async function assignEmployeeRoles(id, roleKeys, actor, portalActor = null) {
   if (!hasHrmsPermission(actor, M.EMPLOYEES, A.EDIT, S.ORG)) {
     throw new HrmsForbiddenError('Only org-level editors can change role assignments.');
   }
@@ -864,8 +894,35 @@ export async function assignEmployeeRoles(id, roleKeys, actor) {
     );
   }
 
-  const user = await User.findById(emp.userId).select('role roles').lean();
+  const user = await User.findById(emp.userId).select('role roles extraGrants status').lean();
   if (!user) throw new HrmsNotFoundError('Employee login');
+
+  /*
+   * NO ESCALATION THROUGH HRMS ROLES.
+   *
+   * The route asks only for org-level employee edit, which hr_admin and
+   * recruiter hold - so either could hand themselves (or a friend)
+   * hrms_super_admin, and with it every HRMS power including password resets.
+   * Three rules, the same ones utils/accessGuard.js applies to portal roles:
+   *   - you cannot change your OWN HRMS roles;
+   *   - you cannot grant an HRMS role you do not hold yourself;
+   *   - an account with full portal access is changed only by a Super Admin.
+   * An HRMS super admin is exempt from the first two, as a portal Super Admin is.
+   */
+  if (!actor.roleKeys.includes(R.SUPER_ADMIN)) {
+    if (String(emp.userId) === String(actor.userId)) {
+      throw new HrmsForbiddenError('You cannot change your own HRMS roles. Ask another administrator.');
+    }
+    const current = (user.roles ?? []).filter(isHrmsRoleKey);
+    const beyond = builtInKeys.filter((k) => !current.includes(k) && !actor.roleKeys.includes(k));
+    if (beyond.length) {
+      throw new HrmsForbiddenError(`You cannot grant HRMS roles you do not hold yourself: ${beyond.join(', ')}.`);
+    }
+  }
+  if (portalActor) {
+    const blocked = actOnAccountProblem(portalActor, user);
+    if (blocked) throw new HrmsForbiddenError(blocked.message);
+  }
 
   // AD-4, checked here as well as in the schema hook: findOneAndUpdate does not
   // run document validation, so this is the real control on this path.
@@ -890,7 +947,7 @@ export async function assignEmployeeRoles(id, roleKeys, actor) {
  * Super admin only, as in the reference. Revokes live sessions, and returns the
  * plaintext ONCE — it is never stored or logged.
  */
-export async function resetEmployeePassword(id, actor) {
+export async function resetEmployeePassword(id, actor, portalActor = null) {
   if (!actor.roleKeys.includes(R.SUPER_ADMIN)) {
     throw new HrmsForbiddenError('Only a super admin can reset an employee password.');
   }
@@ -906,6 +963,30 @@ export async function resetEmployeePassword(id, actor) {
     );
   }
 
+  /*
+   * A reset hands the plaintext password to the person asking: it is signing in
+   * as the employee. So it is refused for the asker's own account (they have
+   * Change Password on their profile) and for an account that holds ANY portal
+   * access the asker does not - a Super Admin, an Admin, an Accounts login.
+   * HR still resets everyone at or below its own access; anything above goes
+   * to an administrator who holds it.
+   */
+  if (String(emp.userId) === String(actor.userId)) {
+    throw new HrmsForbiddenError('Use Change Password on your profile to change your own password.');
+  }
+  if (portalActor && !isUnrestricted(portalActor)) {
+    const target = await User.findById(emp.userId).select('role extraGrants status').lean();
+    if (target) {
+      const blocked = actOnAccountProblem(portalActor, target);
+      if (blocked) throw new HrmsForbiddenError(blocked.message);
+      if (keysBeyond(portalActor, resolveUserPermissions(target)).length) {
+        throw new HrmsForbiddenError(
+          'This login has access you do not hold, so its password can only be reset by an administrator who does.',
+        );
+      }
+    }
+  }
+
   const tempPassword = crypto.randomBytes(9).toString('base64url');
   await User.updateOne(
     { _id: emp.userId },
@@ -913,6 +994,121 @@ export async function resetEmployeePassword(id, actor) {
   );
 
   return { tempPassword };
+}
+
+// ---------------------------------------------------------------------------
+// Work email
+// ---------------------------------------------------------------------------
+
+/**
+ * Change an employee's work email.
+ *
+ * The work email is not stored on the employee: it is the login account's
+ * `User.email`, and every screen, report and notification reads it from there.
+ * So changing it in that ONE place is what makes the new address show up
+ * everywhere in the ERP.
+ *
+ * What it deliberately leaves alone:
+ *   - the password - the employee signs in with the new address and the SAME
+ *     password;
+ *   - live sessions - access and refresh tokens carry the account id, not the
+ *     email, so nobody is signed out;
+ *   - roles, status and every field of the employee record.
+ *
+ * The one denormalised copy of a user's email in the database - the snapshot
+ * on Delegation `inLoop[]` entries - is brought in step in the same
+ * transaction, so a task's collaborator list does not keep the old address.
+ *
+ * A suspended login lives in `archivedusers`, not `users`. Its email is changed
+ * there, so the new address applies when the account is restored.
+ */
+export async function changeWorkEmail(id, newEmail, actor, portalActor = null) {
+  if (!hasHrmsPermission(actor, M.EMPLOYEES, A.EDIT, S.ORG)) {
+    throw new HrmsForbiddenError('Only HR or an administrator can change a work email.');
+  }
+
+  const email = String(newEmail ?? '').trim().toLowerCase();
+  if (!email) throw new HrmsValidationError('A work email is required.');
+
+  const emp = await Employee.findOne({ _id: id, deletedAt: null }).lean();
+  if (!emp) throw new HrmsNotFoundError('Employee');
+
+  if (!emp.userId) {
+    throw new HrmsValidationError(
+      'This employee has no portal login, so there is no work email to change.',
+    );
+  }
+
+  const live = await User.findById(emp.userId).select('email role extraGrants status').lean();
+  const archived = live
+    ? null
+    : await ArchivedUser.findById(emp.userId).select('email role extraGrants status').lean();
+  const account = live ?? archived;
+  if (!account) throw new HrmsNotFoundError('Employee login');
+
+  // The same rule the Users screen applies: an account with full system
+  // access is changed only by someone who holds it too. Without this, HR could
+  // re-point a Super Admin's sign-in address.
+  if (portalActor) {
+    const blocked = actOnAccountProblem(portalActor, account);
+    if (blocked) throw new HrmsForbiddenError(blocked.message);
+  }
+
+  const previousEmail = account.email ?? null;
+
+  if (email !== previousEmail) {
+    // Duplicates are checked across BOTH collections. The unique index on
+    // `users` cannot see a suspended account parked in the archive, and
+    // restoring that account later would then collide.
+    const [clash, archivedClash] = await Promise.all([
+      User.exists({ email, _id: { $ne: emp.userId } }),
+      ArchivedUser.exists({ email, _id: { $ne: emp.userId } }),
+    ]);
+    if (clash || archivedClash) {
+      throw new HrmsConflictError('That email address is already in use.', {
+        code: 'EMAIL_IN_USE',
+      });
+    }
+
+    await withTransaction(async (session) => {
+      const opts = session ? { session } : {};
+
+      const Model = live ? User : ArchivedUser;
+      await Model.updateOne(
+        { _id: emp.userId },
+        // Only the email. Password, sessions, roles and status are untouched.
+        { $set: { email } },
+        { runValidators: true, ...opts },
+      ).catch((err) => {
+        // The unique index is the last word on a race between two edits.
+        if (isDuplicateKeyError(err)) {
+          throw new HrmsConflictError('That email address is already in use.', {
+            code: 'EMAIL_IN_USE',
+          });
+        }
+        throw err;
+      });
+
+      await Delegation.updateMany(
+        { 'inLoop.userId': emp.userId },
+        { $set: { 'inLoop.$[p].email': email } },
+        { arrayFilters: [{ 'p.userId': emp.userId }], ...opts },
+      );
+
+      await Employee.updateOne(
+        { _id: emp._id },
+        { $set: { updatedById: actor.userId } },
+        opts,
+      );
+    });
+  }
+
+  const row = await Employee.findById(emp._id).lean();
+  const [employee] = await hydrate([row]);
+  // A suspended login is not in `users`, so hydrate cannot see it.
+  if (!live) employee.email = email;
+
+  return { employee, previousEmail, changed: email !== previousEmail };
 }
 
 // ---------------------------------------------------------------------------
@@ -1002,6 +1198,7 @@ export default {
   getEmployeeRoles,
   assignEmployeeRoles,
   resetEmployeePassword,
+  changeWorkEmail,
   listCustomFields,
   createCustomField,
   updateCustomField,

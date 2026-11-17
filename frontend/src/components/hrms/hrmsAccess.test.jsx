@@ -87,11 +87,12 @@ describe("route protection", () => {
     expect(screen.queryByText("Portal home")).toBeNull();
   });
 
-  it("AD-4: an authenticated customer is redirected away from /hrms/employees", () => {
+  it("AD-4: an authenticated customer is refused /hrms/employees with the Unauthorized panel", () => {
     signInAsCustomer();
     renderAt("/hrms/employees", <HrmsProtectedRoute module={M.EMPLOYEES} />);
 
-    expect(screen.getByText("Portal home")).toBeTruthy();
+    expect(screen.getByText(/don.t have access to this screen/)).toBeTruthy();
+    expect(screen.queryByText("Portal home")).toBeNull();
     expect(screen.queryByText("Employee directory")).toBeNull();
   });
 
@@ -120,14 +121,15 @@ describe("route protection", () => {
     expect(screen.getByText("HRMS dashboard")).toBeTruthy();
   });
 
-  it("redirects rather than announcing that the route exists", () => {
+  it("explains the refusal in plain words, with a way home, and no raw error codes", () => {
     signInAsCustomer();
     renderAt("/hrms/employees", <HrmsProtectedRoute module={M.EMPLOYEES} />);
 
-    // No "403", no "forbidden", no "access denied" - on a shell customers and
-    // employees share, an error page confirms both that the route is real and
-    // that this person is merely not permitted.
-    expect(document.body.textContent).not.toMatch(/denied|forbidden|not authori[sz]ed|403/i);
+    // Was a silent redirect home. The requirement is a proper Unauthorized
+    // page: a user who lost access is told why, and offered their home screen.
+    expect(screen.getByRole("alert").textContent).toMatch(/don.t have access to this screen/);
+    expect(screen.getByRole("link", { name: /home screen/ })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/forbidden|403/i);
   });
 });
 

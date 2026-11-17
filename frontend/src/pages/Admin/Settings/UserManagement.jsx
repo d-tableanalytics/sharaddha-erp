@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Unauthorized } from '../../../components/common/Unauthorized';
 import { useAdminStore } from '../../../store/adminStore';
 import { useUserStore } from '../../../store/userStore';
 import { Card, CardContent } from '../../../components/ui/Card';
@@ -16,6 +16,7 @@ import {
   canOpenUserManagement, canManageAllUsers, canManageAccount, assignableRolesFor, canManageRoles, canAction,
 } from '../../../utils/permissions';
 import { BrandAccessCheckboxes, BrandAccessBadges, allBrandsTicked } from '../../../components/common/BrandAccessFields';
+import { ModuleInfoButton } from "../../../components/common/ModuleInfoButton";
 
 /**
  * Customer master details.
@@ -220,6 +221,9 @@ export const UserManagement = ({ audience = 'internal' }) => {
    */
   const mayCreate = canAction(user, 'administration', 'users', 'create');
   const mayEdit = canAction(user, 'administration', 'users', 'edit');
+  // Suspending removes the account from the users collection, so it is offered
+  // only with the DELETE cell (delete_users), not with edit.
+  const mayDelete = canAction(user, 'administration', 'users', 'delete');
 
   /**
    * Who may hand one account access beyond its role.
@@ -317,7 +321,7 @@ export const UserManagement = ({ audience = 'internal' }) => {
    */
   const mayOpenThisScreen = isCustomerAudience ? mayOpen : isAdmin;
   if (user && !mayOpenThisScreen) {
-    return <Navigate to="/" replace />;
+    return <Unauthorized />;
   }
 
   const setField = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -465,9 +469,12 @@ export const UserManagement = ({ audience = 'internal' }) => {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">
-            {isCustomerAudience ? 'Customer Management' : 'Internal User Management'}
-          </h2>
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-lg font-bold text-slate-800">
+              {isCustomerAudience ? 'Customer Management' : 'Internal User Management'}
+            </h2>
+            <ModuleInfoButton />
+          </div>
           <p className="text-sm text-slate-500">
             {isCustomerAudience
               ? 'Onboard and maintain the businesses we sell to — categories, brand access and contact details.'
@@ -852,7 +859,10 @@ export const UserManagement = ({ audience = 'internal' }) => {
                  <select value={editForm.status} onChange={setEditField('status')} className={inputCls}>
                    <option value="Active">Active</option>
                    <option value="Inactive">Inactive</option>
-                   <option value="Suspended">Suspended</option>
+                   {/* Kept for an already-suspended account so the select shows its value. */}
+                   {(mayDelete || editUser?.status === 'Suspended') && (
+                     <option value="Suspended">Suspended</option>
+                   )}
                  </select>
                </Field>
              </div>

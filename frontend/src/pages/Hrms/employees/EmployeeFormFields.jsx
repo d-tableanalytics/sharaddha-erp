@@ -142,7 +142,7 @@ export function EmployeeFormFields({
               value={identity?.email ?? ""}
               readOnly
               disabled
-              helperText="The work email is the login and cannot be changed here."
+              helperText="The work email is the login. HR can change it with Edit next to Work email on the profile page."
             />
           ) : (
             <Input {...register("email")} type="email" placeholder="name@company.com" />

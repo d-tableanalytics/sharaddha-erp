@@ -21,7 +21,14 @@ import { sanitiseCustomFields } from '../../../utils/hrms/crypto/index.js';
 import { SENSITIVE_EMPLOYEE_FIELD_LIST } from '../../../shared/security/sensitive-fields.js';
 import { rebuildAllManagerChains, assertNoCycle } from './managerChain.js';
 import { buildSensitiveUpdate } from './sensitiveUpdate.js';
-import { HrmsValidationError } from '../hrms.errors.js';
+import { HrmsValidationError, HrmsForbiddenError } from '../hrms.errors.js';
+import { hasHrmsPermission } from '../../../shared/permissions/has-permission.js';
+import {
+  HRMS_MODULES as M,
+  HRMS_ACTIONS as A,
+  SCOPES as S,
+} from '../../../shared/permissions/constants.js';
+import { assertCanWriteSensitive } from './employee.service.js';
 import { assertHrmsRolesAssignable, isPortalOnlyRole } from '../../../utils/hrmsRoleGuard.js';
 import crypto from 'node:crypto';
 
@@ -179,6 +186,34 @@ async function linkOrCreateUser(record) {
  * split is what let the pipeline be written and tested before the Employee
  * Master existed.
  */
+/**
+ * HA1: per-batch authority check for an actor-driven import.
+ *   - overwriting an EXISTING employee is an edit: employees:edit:org
+ *   - supplying any bank/identifier field needs employees:compensation:edit:org
+ *     (the same rule updateEmployee applies, via assertCanWriteSensitive)
+ */
+async function assertImportAllowed(records, actor) {
+  const codes = records.map((r) => r.employeeCode).filter(Boolean);
+  const existingCount = codes.length
+    ? await Employee.countDocuments({ employeeCode: { $in: codes } })
+    : 0;
+  if (existingCount > 0 && !hasHrmsPermission(actor, M.EMPLOYEES, A.EDIT, S.ORG)) {
+    throw new HrmsForbiddenError(
+      'This import updates existing employees, which needs employees:edit:org.',
+    );
+  }
+  for (const record of records) {
+    const { extracted } = sanitiseCustomFields(record.customFieldValues);
+    const supplied = { ...extracted };
+    for (const field of SENSITIVE_EMPLOYEE_FIELD_LIST) {
+      if (record[field] !== undefined && record[field] !== null && record[field] !== '') {
+        supplied[field] = record[field];
+      }
+    }
+    assertCanWriteSensitive(actor, supplied);
+  }
+}
+
 export const employeePersistencePort = {
   async findByEmployeeCodes(codes = []) {
     return employeeReferenceProvider.byCodes(codes);
@@ -213,10 +248,16 @@ export const employeePersistencePort = {
    * is not redundant: this port is a public entry point, and a future caller
    * that skipped the pipeline must not be able to write a plaintext PAN.
    */
-  async upsertEmployees(records = []) {
+  async upsertEmployees(records = [], { actor } = {}) {
     let created = 0;
     let updated = 0;
     const byCode = new Map();
+
+    // HA1: an HTTP import runs as a person (`actor`), and must not be a side
+    // door around Employee Master's rules. Checked for the WHOLE batch before
+    // any write, so a refusal never leaves a half-applied import. `actor` is
+    // absent only for the operator CLI script and direct port calls in tests.
+    if (actor) await assertImportAllowed(records, actor);
 
     // Org references arrive as CODES, which is the only thing an external
     // source can know. Resolved once for the whole batch rather than per row:

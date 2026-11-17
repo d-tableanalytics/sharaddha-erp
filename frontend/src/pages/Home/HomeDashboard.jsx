@@ -43,6 +43,7 @@ import {
 } from "./homeSources";
 import { ModuleCard, AttentionList, QuickAction, CardError } from "./homePieces";
 import { quickActionsFor } from "./quickActions";
+import { ModuleInfoButton } from "../../components/common/ModuleInfoButton";
 
 const H = HRMS_ROUTE_PREFIX;
 
@@ -118,9 +119,13 @@ export function HomeDashboard() {
               <p className="text-[11px] font-bold uppercase tracking-wider text-white/80">
                 {greetingFor(now.getHours())}
               </p>
-              <h1 className="text-2xl sm:text-3xl font-bold leading-tight truncate">
-                {firstName ? `Hi, ${firstName}` : "Welcome back"}
-              </h1>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold leading-tight truncate">
+                  {firstName ? `Hi, ${firstName}` : "Welcome back"}
+                </h1>
+                {/* On the coloured hero, so the icon takes the hero's white text. */}
+                <ModuleInfoButton className="text-white/80 hover:text-white hover:bg-white/15" />
+              </div>
               <p className="text-[12.5px] text-white/85 mt-1">
                 {formatHeroDate(now)} · {formatClock(now)}
                 {user?.role && <span className="text-white/60"> · {user.role}</span>}

@@ -1,7 +1,8 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 
 import { usePermissions } from "../../hooks/usePermissions";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { Unauthorized } from "../common/Unauthorized";
 
 /**
  * Route guard in matrix terms.
@@ -30,12 +31,14 @@ import { LoadingSpinner } from "../ui/LoadingSpinner";
  * Every endpoint behind these screens re-checks. This exists so somebody who
  * cannot use a module does not land on a page that will 403 every call it
  * makes, not to keep anyone out.
+ *
+ * A refusal renders <Unauthorized/> rather than redirecting home, so the user is
+ * told why the screen did not open.
  */
 export function ModuleProtectedRoute({
   module: moduleKey,
   submodule,
   action = "view",
-  redirectTo = "/",
 }) {
   const { can, loading } = usePermissions();
 
@@ -55,7 +58,7 @@ export function ModuleProtectedRoute({
     );
   }
 
-  if (!can(moduleKey, submodule, action)) return <Navigate to={redirectTo} replace />;
+  if (!can(moduleKey, submodule, action)) return <Unauthorized />;
 
   return <Outlet />;
 }

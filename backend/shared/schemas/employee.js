@@ -134,6 +134,20 @@ export const updateEmployeeSchema = z
   .partial()
   .strict();
 
+/**
+ * Changing an employee's work email.
+ *
+ * Its own endpoint rather than a field on the update schema: the work email IS
+ * the login identity (`User.email`), so changing it is an account change with
+ * its own permission (employees:edit:org), its own duplicate check and its own
+ * audit entry - not a profile edit an employee may make on themselves.
+ */
+export const changeWorkEmailSchema = z
+  .object({
+    email: emailSchema,
+  })
+  .strict();
+
 /** List query. Mirrors the reference's filters exactly. */
 export const employeeListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

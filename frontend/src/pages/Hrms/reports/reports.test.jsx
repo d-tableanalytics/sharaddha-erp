@@ -262,7 +262,7 @@ describe("the reports page", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/home/i)).toBeTruthy();
+    expect(await screen.findByText(/don.t have access to this screen/)).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Reports" })).toBeNull();
     // And the catalogue is never even requested.
     expect(urlsHit()).not.toContain("GET /hrms/reports/catalog");

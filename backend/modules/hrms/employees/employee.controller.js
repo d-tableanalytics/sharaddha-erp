@@ -219,6 +219,7 @@ export const assignEmployeeRoles = async (req, res, next) => {
       req.params.id,
       req.body.roleKeys,
       req.hrmsActor,
+      req.user,
     );
 
     await recordAudit(
@@ -238,7 +239,7 @@ export const assignEmployeeRoles = async (req, res, next) => {
 /** POST /api/v1/hrms/employees/:id/reset-password — super admin only. */
 export const resetEmployeePassword = async (req, res, next) => {
   try {
-    const data = await service.resetEmployeePassword(req.params.id, req.hrmsActor);
+    const data = await service.resetEmployeePassword(req.params.id, req.hrmsActor, req.user);
 
     await recordAudit(
       req.user,
@@ -250,6 +251,42 @@ export const resetEmployeePassword = async (req, res, next) => {
     );
 
     res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/v1/hrms/employees/:id/email — change the work (login) email.
+ * Password and sessions are untouched; see changeWorkEmail in the service.
+ */
+export const changeWorkEmail = async (req, res, next) => {
+  try {
+    const { employee, previousEmail, changed } = await service.changeWorkEmail(
+      req.params.id,
+      req.body.email,
+      req.hrmsActor,
+      req.user,
+    );
+
+    if (changed) {
+      await recordAudit(
+        req.user,
+        'hrms.employee.work_email_changed',
+        `Changed the work email of ${employee.employeeCode}: ${previousEmail ?? '—'} → ${employee.email}`,
+        req,
+        {
+          meta: {
+            employeeId: req.params.id,
+            userId: employee.userId,
+            before: { email: previousEmail },
+            after: { email: employee.email },
+          },
+        },
+      );
+    }
+
+    res.status(200).json({ success: true, data: employee });
   } catch (error) {
     next(error);
   }

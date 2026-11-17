@@ -32,6 +32,7 @@ import {
   assignRolesSchema,
   revealSensitiveSchema,
   eraseEmployeeSchema,
+  changeWorkEmailSchema,
   createCustomFieldSchema,
   updateCustomFieldSchema,
 } from '../../../shared/schemas/employee.js';
@@ -167,6 +168,18 @@ router.patch(
   canEditOrg,
   validate({ body: assignRolesSchema }),
   controller.assignEmployeeRoles,
+);
+
+/**
+ * Change the work email - the login identity - after creation. Org-level edit
+ * only (HR / admin): `employees:edit:self` does NOT reach this, so an employee
+ * cannot re-point their own sign-in address. The service re-checks.
+ */
+router.patch(
+  '/:id/email',
+  canEditOrg,
+  validate({ body: changeWorkEmailSchema }),
+  controller.changeWorkEmail,
 );
 
 /** Super admin only; the service enforces that, not this gate. */

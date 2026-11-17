@@ -7,7 +7,7 @@ import { useUserStore } from "../../store/userStore";
 import { useChecklistBadgeStore } from "../../store/checklistBadgeStore";
 import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
 import {
-  canOpenUserManagement, canManageRoles, canUseO2d, canAction, hasPermission, PERMISSIONS,
+  canManageRoles, canUseO2d, canAction, hasPermission, PERMISSIONS,
 } from "../../utils/permissions";
 import { o2dRoute } from "@shared/constants/o2d.js";
 import {
@@ -255,14 +255,16 @@ export const Sidebar = () => {
    * Administration — the shared identity surface, gated exactly as the
    * Customer Portal gates it.
    *
-   * `canOpenUserManagement` is MANAGE_USERS or MANAGE_CUSTOMER_USERS;
+   * User Management asks the administration.users.view cell (this portal
+   * serves only the internal audience, so manage_customer_users is not enough);
    * `canManageRoles` is MANAGE_ROLES. Neither is an HRMS grant, and that is
    * correct: who may edit an account is a portal question, and the answer must
    * be the same in both repositories or the two screens would disagree about
    * the same document.
    */
   const adminItems = [
-    ...(canOpenUserManagement(user)
+    // Same cell as the /admin/users route guard (administration.users.view).
+    ...(canAction(user, "administration", "users", "view")
       ? [{ id: "admin:users", key: "users", label: "User Management", path: "/admin/users", icon: Users }]
       : []),
     ...(canManageRoles(user)

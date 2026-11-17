@@ -33,6 +33,7 @@ import { recordAudit } from '../../utils/auditLog.js';
 import { hasPermission } from '../../middlewares/rbac.js';
 import { PERMISSIONS } from '../../config/permissions.js';
 import { O2dWorkflowError } from './stage.engine.js';
+import { visibleStagesFor, canSeeStage } from './stageVisibility.service.js';
 
 const CATEGORY = STORAGE_CATEGORIES.O2D_DOCUMENT;
 
@@ -119,9 +120,22 @@ export async function uploadDocument(orderId, file, meta, actor, { req = null } 
   return doc.toObject();
 }
 
-/** An order's live documents, newest first. */
-export const listDocuments = (orderId) =>
-  O2dDocument.find({ order: orderId, deletedAt: null }).sort({ uploadedAt: -1 }).lean();
+/**
+ * An order's live documents, newest first.
+ *
+ * EA10: a document attached to a stage carries that stage's data, so the list
+ * applies the same stage visibility the order view does. Order-level documents
+ * (no stage) stay visible to every order viewer. `user` absent = internal call,
+ * unscoped, as in visibleStagesFor. The storage key never leaves the server.
+ */
+export async function listDocuments(orderId, user) {
+  const visible = await visibleStagesFor(user);
+  const filter = { order: orderId, deletedAt: null };
+  if (visible !== null) {
+    filter.$or = [{ stageNumber: null }, { stageNumber: { $in: visible.map(Number) } }];
+  }
+  return O2dDocument.find(filter).select('-storageKey').sort({ uploadedAt: -1 }).lean();
+}
 
 /**
  * Authorise, audit, and mint a read URL.
@@ -138,6 +152,12 @@ export async function issueDocumentUrl(documentId, actor, { req = null } = {}) {
 
   if (!hasPermission(actor, PERMISSIONS.VIEW_O2D)) {
     throw new O2dWorkflowError('Forbidden. You may not read this file.', { status: 403 });
+  }
+  // EA10: a stage document is readable only by someone who may see that stage.
+  // 404 rather than 403, matching the hidden-stage behaviour elsewhere.
+  if (doc.stageNumber !== null && doc.stageNumber !== undefined
+      && !(await canSeeStage(actor, doc.stageNumber))) {
+    throw new O2dWorkflowError('That document is not available.', { status: 404 });
   }
 
   const expiresInSeconds = ttlFor(CATEGORY);

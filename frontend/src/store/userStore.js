@@ -79,6 +79,22 @@ export const useUserStore = create((set) => ({
     }
   },
 
+  /**
+   * Re-read the signed-in user WITHOUT the loading state, so the screen stays
+   * where it is. Used when the user's access changes underneath them (see
+   * services/accessSync.js): replacing `user` re-renders the sidebar, the route
+   * guards and every permission-gated button.
+   */
+  refreshSession: async () => {
+    if (!localStorage.getItem('token')) return;
+    try {
+      const user = await usersApi.getCurrentUser();
+      set({ user });
+    } catch {
+      // A failed background refresh changes nothing; the next one will retry.
+    }
+  },
+
   updateProfile: async (updates) => {
     try {
       const user = await usersApi.updateProfile(updates);

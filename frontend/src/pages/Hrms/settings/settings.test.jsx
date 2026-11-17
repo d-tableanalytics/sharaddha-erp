@@ -234,7 +234,7 @@ describe("who reaches Settings", () => {
     signIn([R.HR_ADMIN]);
     guarded("/hrms/settings", M.SETTINGS, <SettingsPage />);
 
-    expect(await screen.findByText(/home/i)).toBeTruthy();
+    expect(await screen.findByText(/don.t have access to this screen/)).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     expect(urlsHit()).not.toContain("GET /hrms/settings/company");
   });
@@ -245,7 +245,7 @@ describe("who reaches Settings", () => {
       installTransport();
       signIn([role]);
       const view = guarded("/hrms/settings", M.SETTINGS, <SettingsPage />);
-      expect(await screen.findByText(/home/i)).toBeTruthy();
+      expect(await screen.findByText(/don.t have access to this screen/)).toBeTruthy();
       view.unmount();
     }
   });
@@ -265,7 +265,7 @@ describe("who reaches Settings", () => {
       installTransport();
       signIn([role]);
       const view = guarded("/hrms/audit-logs", M.AUDIT_LOGS, <AuditLogsPage />);
-      expect(await screen.findByText(/home/i)).toBeTruthy();
+      expect(await screen.findByText(/don.t have access to this screen/)).toBeTruthy();
       view.unmount();
     }
   });

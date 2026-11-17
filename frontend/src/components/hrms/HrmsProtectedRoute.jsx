@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useHrmsStore } from "../../store/hrmsStore";
 import { useHrmsPermissions } from "../../hooks/useHrmsPermissions";
 import { HRMS_NAV_ITEMS } from "./navItems";
+import { Unauthorized } from "../common/Unauthorized";
 
 /**
  * Route guard for everything under /hrms.
@@ -20,11 +21,12 @@ import { HRMS_NAV_ITEMS } from "./navItems";
  * and every HRMS endpoint re-checks server-side regardless. This guard exists
  * so the denial is immediate and quiet, not so the API can relax.
  *
- * It REDIRECTS rather than rendering "access denied". On a shell that customers
- * and employees share (AD-14), an error page confirms the route exists and that
- * the person is merely not permitted; a redirect to the portal home says
- * nothing at all. The API still answers 403 — that is the honest place for it,
- * since the route list is already public in the bundle.
+ * A refusal renders <Unauthorized/> (2026-11-17). It used to redirect home
+ * silently, on the theory that an error page confirms the route exists; but
+ * the route list is already public in the bundle, this portal serves only
+ * internal staff, and a silent bounce left people who lost access mid-session
+ * with no explanation. A module that is permitted but not BUILT yet still
+ * redirects to the HR dashboard: that is not an access decision.
  *
  * @param {string} [module]  additionally require this HRMS module
  * @param {Array<{module:string,action:string,scope:string}>} [anyOf]
@@ -46,7 +48,7 @@ export function HrmsProtectedRoute({ module, anyOf = null, navKey = null }) {
   const load = useHrmsStore((s) => s.load);
   const loaded = useHrmsStore((s) => s.loaded);
   const loading = useHrmsStore((s) => s.loading);
-  const { hasAccess, usesModule, can, implementedModules } = useHrmsPermissions();
+  const { hasAccess, seesModule, can, implementedModules } = useHrmsPermissions();
   const location = useLocation();
 
   useEffect(() => {
@@ -66,9 +68,7 @@ export function HrmsProtectedRoute({ module, anyOf = null, navKey = null }) {
     );
   }
 
-  if (!hasAccess) {
-    return <Navigate to="/" replace state={{ from: location.pathname }} />;
-  }
+  if (!hasAccess) return <Unauthorized />;
 
   // `usesModule`, not `seesModule`: a module the actor is entitled to but that
   // is not built yet must not render a blank page either.
@@ -82,12 +82,16 @@ export function HrmsProtectedRoute({ module, anyOf = null, navKey = null }) {
 
   const gateModule = navItem?.module ?? module;
   const specs = navItem?.requires ?? anyOf;
+  // Permitted and built are asked separately so a refusal can say so, while a
+  // permitted-but-unbuilt module keeps its redirect to the dashboard.
   const permitted = specs
     ? specs.some((r) => can(r.module, r.action, r.scope))
-    : usesModule(module);
-  const built = !specs || implementedModules.includes(gateModule);
+    : seesModule(module);
+  const built = implementedModules.includes(gateModule);
 
-  if (gateModule && !(permitted && built)) {
+  if (gateModule && !permitted) return <Unauthorized />;
+
+  if (gateModule && !built) {
     // The HR dashboard is the usual landing spot, but it is itself gated — an
     // actor refused HERE would loop on a redirect to it. Fall back to "/".
     const dashboard = HRMS_NAV_ITEMS.find((item) => item.key === "hrms-dashboard");

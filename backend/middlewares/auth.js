@@ -23,6 +23,21 @@ export const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    /*
+     * Only an ACCESS token opens the API.
+     *
+     * Refresh tokens are signed with the refresh secret, which falls back to
+     * JWT_SECRET when JWT_REFRESH_SECRET is unset (utils/tokens.js) - and it is
+     * unset in both portals. So a refresh token used to verify here and work as
+     * a 7-day access token, one that logout and a password change could revoke
+     * at /auth/refresh but never here. Every token signAccessToken() issues
+     * carries type 'access'; one with no type predates that stamp and has long
+     * expired, so it is still accepted rather than signing anybody out.
+     */
+    if (decoded.type && decoded.type !== 'access') {
+      return res.status(401).json({ success: false, message: 'Not authorized to access this route.' });
+    }
     
     const user = await User.findById(decoded.id);
     if (!user) {

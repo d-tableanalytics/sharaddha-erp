@@ -45,8 +45,17 @@ import { HrmsNotFoundError, HrmsForbiddenError } from '../hrms.errors.js';
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
 
-/** Whole-company payroll sight. The only thing that sees somebody else's slip. */
-const seesEveryone = (actor) => hasHrmsPermission(actor, M.PAYROLL, A.VIEW, S.ORG);
+/**
+ * Whole-company payroll sight. The only thing that sees somebody else's slip.
+ *
+ * HA4: a payslip IS an individual's salary, so payroll:view:org alone (held by
+ * hr_admin and the auditor for run totals) is not enough - it also needs the
+ * employees:compensation:view:org gate that /compensation and sensitive
+ * reveals use. payroll_admin and super_admin hold both.
+ */
+const seesEveryone = (actor) =>
+  hasHrmsPermission(actor, M.PAYROLL, A.VIEW, S.ORG) &&
+  hasHrmsPermission(actor, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG);
 
 const toDto = (row, employee = null) => ({
   id: idStr(row._id),

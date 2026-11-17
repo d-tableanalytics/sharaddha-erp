@@ -83,6 +83,7 @@ const ALLOWED = new Map([
   ['modules/auth/auth.routes.js POST /forgot-password', 'pre-authentication'],
   ['modules/auth/auth.routes.js POST /reset-password', 'pre-authentication, carries its own token'],
   ['modules/auth/auth.routes.js POST /logout', 'ends the session; holding none is the point'],
+  ['modules/auth/auth.routes.js GET /access-version', 'the caller own access fingerprint; protect only, like /me'],
   ['modules/roles/role.routes.js GET /my-access', 'reports the caller own access; every account needs it'],
   ['modules/hrms/hiring/careers.routes.js', 'the public careers site - candidates hold no account'],
   ['modules/hrms/attendance/biometric.routes.js', 'device callback, authenticated by shared secret'],

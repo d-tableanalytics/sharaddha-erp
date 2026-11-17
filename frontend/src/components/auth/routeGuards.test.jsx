@@ -46,7 +46,9 @@ describe("HrmsProtectedRoute navKey", () => {
     signIn([R.EMPLOYEE]);
     renderEmployees(<HrmsProtectedRoute module={M.EMPLOYEES} navKey="hrms-employees" />);
     expect(screen.queryByText("Employee directory")).toBeNull();
-    expect(screen.getByText("HRMS dashboard")).toBeTruthy();
+    // A refusal now says so (Unauthorized panel) instead of bouncing to the dashboard.
+    expect(screen.queryByText("HRMS dashboard")).toBeNull();
+    expect(screen.getByText(/don.t have access to this screen/)).toBeTruthy();
   });
 
   it("admits HR, whose grants the nav item accepts", () => {
@@ -78,10 +80,11 @@ describe("PredicateProtectedRoute", () => {
 
   beforeEach(() => useUserStore.setState({ user: { permissions: [] }, loading: false }));
 
-  it("redirects when the predicate says no", () => {
+  it("shows the Unauthorized panel when the predicate says no", () => {
     renderAdmin(() => false);
     expect(screen.queryByText("Admin screen")).toBeNull();
-    expect(screen.getByText("Portal home")).toBeTruthy();
+    expect(screen.queryByText("Portal home")).toBeNull();
+    expect(screen.getByText(/don.t have access to this screen/)).toBeTruthy();
   });
 
   it("renders when the predicate says yes", () => {

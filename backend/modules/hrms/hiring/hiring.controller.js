@@ -16,6 +16,8 @@ import * as interviews from './interview.service.js';
 import * as offers from './offer.service.js';
 import * as careers from './careers.service.js';
 import { generateJobDescription } from './aiJd.service.js';
+// HB1: team-scoped (interviewer) reads are narrowed to owned/panel records.
+import { hiringReach } from './hiringScope.js';
 import { FileAccessError } from '../storage/storage.service.js';
 
 const contextOf = (req) => ({
@@ -45,10 +47,10 @@ const publicMeta = (req) => ({ ip: req.ip, userAgent: req.get('user-agent') });
 // ---------------------------------------------------------------------------
 
 export const listRequisitions = handler(async (req, res) =>
-  ok(res, await requisitions.listRequisitions(req.query)),
+  ok(res, await requisitions.listRequisitions(req.query, await hiringReach(req.hrmsActor))),
 );
 export const getRequisition = handler(async (req, res) =>
-  ok(res, await requisitions.getRequisition(req.params.id)),
+  ok(res, await requisitions.getRequisition(req.params.id, await hiringReach(req.hrmsActor))),
 );
 export const createRequisition = handler(async (req, res) =>
   ok(res, await requisitions.createRequisition(req.body, contextOf(req)), 201),
@@ -68,7 +70,7 @@ export const setRequisitionStatus = handler(async (req, res) =>
 // ---------------------------------------------------------------------------
 
 export const listPostings = handler(async (req, res) =>
-  ok(res, await requisitions.listPostings(req.query)),
+  ok(res, await requisitions.listPostings(req.query, await hiringReach(req.hrmsActor))),
 );
 export const createPosting = handler(async (req, res) =>
   ok(res, await requisitions.createPosting(req.body, contextOf(req)), 201),
@@ -85,10 +87,10 @@ export const closePosting = handler(async (req, res) =>
 // ---------------------------------------------------------------------------
 
 export const listCandidates = handler(async (req, res) =>
-  ok(res, await candidates.listCandidates(req.query)),
+  ok(res, await candidates.listCandidates(req.query, await hiringReach(req.hrmsActor))),
 );
 export const getCandidate = handler(async (req, res) =>
-  ok(res, await candidates.getCandidate(req.params.id)),
+  ok(res, await candidates.getCandidate(req.params.id, await hiringReach(req.hrmsActor))),
 );
 export const createCandidate = handler(async (req, res) =>
   ok(res, await candidates.createCandidate(req.body, contextOf(req)), 201),
@@ -129,10 +131,10 @@ export const getResumeUrl = handler(async (req, res) =>
 // ---------------------------------------------------------------------------
 
 export const listApplications = handler(async (req, res) =>
-  ok(res, await applications.listApplications(req.query)),
+  ok(res, await applications.listApplications(req.query, await hiringReach(req.hrmsActor))),
 );
 export const getApplication = handler(async (req, res) =>
-  ok(res, await applications.getApplication(req.params.id)),
+  ok(res, await applications.getApplication(req.params.id, await hiringReach(req.hrmsActor))),
 );
 export const createApplication = handler(async (req, res) =>
   ok(res, await applications.createApplication(req.body, contextOf(req)), 201),
@@ -143,7 +145,7 @@ export const moveApplicationStage = handler(async (req, res) =>
 
 /** The Kanban board for one requisition. Not paginated — see the service. */
 export const pipelineBoard = handler(async (req, res) =>
-  ok(res, await applications.pipelineBoard(req.params.requisitionId)),
+  ok(res, await applications.pipelineBoard(req.params.requisitionId, {}, await hiringReach(req.hrmsActor))),
 );
 
 // ---------------------------------------------------------------------------
@@ -151,7 +153,7 @@ export const pipelineBoard = handler(async (req, res) =>
 // ---------------------------------------------------------------------------
 
 export const listInterviews = handler(async (req, res) =>
-  ok(res, await interviews.listInterviews(req.query, req.hrmsActor?.employeeId)),
+  ok(res, await interviews.listInterviews(req.query, req.hrmsActor?.employeeId, await hiringReach(req.hrmsActor))),
 );
 
 /**
@@ -171,7 +173,7 @@ export const setInterviewStatus = handler(async (req, res) =>
   ok(res, await interviews.setInterviewStatus(req.params.id, req.body, contextOf(req))),
 );
 export const listFeedback = handler(async (req, res) =>
-  ok(res, await interviews.listFeedback(req.params.id)),
+  ok(res, await interviews.listFeedback(req.params.id, await hiringReach(req.hrmsActor))),
 );
 export const submitFeedback = handler(async (req, res) =>
   ok(
@@ -191,7 +193,7 @@ export const submitFeedback = handler(async (req, res) =>
 // ---------------------------------------------------------------------------
 
 export const listOffers = handler(async (req, res) =>
-  ok(res, await offers.listOffers(req.query)),
+  ok(res, await offers.listOffers(req.query, await hiringReach(req.hrmsActor))),
 );
 export const createOffer = handler(async (req, res) =>
   ok(res, await offers.createOffer(req.body, contextOf(req)), 201),

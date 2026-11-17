@@ -503,7 +503,7 @@ export const uploadDocument = async (req, res, next) => {
 /** GET /api/v1/o2d/orders/:id/documents */
 export const listDocuments = async (req, res, next) => {
   try {
-    res.status(200).json({ success: true, data: await documents.listDocuments(req.params.id) });
+    res.status(200).json({ success: true, data: await documents.listDocuments(req.params.id, req.user) });
   } catch (error) {
     next(error);
   }

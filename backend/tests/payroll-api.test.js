@@ -1262,6 +1262,42 @@ describe('payslips', () => {
       assert.equal((await get(url, `${P}/runs/${runId}/payslips`)).status, 403);
     });
   });
+
+  test('🔴 HA4: payroll:view:org without the compensation gate cannot read another employee payslip', async () => {
+    // hr_admin and the auditor hold payroll:view:org for run totals, but a
+    // payslip is an individual's salary: it needs employees:compensation too.
+    const admin = await makeEmployee({ roles: [R.SUPER_ADMIN] });
+    const alice = await makeEmployee();
+    let runId;
+    let payslipId;
+
+    await withServer(appFor(admin.user), async (url) => {
+      runId = await lockedRunFor(url, alice);
+      payslipId = String((await Payslip.findOne({}).lean())._id);
+    });
+
+    for (const role of [R.HR_ADMIN, R.AUDITOR]) {
+      const viewer = await makeEmployee({ roles: [role] });
+      await withServer(appFor(viewer.user), async (url) => {
+        assert.equal((await get(url, `${P}/runs`)).status, 200, `${role} still sees run totals`);
+        assert.equal((await get(url, `${P}/payslips/${payslipId}`)).status, 403, role);
+        assert.equal((await get(url, `${P}/payslips?employeeId=${alice.id}`)).status, 403, role);
+        assert.equal((await get(url, `${P}/runs/${runId}/payslips`)).status, 403, role);
+        // An unfiltered list never includes Alice's slip: it falls back to the
+        // viewer's own (or is refused outright without payroll:view:self).
+        const own = await get(url, `${P}/payslips`);
+        if (own.status === 200) assert.equal(own.body.data.total, 0, role);
+        else assert.equal(own.status, 403, role);
+      });
+    }
+
+    // payroll_admin holds payroll:view:org AND employees:compensation:view:org.
+    const payroll = await makeEmployee({ roles: [R.PAYROLL_ADMIN] });
+    await withServer(appFor(payroll.user), async (url) => {
+      assert.equal((await get(url, `${P}/payslips/${payslipId}`)).status, 200);
+      assert.equal((await get(url, `${P}/runs/${runId}/payslips`)).status, 200);
+    });
+  });
 });
 
 // ===========================================================================

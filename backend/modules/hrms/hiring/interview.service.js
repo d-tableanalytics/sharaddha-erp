@@ -52,6 +52,7 @@ import {
   HrmsValidationError,
   HrmsForbiddenError,
 } from '../hrms.errors.js';
+import { inSet } from './hiringScope.js';
 
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
@@ -129,10 +130,20 @@ async function enrich(rows, actorEmployeeId = null) {
   });
 }
 
-export async function listInterviews(query = {}, actorEmployeeId = null) {
+export async function listInterviews(query = {}, actorEmployeeId = null, reach = null) {
   const { page = 1, pageSize = PAGE_SIZE_DEFAULT, applicationId, status } = query;
 
   const filter = {
+    // HB1: a team-scoped viewer sees interviews they sit on, plus those on
+    // requisitions they own - never every panel in the company.
+    ...(reach
+      ? {
+          $or: [
+            { _id: inSet(reach.panelInterviews) },
+            { applicationId: inSet(reach.ownedApplications) },
+          ],
+        }
+      : {}),
     ...(applicationId ? { applicationId: oid(applicationId) } : {}),
     ...(status ? { status } : {}),
   };
@@ -332,8 +343,16 @@ const feedbackDto = (row, name = null) => ({
   submittedAt: row.submittedAt ? new Date(row.submittedAt).toISOString() : null,
 });
 
-export async function listFeedback(interviewId) {
+export async function listFeedback(interviewId, reach = null) {
   const interview = await loadInterview(interviewId);
+  // HB1: only the panel (or the requisition's owner) reads a room's feedback.
+  if (
+    reach &&
+    !reach.panelInterviews.has(idStr(interview._id)) &&
+    !reach.ownedApplications.has(idStr(interview.applicationId))
+  ) {
+    throw new HrmsNotFoundError('Interview');
+  }
   const rows = await InterviewFeedback.find({ interviewId: oid(interviewId) })
     .sort({ submittedAt: -1 })
     .lean();

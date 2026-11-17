@@ -102,7 +102,9 @@ router.post('/commit', canImport, async (req, res, next) => {
     const records = readRecords(req, res);
     if (!records) return undefined;
 
-    const outcome = await commitImport(records);
+    // HA1: run as the caller so the port can refuse sensitive/update writes
+    // the caller is not entitled to make through Employee Master.
+    const outcome = await commitImport(records, { actor: req.hrmsActor });
 
     if (!outcome.committed) {
       return res.status(422).json({

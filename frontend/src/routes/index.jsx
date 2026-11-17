@@ -8,7 +8,8 @@ import { HrmsProtectedRoute } from "../components/hrms/HrmsProtectedRoute";
 import { O2dProtectedRoute } from "../components/o2d/O2dProtectedRoute";
 import { ModuleProtectedRoute } from "../components/auth/ModuleProtectedRoute";
 import { PredicateProtectedRoute } from "../components/auth/PredicateProtectedRoute";
-import { canOpenUserManagement, canManageRoles, hasPermission, PERMISSIONS } from "../utils/permissions";
+import { canManageRoles, hasPermission, PERMISSIONS } from "../utils/permissions";
+import { NotFound } from "../components/common/NotFound";
 
 /**
  * The Employee Portal router.
@@ -164,7 +165,10 @@ export const router = createBrowserRouter([
             // Guarded by the same predicates the sidebar's Administration
             // group uses, so a URL cannot open what the rail does not offer.
             path: "admin/users",
-            element: <PredicateProtectedRoute allow={canOpenUserManagement} />,
+            // The cell this screen serves here (internal audience only):
+            // administration.users.view. canOpenUserManagement also admitted
+            // manage_customer_users, which the page then bounced (audit F15).
+            element: <ModuleProtectedRoute module="administration" submodule="users" action="view" />,
             // Internal User Management. The employee domain has no Customer
             // Management route at all — customers are a customer-domain concern,
             // and the module registry says so.
@@ -198,7 +202,7 @@ export const router = createBrowserRouter([
                 // Intake needs its own grant: `view_o2d` opens the section, but
                 // creating an order is `create_o2d_order`, which the endpoint
                 // also demands.
-                element: <PredicateProtectedRoute allow={canCreateO2dOrder} redirectTo="/fms/o2d/tasks" />,
+                element: <PredicateProtectedRoute allow={canCreateO2dOrder} />,
                 children: [{ path: "orders/new", element: <O2dNewOrderPage /> }],
               },
               { path: ":tab", element: <O2dPage /> },
@@ -552,6 +556,9 @@ export const router = createBrowserRouter([
               { path: "activities", element: <Navigate to="/wq/activities" replace /> },
             ],
           },
+          // Any path the router does not know: a "not found" screen inside the
+          // layout, instead of React Router's bare default error page.
+          { path: "*", element: <NotFound /> },
         ],
       }
     ]

@@ -63,6 +63,7 @@ import {
   HrmsConflictError,
   HrmsValidationError,
 } from '../hrms.errors.js';
+import { inSet } from './hiringScope.js';
 
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
@@ -154,9 +155,12 @@ async function enrich(rows) {
 // Recruiter-facing
 // ---------------------------------------------------------------------------
 
-export async function listOffers(query = {}) {
+export async function listOffers(query = {}, reach = null) {
   const { page = 1, pageSize = PAGE_SIZE_DEFAULT, applicationId } = query;
   const filter = applicationId ? { applicationId: oid(applicationId) } : {};
+  // HB1: offer CTC is visible to a team-scoped viewer only on requisitions
+  // they own. Sitting on a panel is not a reason to see the offer.
+  if (reach) filter.$and = [{ applicationId: inSet(reach.ownedApplications) }];
 
   const [rows, total] = await Promise.all([
     HiringOffer.find(filter)

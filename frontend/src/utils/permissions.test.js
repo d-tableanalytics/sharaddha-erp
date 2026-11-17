@@ -73,4 +73,14 @@ describe("assignable roles", () => {
   test("an actor with no user-management permission gets no staff roles", () => {
     expect(assignableRolesFor({ role: "Customer", permissions: [] })).toEqual(["Customer"]);
   });
+
+  test("a user administrator without full access is not offered the full-access roles", () => {
+    // The server refuses them (backend utils/accessGuard.js); the picker
+    // should not offer what cannot be saved.
+    const userAdmin = { role: "User Admin", permissions: [PERMISSIONS.MANAGE_USERS] };
+    const offered = assignableRolesFor(userAdmin);
+    expect(offered).not.toContain("Super Admin");
+    expect(offered).not.toContain("Admin");
+    expect(offered).toContain("Sales");
+  });
 });

@@ -25,6 +25,7 @@ import { O2dDocument } from '../models/o2d/O2dDocument.js';
 import AuditLog from '../models/AuditLog.js';
 import { seedO2dStages } from '../config/seedO2dStages.js';
 import * as orders from '../modules/o2d/order.service.js';
+import { STAGES } from '../shared/constants/o2d.js';
 
 const ist = (day, hhmm) => new Date(`${day}T${hhmm}:00+05:30`);
 const NOW = ist('2026-09-14', '10:30');
@@ -198,6 +199,40 @@ describe('reading a document', () => {
       () => documents.issueDocumentUrl(doc._id, { role: 'Employee', user: 'Nobody' }),
       (e) => e.statusCode === 403,
     );
+  });
+});
+
+describe('EA10: stage visibility applies to documents', () => {
+  // Stage 5 (Receive Advance) belongs to Accounts; Sales is not attached to it.
+  // Stage 1 (Receive Order) is Sales' own. A document with no stage is order-level.
+  const admin = { _id: undefined, user: 'An Admin', role: 'Admin' };
+
+  test('the list hides documents on stages the caller cannot see, and never returns storageKey', async () => {
+    const order = await makeOrder();
+    const own = await documents.uploadDocument(order._id, file(pdf('s1')), { docType: 'PO', stageNumber: STAGES.RECEIVE_ORDER }, sales);
+    const hidden = await documents.uploadDocument(order._id, file(pdf('s5')), { docType: 'PO', stageNumber: STAGES.RECEIVE_ADVANCE }, admin);
+    const orderLevel = await documents.uploadDocument(order._id, file(pdf('none')), { docType: 'PO' }, sales);
+
+    const forSales = (await documents.listDocuments(order._id, sales)).map((d) => String(d._id));
+    assert.ok(forSales.includes(String(own._id)));
+    assert.ok(forSales.includes(String(orderLevel._id)), 'order-level documents stay visible');
+    assert.ok(!forSales.includes(String(hidden._id)), "a hidden stage's document must not be listed");
+
+    const forAdmin = await documents.listDocuments(order._id, admin);
+    assert.equal(forAdmin.length, 3, 'a role attached to every stage sees everything');
+    for (const d of forAdmin) assert.equal(d.storageKey, undefined);
+  });
+
+  test("a URL for a hidden stage's document is refused (404); the attached role still gets one", async () => {
+    const order = await makeOrder();
+    const hidden = await documents.uploadDocument(order._id, file(pdf('s5')), { docType: 'PO', stageNumber: STAGES.RECEIVE_ADVANCE }, admin);
+
+    await assert.rejects(
+      () => documents.issueDocumentUrl(hidden._id, sales),
+      (e) => e.statusCode === 404,
+    );
+    const { url } = await documents.issueDocumentUrl(hidden._id, admin);
+    assert.ok(url);
   });
 });
 

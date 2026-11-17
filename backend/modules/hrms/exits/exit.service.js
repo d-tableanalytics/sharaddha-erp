@@ -87,6 +87,25 @@ function parse(schema, input, what) {
 
 const isHr = (actor) => hasHrmsPermission(actor, M.EXITS, A.EDIT, S.ORG);
 
+/**
+ * HA2: who may read the settlement AMOUNTS. Monthly CTC and basic are
+ * derivable from the F&F lines, so other exit viewers (IT on asset clearance,
+ * managers up the chain, clearance assignees) get the record without them.
+ * HR computes and disburses it; employees:compensation:view:org is the
+ * salary-reading gate payroll uses; the leaver may see their own.
+ */
+const canSeeSettlementAmounts = (actor, row) =>
+  (Boolean(actor?.employeeId) && idStr(row.employeeId) === idStr(actor.employeeId)) ||
+  isHr(actor) ||
+  hasHrmsPermission(actor, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG);
+
+/** HA7: HR may not edit, settle, disburse or issue letters on their OWN exit. */
+const assertNotOwnExit = (row, actor, what) => {
+  if (actor?.employeeId && idStr(row.employeeId) === idStr(actor.employeeId)) {
+    throw new HrmsForbiddenError(`You cannot ${what} on your own exit.`);
+  }
+};
+
 // ---------------------------------------------------------------------------
 // DTO
 // ---------------------------------------------------------------------------
@@ -154,7 +173,21 @@ const toDto = (row, { actor, replacementName } = {}) => ({
   replacementEmployeeName: replacementName ?? null,
   transferNotes: row.transferNotes ?? null,
   clearances: (row.clearances ?? []).map(clearanceToDto),
-  fullAndFinal: fnfToDto(row.fullAndFinal),
+  // HA2: amounts only for payroll/HR authority or the leaver; others learn
+  // only that a settlement exists and when it was computed/paid.
+  fullAndFinal: canSeeSettlementAmounts(actor, row)
+    ? fnfToDto(row.fullAndFinal)
+    : row.fullAndFinal
+      ? {
+          redacted: true,
+          computedAt: row.fullAndFinal.computedAt
+            ? new Date(row.fullAndFinal.computedAt).toISOString()
+            : null,
+          disbursedAt: row.fullAndFinal.disbursedAt
+            ? new Date(row.fullAndFinal.disbursedAt).toISOString()
+            : null,
+        }
+      : null,
   /** Presence only — the storage key never reaches a browser. */
   relievingLetter: row.relievingLetter?.storageKey
     ? {
@@ -542,6 +575,7 @@ export async function hrApprove(id, actor, context = {}) {
 export async function openClearances(id, actor, context = {}) {
   if (!isHr(actor)) throw new HrmsForbiddenError('Only HR can open clearances.');
   const row = await loadForWrite(id, actor);
+  assertNotOwnExit(row, actor, 'open clearances'); // HA7
 
   if (row.status !== 'in_notice') {
     throw new HrmsConflictError(
@@ -741,6 +775,7 @@ export async function updateExit(id, input, actor, context = {}) {
   if (!isHr(actor)) throw new HrmsForbiddenError('Only HR can edit an exit request.');
   const dto = parse(updateExitRequestSchema, input, 'exit request');
   const row = await loadForWrite(id, actor);
+  assertNotOwnExit(row, actor, 'edit the handover details'); // HA7
 
   if (row.status === 'closed' || row.status === 'cancelled') {
     throw new HrmsConflictError(
@@ -852,6 +887,7 @@ export async function previewSettlement(id, actor) {
 export async function createSettlement(id, actor, context = {}) {
   if (!isHr(actor)) throw new HrmsForbiddenError('Only HR can create a settlement.');
   const row = await loadForWrite(id, actor);
+  assertNotOwnExit(row, actor, 'compute the settlement'); // HA7
 
   if (row.status !== 'cleared') {
     throw new HrmsConflictError(
@@ -907,6 +943,7 @@ export async function createSettlement(id, actor, context = {}) {
 export async function disburseSettlement(id, actor, context = {}) {
   if (!isHr(actor)) throw new HrmsForbiddenError('Only HR can disburse a settlement.');
   const row = await loadForWrite(id, actor);
+  assertNotOwnExit(row, actor, 'disburse the settlement'); // HA7
 
   if (row.status !== 'f_and_f_pending') {
     throw new HrmsConflictError(
@@ -952,6 +989,7 @@ export async function disburseSettlement(id, actor, context = {}) {
 export async function generateRelievingLetter(id, actor, context = {}) {
   if (!isHr(actor)) throw new HrmsForbiddenError('Only HR can generate a relieving letter.');
   const row = await loadForWrite(id, actor);
+  assertNotOwnExit(row, actor, 'generate the relieving letter'); // HA7
 
   if (row.status !== 'closed') {
     throw new HrmsConflictError(

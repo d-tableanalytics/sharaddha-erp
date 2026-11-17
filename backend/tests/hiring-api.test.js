@@ -254,9 +254,19 @@ describe('authorization', () => {
     const manager = await makeEmployee({ roles: [R.MANAGER] });
     let candidateId;
 
+    // HB1: a manager reaches a candidate only by sitting on their panel.
     await withServer(appFor(recruiter.user), async (url) => {
-      const c = await post(url, `${P}/candidates`, { name: 'Asha', email: 'asha@example.com' });
-      candidateId = c.body.data.id;
+      const requisitionId = await approvedRequisition(url, recruiter.user);
+      const made = await applicationFor(url, requisitionId, 'Asha');
+      candidateId = made.candidateId;
+      const scheduled = await post(url, `${P}/interviews`, {
+        applicationId: made.applicationId,
+        round: 1,
+        panelEmployeeIds: [manager.id],
+        scheduledAt: inDays(3).toISOString(),
+        durationMinutes: 45,
+      });
+      assert.equal(scheduled.status, 201, JSON.stringify(scheduled.body));
     });
 
     await withServer(appFor(manager.user), async (url) => {
@@ -266,6 +276,96 @@ describe('authorization', () => {
         403,
         'may not read their CV',
       );
+    });
+  });
+});
+
+describe('HB1: team-scoped (interviewer) reads are narrowed', () => {
+  test('🔴 a manager sees only what they interview on - no offers, budgets or contact details, nothing org-wide', async () => {
+    const recruiter = await makeEmployee({ roles: [R.RECRUITER] });
+    const manager = await makeEmployee({ roles: [R.MANAGER] });
+    let mine;
+    let other;
+    let mineReq;
+    let otherReq;
+    let mineInterviewId;
+    let otherInterviewId;
+    let otherOffer;
+
+    await withServer(appFor(recruiter.user), async (url) => {
+      mineReq = await approvedRequisition(url, recruiter.user);
+      otherReq = await approvedRequisition(url, recruiter.user);
+      mine = await applicationFor(url, mineReq, 'Panel Candidate');
+      other = await applicationFor(url, otherReq, 'Other Candidate');
+
+      const a = await post(url, `${P}/interviews`, {
+        applicationId: mine.applicationId,
+        round: 1,
+        panelEmployeeIds: [manager.id],
+        scheduledAt: inDays(3).toISOString(),
+        durationMinutes: 45,
+      });
+      assert.equal(a.status, 201, JSON.stringify(a.body));
+      mineInterviewId = a.body.data.id;
+
+      const b = await post(url, `${P}/interviews`, {
+        applicationId: other.applicationId,
+        round: 1,
+        panelEmployeeIds: [recruiter.id],
+        scheduledAt: inDays(3).toISOString(),
+        durationMinutes: 45,
+      });
+      assert.equal(b.status, 201, JSON.stringify(b.body));
+      otherInterviewId = b.body.data.id;
+
+      await post(url, `${P}/applications/${other.applicationId}/move`, { stage: 'offer' });
+      const offer = await post(url, `${P}/offers`, {
+        applicationId: other.applicationId,
+        ctc: '1500000',
+        joiningDate: dayIn(30),
+        designation: 'Senior Engineer',
+      });
+      assert.equal(offer.status, 201, JSON.stringify(offer.body));
+      otherOffer = offer.body.data.id;
+
+      // The org-wide viewer still sees everything, budget included.
+      const all = (await get(url, `${P}/requisitions`)).body.data;
+      assert.equal(all.total, 2);
+      assert.ok(all.data.every((r) => r.budgetMax !== null));
+      assert.equal((await get(url, `${P}/offers`)).body.data.total, 1);
+    });
+
+    await withServer(appFor(manager.user), async (url) => {
+      // Requisitions: only the one they interview for, with the budget withheld.
+      const reqs = (await get(url, `${P}/requisitions`)).body.data;
+      assert.deepEqual(reqs.data.map((r) => r.id), [mineReq]);
+      assert.equal(reqs.data[0].budgetMin, null);
+      assert.equal(reqs.data[0].budgetMax, null);
+      assert.equal((await get(url, `${P}/requisitions/${otherReq}`)).status, 404);
+      assert.equal((await get(url, `${P}/requisitions/${otherReq}/pipeline`)).status, 404);
+
+      // Candidates and applications: only the panel's, without contact details.
+      const cands = (await get(url, `${P}/candidates`)).body.data;
+      assert.deepEqual(cands.data.map((c) => c.id), [mine.candidateId]);
+      assert.equal(cands.data[0].email, null);
+      assert.equal(cands.data[0].phone, null);
+      assert.equal((await get(url, `${P}/candidates/${other.candidateId}`)).status, 404);
+
+      const apps = (await get(url, `${P}/applications`)).body.data;
+      assert.deepEqual(apps.data.map((a) => a.id), [mine.applicationId]);
+      assert.equal(apps.data[0].candidateEmail, null);
+      assert.equal((await get(url, `${P}/applications/${other.applicationId}`)).status, 404);
+
+      // Interviews and feedback: their own panel only.
+      const ivs = (await get(url, `${P}/interviews`)).body.data;
+      assert.deepEqual(ivs.data.map((i) => i.id), [mineInterviewId]);
+      assert.equal((await get(url, `${P}/interviews/${mineInterviewId}/feedback`)).status, 200);
+      assert.equal((await get(url, `${P}/interviews/${otherInterviewId}/feedback`)).status, 404);
+
+      // Offers: never, for an interviewer.
+      const offers = (await get(url, `${P}/offers`)).body.data;
+      assert.equal(offers.total, 0);
+      assert.ok(!offers.data.some((o) => o.id === otherOffer));
     });
   });
 });

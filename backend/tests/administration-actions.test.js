@@ -108,14 +108,38 @@ test('the full grant can create an account', async () => {
     { module: 'administration', submodule: 'users', actions: ['view', 'create', 'edit'] },
   ]);
 
+  // A staff role whose access the administrator holds (a user administrator
+  // may only hand on what it has - utils/accessGuard.js).
+  await Role.create({ name: 'User Clerk', isSystem: false, grants: [{ module: 'administration', submodule: 'users', actions: ['view'] }] });
+  await loadRoles();
+
   await withServer(app, async (url) => {
     const create = await post(url, '/api/v1/users', {
       user: 'New Person',
       email: 'new-person@example.test',
       password: 'whatever123',
-      role: 'Sales',
+      role: 'User Clerk',
     });
     assert.equal(create.status, 201);
+  });
+});
+
+test('a user administrator cannot create a staff account with access they do not hold', async () => {
+  const app = await appFor([
+    { module: 'administration', submodule: 'users', actions: ['view', 'create', 'edit'] },
+  ]);
+
+  await withServer(app, async (url) => {
+    const sales = await post(url, '/api/v1/users', {
+      user: 'Would-be Sales', email: 'sales-x@example.test', password: 'whatever123', role: 'Sales',
+    });
+    assert.equal(sales.status, 403);
+    assert.equal(sales.body.code, 'ROLE_ABOVE_ACTOR');
+
+    const superAdmin = await post(url, '/api/v1/users', {
+      user: 'Would-be Boss', email: 'boss-x@example.test', password: 'whatever123', role: 'Super Admin',
+    });
+    assert.equal(superAdmin.status, 403, 'only a Super Admin creates a Super Admin');
   });
 });
 
@@ -176,7 +200,12 @@ test('view-only may not delete a role, and edit-only may not delete either', asy
 
 test('edit-only on Roles & Permissions can rewrite grants but not delete the role', async () => {
   const role = await Role.create({ name: 'Editable', isSystem: false, grants: [] });
-  const app = await appFor([{ module: 'administration', submodule: 'roles', actions: ['view', 'edit'] }]);
+  // The editor holds what it hands on: a role editor may only grant access it
+  // has itself (utils/accessGuard.js).
+  const app = await appFor([
+    { module: 'administration', submodule: 'roles', actions: ['view', 'edit'] },
+    { module: 'work_queue', submodule: 'tasks', actions: ['view'] },
+  ]);
 
   await withServer(app, async (url) => {
     const patched = await patch(url, `/api/v1/roles/${role._id}`, {
@@ -186,5 +215,36 @@ test('edit-only on Roles & Permissions can rewrite grants but not delete the rol
 
     const deleted = await del(url, `/api/v1/roles/${role._id}`);
     assert.equal(deleted.status, 403);
+  });
+});
+
+test('a role editor cannot grant a cell it does not hold, nor edit its own role', async () => {
+  const role = await Role.create({ name: 'Target Role', isSystem: false, grants: [] });
+  seq += 1;
+  const ownName = `Custom Admin ${seq}`;
+  const own = await Role.create({
+    name: ownName, isSystem: false,
+    grants: [{ module: 'administration', submodule: 'roles', actions: ['view', 'edit'] }],
+  });
+  await loadRoles();
+  const app = buildTestApp({
+    mount: (a) => {
+      a.use(stubProtect({ _id: new mongoose.Types.ObjectId(), role: ownName, status: 'Active' }));
+      a.use('/api/v1/roles', roleRoutes);
+    },
+  });
+
+  await withServer(app, async (url) => {
+    const beyond = await patch(url, `/api/v1/roles/${role._id}`, {
+      grants: [{ module: 'administration', submodule: 'users', actions: ['view', 'create'] }],
+    });
+    assert.equal(beyond.status, 403);
+    assert.equal(beyond.body.code, 'GRANT_ABOVE_ACTOR');
+
+    const self = await patch(url, `/api/v1/roles/${own._id}`, {
+      grants: [{ module: 'administration', submodule: 'roles', actions: ['view', 'edit', 'delete'] }],
+    });
+    assert.equal(self.status, 403);
+    assert.equal(self.body.code, 'SELF_ROLE_EDIT');
   });
 });

@@ -1,5 +1,6 @@
 import { sendEmail } from '../../../utils/mailer.js';
 import { isBlockedRecipient } from '../../../utils/mailRecipients.js';
+import { portalLink } from '../../../utils/portalUrl.js';
 
 /**
  * Email, through the portal's ONE mailer.
@@ -38,9 +39,9 @@ const render = (n) => `
         : ''
     }
     ${
-      n.href && process.env.EMPLOYEE_PORTAL_URL
+      portalLink('EMPLOYEE_PORTAL_URL', n.href)
         ? `<p style="font-size:13px;margin:0">
-             <a href="${escapeHtml(`${process.env.EMPLOYEE_PORTAL_URL}${n.href}`)}">Open in the portal</a>
+             <a href="${escapeHtml(portalLink('EMPLOYEE_PORTAL_URL', n.href))}">Open in the portal</a>
            </p>`
         : ''
     }

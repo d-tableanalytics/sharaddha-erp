@@ -314,7 +314,10 @@ export async function previewImport(rawRecords, { persistence = getEmployeePersi
  * worse than none, because the second attempt has to reason about what the
  * first one already wrote.
  */
-export async function commitImport(rawRecords, { persistence = getEmployeePersistence() } = {}) {
+export async function commitImport(
+  rawRecords,
+  { persistence = getEmployeePersistence(), actor } = {},
+) {
   if (!persistence) {
     throw new Error(
       'No employee persistence port is registered. The Employee collection arrives in Phase 1; ' +
@@ -336,6 +339,8 @@ export async function commitImport(rawRecords, { persistence = getEmployeePersis
       void reportingManagerCode;
       return rest;
     }),
+    // HA1: the port enforces the actor's edit/compensation authority.
+    actor ? { actor } : undefined,
   );
 
   // Pass 2 - resolve manager codes now that every row exists.

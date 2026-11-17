@@ -13,6 +13,7 @@ import { seedO2dStages } from './config/seedO2dStages.js';
 import { runEscalationSweep, sendDailySummary } from './modules/o2d/escalation.service.js';
 import { retryFailedInvoices } from './modules/o2d/invoicing.service.js';
 import { runScheduledBuddySweep } from './modules/workqueue/buddy.service.js';
+import { startRoleSync } from './utils/roleResolver.js';
 
 dotenv.config();
 
@@ -164,6 +165,15 @@ const runBuddyRotation = () =>
 
 const startServer = async () => {
   await connectDatabase();
+
+  /*
+   * The role cache. This server used to load roles only after its OWN role
+   * saves, so after every restart built-in roles ran on compiled defaults
+   * (revocations ignored) and custom roles resolved to nothing, and saves made
+   * on the Customer Portal never arrived. Load now, then follow every change
+   * to the shared `roles` collection within seconds (utils/roleResolver.js).
+   */
+  await startRoleSync();
 
   /*
    * The brand list (utils/brandRegistry.js, shared with the Customer Portal,

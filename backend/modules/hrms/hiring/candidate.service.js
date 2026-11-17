@@ -40,6 +40,7 @@ import {
   HrmsConflictError,
   HrmsValidationError,
 } from '../hrms.errors.js';
+import { inSet, within, redactCandidate } from './hiringScope.js';
 
 const CATEGORY = STORAGE_CATEGORIES.CANDIDATE_RESUME;
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
@@ -81,11 +82,14 @@ async function withCounts(rows) {
   return rows.map((r) => toDto(r, { applicationCount: byId.get(idStr(r._id)) ?? 0 }));
 }
 
-export async function listCandidates(query = {}) {
+export async function listCandidates(query = {}, reach = null) {
   const { page = 1, pageSize = PAGE_SIZE_DEFAULT, search, source } = query;
 
   const filter = {
     deletedAt: null,
+    // HB1: a team-scoped viewer sees only candidates on requisitions they own
+    // or interview for.
+    ...(reach ? { _id: inSet(reach.candidates) } : {}),
     ...(source ? { source } : {}),
     // A recruiter searches by name or email; anchored to the start so the
     // index is usable and a stray substring does not scan the collection.
@@ -108,15 +112,18 @@ export async function listCandidates(query = {}) {
     Candidate.countDocuments(filter),
   ]);
 
-  return { data: await withCounts(rows), total, page, pageSize };
+  const data = (await withCounts(rows)).map((d) => redactCandidate(d, reach));
+  return { data, total, page, pageSize };
 }
 
 /** A user-supplied search term is data, not a pattern. */
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export async function getCandidate(id) {
+export async function getCandidate(id, reach = null) {
+  // HB1: out of reach reads exactly like a missing row.
+  if (!within(reach, 'candidates', id)) throw new HrmsNotFoundError('Candidate');
   const row = await loadCandidate(id);
-  return (await withCounts([row]))[0];
+  return redactCandidate((await withCounts([row]))[0], reach);
 }
 
 export async function createCandidate(input, context = {}) {

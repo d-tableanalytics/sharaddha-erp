@@ -87,6 +87,47 @@ const assertCanEdit = (actor) => {
   }
 };
 
+const isHrmsSuperAdmin = (actor) => (actor?.roleKeys ?? []).includes(R.SUPER_ADMIN);
+
+/**
+ * HB3: grant ceiling. A non-super-admin editor may only put into a role the
+ * module/action/scope triples they themselves hold at that scope or wider -
+ * otherwise settings:edit:org would be a path to any permission. `existing`
+ * (on update) are triples the role already has; keeping those is not a grant.
+ */
+function assertWithinGrantCeiling(actor, permissions = [], existing = []) {
+  if (isHrmsSuperAdmin(actor)) return;
+  const had = new Set(existing.map((p) => `${p.module}|${p.action}|${p.scope}`));
+  const beyond = permissions.filter(
+    (p) =>
+      !had.has(`${p.module}|${p.action}|${p.scope}`) &&
+      !hasHrmsPermission(actor, p.module, p.action, p.scope),
+  );
+  if (beyond.length > 0) {
+    throw new HrmsForbiddenError(
+      `You cannot grant permissions you do not hold: ${beyond
+        .map((p) => `${p.module}:${p.action}:${p.scope}`)
+        .join(', ')}.`,
+      { code: 'HRMS_GRANT_BEYOND_OWN' },
+    );
+  }
+}
+
+/** HB3: nobody but a super admin edits a role they hold themselves. */
+async function assertNotOwnRole(actor, role) {
+  if (isHrmsSuperAdmin(actor)) return;
+  const held = new Set([
+    ...(actor?.roleKeys ?? []),
+    ...(await customRoleKeysForUser(actor?.userId)),
+  ]);
+  if (held.has(role.key)) {
+    throw new HrmsForbiddenError(
+      `You hold "${role.label}" yourself, so you cannot edit it. Ask a super admin.`,
+      { code: 'HRMS_OWN_ROLE_EDIT' },
+    );
+  }
+}
+
 /**
  * Refuse the three edits that would strip `hrms_super_admin`'s guarantee.
  *
@@ -201,6 +242,8 @@ export async function createCustomRole(dto, actor, req = null) {
   const clash = await HrmsRole.findOne({ key: dto.key }).select('_id').lean();
   if (clash) throw new HrmsConflictError(`Role key "${dto.key}" is already in use.`);
 
+  assertWithinGrantCeiling(actor, dto.permissions); // HB3
+
   const role = await HrmsRole.create({
     key: dto.key,
     label: dto.label,
@@ -228,6 +271,11 @@ export async function updateCustomRole(id, dto, actor, req = null) {
   if (!role) throw new HrmsNotFoundError('Role');
 
   assertProtectedRoleIntact(role, dto);
+  // HB3: no self-held role edits, and no grants beyond the editor's own.
+  await assertNotOwnRole(actor, role);
+  if (dto.permissions !== undefined) {
+    assertWithinGrantCeiling(actor, dto.permissions, role.permissions ?? []);
+  }
 
   const changed = [];
   if (dto.label !== undefined && dto.label !== role.label) {
