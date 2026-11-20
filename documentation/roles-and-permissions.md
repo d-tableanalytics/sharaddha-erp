@@ -262,14 +262,36 @@ helpdesk   view · helpdesk:hr resolve
 reports    view · audit-logs view · operations view (read-only) · planning view edit
 ```
 
-**`payroll_admin`** — narrow and deep. Note it gets `employees:compensation` but **never**
-`employees`, so it sees salary-linked data without the full employee record:
+**`payroll_admin`** — narrow and deep. It designs the structures and RUNS the month, and
+holds neither `employees` nor `employees:compensation`: it computes everyone's pay without
+being entitled to browse what any individual is on.
 
 ```
-employees:compensation view · payroll view run · payroll:structure view edit
+payroll view run · payroll:structure view edit
 expenses view approve (finance-level)
 reports:payroll view export · helpdesk:payroll resolve
 ```
+
+### 🔴 Salary is Super-Admin-only
+
+`employees:compensation` is granted by the matrix to `hrms_super_admin` alone, AND fenced at
+run time to accounts whose **portal** role is unrestricted — `Super Admin`, `Admin`, or a role
+row flagged `isSuperAdmin`. The fence exists because two other routes reach the grant:
+
+- `utils/hrmsAccessBridge.js` maps the portal's `administer_hrms` to every HRMS role key, so
+  the **HR** role comes away holding `hrms_super_admin`;
+- `rbac/customRole.middleware.js` REPLACES the actor's permissions from the database, so
+  ticking the cell in Settings would re-grant it.
+
+Both are stripped by `fenceSuperAdminOnly` (`shared/permissions/constants.js`), applied where
+`actor.permissions` is finally set — in `buildHrmsActor` and again in the custom-role
+middleware. The cells stay visible in the matrix and are labelled as having no effect.
+
+Because `employees:compensation` is the one gate every salary figure already sits behind, the
+restriction reaches all of them at once: a CTC and its history, **anyone else's payslip**
+(`payroll/payslip.service.js` `seesEveryone`), an **F&F settlement amount**
+(`exits/exit.service.js`), and the plaintext reveal of **bank account and PAN** in Employee
+Master. An employee's own payslip is `payroll:view:self` and is untouched.
 
 **`manager`** — `team` scope is the whole point of this role:
 

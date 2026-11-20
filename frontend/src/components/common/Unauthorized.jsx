@@ -9,9 +9,9 @@ import { ShieldOff } from "lucide-react";
  * being dropped on Home with no explanation. A panel, not a redirect: a
  * redirect "home" can loop for a role whose home is itself refused.
  *
- * Deliberately free of store imports so the Customer Portal's verbatim FMS copy
- * (src/fms/components/common/) resolves without adapters. `homePath` lets a
- * caller that knows a better landing page pass it in.
+ * Deliberately free of store imports, so it can be rendered from anywhere in
+ * the app without dragging a store in. `homePath` lets a caller that knows a
+ * better landing page pass it in.
  *
  * Not the enforcement point: the API refuses the same request with a 403.
  */

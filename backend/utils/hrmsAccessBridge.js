@@ -134,8 +134,32 @@ export const effectiveHrmsRoleKeys = (user) => {
   return [...new Set([...explicit, ...impliedHrmsRoleKeys(user)])];
 };
 
+/**
+ * Is this account a PORTAL Super Admin?
+ *
+ * The question the salary fence turns on (SUPER_ADMIN_ONLY_MODULES in
+ * shared/permissions/constants.js). It is asked of the portal side rather than
+ * of `hrms_super_admin`, because the tier table above hands
+ * `hrms_super_admin` to anyone holding `administer_hrms` - which the HR role
+ * does, deliberately, and HR is not an administrator of the portal.
+ *
+ * The test is the resolved wildcard rather than a name comparison, so it
+ * answers true for exactly what the rest of the system already calls
+ * unrestricted: the 'Super Admin' and 'Admin' role names (SUPER_ADMIN_ROLES),
+ * and any custom role row flagged `isSuperAdmin`. `resolveUserPermissions` is
+ * the same cached, synchronous read used above; '*' is not grantable through
+ * the matrix (roleResolver.js refuses to compile it), so it cannot be ticked
+ * into an ordinary role.
+ *
+ * @param {object|null} user
+ * @returns {boolean}
+ */
+export const isPortalSuperAdmin = (user) =>
+  Boolean(user) && resolveUserPermissions(user).includes('*');
+
 export default {
   HRMS_ACCESS_TIERS,
   impliedHrmsRoleKeys,
   effectiveHrmsRoleKeys,
+  isPortalSuperAdmin,
 };

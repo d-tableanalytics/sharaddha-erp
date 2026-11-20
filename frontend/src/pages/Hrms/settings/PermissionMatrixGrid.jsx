@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 
 import { groupModules, permKey } from "./permissionKeys";
+import { isSuperAdminOnlyModule } from "@shared/permissions/constants.js";
 
 /**
  * The (module x action x scope) grid a custom role is built out of.
@@ -28,6 +29,17 @@ import { groupModules, permKey } from "./permissionKeys";
  * They are NOT hierarchical: granting `helpdesk/resolve/org` does not imply
  * `helpdesk:it/resolve/org`, so the group's bulk control ticks each key
  * explicitly rather than implying anything.
+ *
+ * ---------------------------------------------------------------------------
+ * ONE ROW IS LABELLED AS A TICK THAT WILL NOT TAKE
+ * ---------------------------------------------------------------------------
+ * `employees:compensation` is Super-Admin-only (SUPER_ADMIN_ONLY_MODULES). The
+ * server strips its grants from anyone who is not a portal Super Admin, both
+ * when it builds the actor and again after it reads these very rows back out of
+ * the database. The cells stay tickable — the role row is still the record of
+ * what was intended, and hiding them would make the saved document and the
+ * screen disagree — but a checkbox that silently does nothing is a trap, so the
+ * row says so out loud.
  *
  * The vocabulary is a PROP, served by the API from the same constants the
  * evaluator imports. Hardcoding it here is how the reference's builder ended
@@ -210,6 +222,13 @@ function ModuleRows({
       {showLabel && (
         <p className="py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {module}
+        </p>
+      )}
+
+      {isSuperAdminOnlyModule(module) && (
+        <p className="mb-1 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+          Salary is Super Admin only. These grants apply to Super Admin accounts
+          and are ignored for every other role, however they are ticked here.
         </p>
       )}
 

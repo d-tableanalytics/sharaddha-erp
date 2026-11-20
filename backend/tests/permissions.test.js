@@ -9,6 +9,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import {
   PERMISSIONS,
@@ -26,6 +27,8 @@ import {
   isHrmsRoleKey,
   HRMS_ROLE_LIST,
   HRMS_MODULE_LIST,
+  SUPER_ADMIN_ONLY_MODULES,
+  fenceSuperAdminOnly,
 } from '../shared/permissions/constants.js';
 
 import {
@@ -307,16 +310,39 @@ test('matrix: HR admin may view payroll but never run it', () => {
   assert.equal(hasHrmsPermission(payroll, M.PAYROLL, A.RUN, S.ORG), true);
 });
 
-test('matrix: compensation is restricted to payroll admin and super admin', () => {
-  const canSee = [R.PAYROLL_ADMIN, R.SUPER_ADMIN];
+test('matrix: compensation reaches no HRMS role on its own', () => {
+  // Salary is Super-Admin-only (SUPER_ADMIN_ONLY_MODULES). An HRMS ROLE KEY is
+  // never enough by itself — not even `hrms_super_admin`, which the portal
+  // bridge hands to HR. The actor must also be a portal Super Admin.
   for (const role of HRMS_ROLE_LIST) {
     const actor = buildHrmsActor({ userId: 'u1', roles: [role] });
     assert.equal(
       hasHrmsPermission(actor, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG),
-      canSee.includes(role),
+      false,
       `${role} compensation visibility`,
     );
   }
+});
+
+test('matrix: a portal Super Admin holding hrms_super_admin sees and edits compensation', () => {
+  const superAdmin = buildHrmsActor({
+    userId: 'u1',
+    roles: [R.SUPER_ADMIN],
+    portalSuperAdmin: true,
+  });
+  assert.equal(hasHrmsPermission(superAdmin, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG), true);
+  assert.equal(hasHrmsPermission(superAdmin, M.EMPLOYEES_COMPENSATION, A.EDIT, S.ORG), true);
+
+  // The flag ALONE grants nothing: it only lifts the fence on grants the role
+  // keys already carried. AD-4 is untouched.
+  const wildcardOnly = buildHrmsActor({ userId: 'u2', roles: [], portalSuperAdmin: true });
+  assert.equal(hasHrmsPermission(wildcardOnly, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG), false);
+
+  // And a Payroll Admin does not get it back by being a portal Super Admin's
+  // colleague: the matrix no longer grants the role the key at all.
+  const payroll = buildHrmsActor({ userId: 'u3', roles: [R.PAYROLL_ADMIN], portalSuperAdmin: true });
+  assert.equal(hasHrmsPermission(payroll, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG), false);
+  assert.equal(hasHrmsPermission(payroll, M.PAYROLL, A.RUN, S.ORG), true, 'still runs payroll');
 });
 
 test('matrix: helpdesk resolution is category-scoped', () => {
@@ -364,4 +390,52 @@ test('matrix: helpers de-duplicate across roles', () => {
   // Unknown keys contribute nothing rather than throwing.
   assert.deepEqual(permissionsForHrmsRoles(['nope']), []);
   assert.deepEqual(permissionsForHrmsRoles(), []);
+});
+
+
+// ---------------------------------------------------------------------------
+// The salary fence
+// ---------------------------------------------------------------------------
+
+test('fence: compensation is the Super-Admin-only module, and the filter is exact', () => {
+  assert.deepEqual([...SUPER_ADMIN_ONLY_MODULES], [M.EMPLOYEES_COMPENSATION]);
+
+  const grants = [
+    { module: M.EMPLOYEES_COMPENSATION, action: A.VIEW, scope: S.ORG },
+    { module: M.EMPLOYEES_COMPENSATION, action: A.EDIT, scope: S.ORG },
+    { module: M.PAYROLL, action: A.RUN, scope: S.ORG },
+    { module: M.EMPLOYEES, action: A.VIEW, scope: S.ORG },
+  ];
+
+  // A portal Super Admin keeps everything — and gets the SAME array back, so
+  // the common path allocates nothing.
+  assert.equal(fenceSuperAdminOnly(grants, true), grants);
+
+  const fenced = fenceSuperAdminOnly(grants, false);
+  assert.deepEqual(fenced, [
+    { module: M.PAYROLL, action: A.RUN, scope: S.ORG },
+    { module: M.EMPLOYEES, action: A.VIEW, scope: S.ORG },
+  ]);
+  // Neighbouring modules are untouched: `employees` is not `employees:compensation`.
+  assert.ok(fenced.some((g) => g.module === M.EMPLOYEES));
+
+  // Degenerate inputs do not throw.
+  assert.deepEqual(fenceSuperAdminOnly([], false), []);
+  assert.equal(fenceSuperAdminOnly(undefined, false), undefined);
+});
+
+test('fence: the database path re-applies it, or a ticked checkbox would undo it', async () => {
+  // customRole.middleware.js REPLACES actor.permissions with rows an
+  // administrator edits in Settings. If it ever stops fencing them, ticking
+  // `employees:compensation` for any role hands out every salary in the
+  // company — so the call is asserted here rather than left to review.
+  const source = await readFile(
+    new URL('../modules/hrms/rbac/customRole.middleware.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    source,
+    /permissions:\s*fenceSuperAdminOnly\(resolved\.permissions,\s*actor\.portalSuperAdmin\)/,
+    'attachCustomHrmsGrants must fence the permissions it resolves from the database',
+  );
 });

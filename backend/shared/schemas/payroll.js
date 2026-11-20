@@ -29,6 +29,7 @@
 import { z } from 'zod';
 
 import { objectId, isoDay, money, moneyString, paginationQuery } from '../validation/common.js';
+import { DEFAULT_ANNUAL_CTC } from '../payroll/defaultSalary.js';
 
 import { isValidFormula } from '../payroll/formula.js';
 import {
@@ -200,7 +201,18 @@ export const createCompensationSchema = z
     employeeId: objectId,
     payGroupId: objectId,
     structureId: objectId,
-    ctc: moneyString,
+    /**
+     * Omitted, this is the client's default: Rs 10,000 a month, stored as the
+     * Rs 1,20,000 ANNUAL CTC the column holds. See shared/payroll/defaultSalary.js.
+     *
+     * Note what is and is not defaulted. A compensation ROW still has to be
+     * created deliberately, with a pay group, a structure and an effective
+     * date — the default answers "what is this person paid" when nobody has
+     * said, it does not invent the row. Statutory values keep no defaults at
+     * all (correction 3 above); a salary is a business figure the client has
+     * stated, which is a different kind of value.
+     */
+    ctc: moneyString.default(DEFAULT_ANNUAL_CTC),
     effectiveFrom: isoDay,
     overrides,
     /** Drives PT and LWF. Optional; the service falls back to the company default. */

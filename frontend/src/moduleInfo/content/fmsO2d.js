@@ -9,7 +9,7 @@
 export default [
   {
     "key": "o2d.tasks",
-    "portal": "both",
+    "portal": "employee",
     "paths": [
       "/fms/o2d/tasks"
     ],
@@ -131,7 +131,7 @@ export default [
   },
   {
     "key": "o2d.orders",
-    "portal": "both",
+    "portal": "employee",
     "paths": [
       "/fms/o2d/orders",
       "/fms/o2d/orders/new",
@@ -328,13 +328,12 @@ export default [
       }
     ],
     "unverified": [
-      "Zoho integration is active only when O2D_ZOHO_ENABLED=enabled on the Employee server; production setting not checked.",
-      "In the Customer Portal these screens call the Employee Portal server; they are hidden if that server's address is not configured, and the Customer Portal's web address must be allowed by the Employee server (CORS)."
+      "Zoho integration is active only when O2D_ZOHO_ENABLED=enabled on the Employee server; production setting not checked."
     ]
   },
   {
     "key": "o2d.stages",
-    "portal": "both",
+    "portal": "employee",
     "paths": [
       "/fms/o2d/stages"
     ],
@@ -399,7 +398,7 @@ export default [
   },
   {
     "key": "o2d.analytics",
-    "portal": "both",
+    "portal": "employee",
     "paths": [
       "/fms/o2d/analytics"
     ],

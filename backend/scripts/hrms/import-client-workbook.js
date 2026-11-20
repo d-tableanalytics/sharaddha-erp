@@ -47,6 +47,10 @@ import { Location } from '../../models/hrms/Location.js';
 import { Holiday } from '../../models/hrms/Holiday.js';
 import { AssetCategory, AssetItem } from '../../models/hrms/AssetModels.js';
 import { PayGroup, SalaryStructure, EmployeeCompensation } from '../../models/hrms/PayrollModels.js';
+import {
+  DEFAULT_SALARY_INSTRUCTION as SALARY_INSTRUCTION_AMOUNT,
+  CTC_BASIS,
+} from '../../shared/payroll/defaultSalary.js';
 import { bootstrapHrms } from '../../modules/hrms/hrms.bootstrap.js';
 import { CUSTOMER_ROLE } from '../../shared/permissions/assignment.js';
 import {
@@ -68,20 +72,17 @@ export const IMPORTER_VERSION = '1.2.0';
 /**
  * The client's Salary-sheet instruction: "Put 10,000/- as salary for all".
  *
- * `EmployeeCompensation.ctc` is ANNUAL cost to company — the payroll screen
- * labels it "Annual CTC". The instruction does not say which basis 10,000 is,
- * and for Indian staff it is almost certainly a MONTHLY figure: read as annual
- * it would be about Rs 833 a month, which is below any minimum wage.
+ * The figure, the two readings of it and the arithmetic between them now live
+ * in `shared/payroll/defaultSalary.js`, because the same instruction is also
+ * the system-wide default for an employee nobody has set a salary for — see
+ * `scripts/hrms/set-default-salary.js`. One definition, so the importer and
+ * the default can never disagree about what "10,000" means.
  *
- * A twelvefold ambiguity on a money field is not something to resolve by
- * guessing, so the importer refuses to execute until `--ctc-basis` says which
- * was meant. The dry run shows both readings.
+ * The importer still REFUSES to execute until `--ctc-basis` says which reading
+ * was meant. That is deliberate and is not softened by the shared default: a
+ * one-off bulk write of a money field for every employee in the company should
+ * state its basis out loud, even though the rest of the system now has one.
  */
-const SALARY_INSTRUCTION_AMOUNT = '10000';
-const CTC_BASIS = Object.freeze({
-  monthly: { annual: '120000.00', describe: 'Rs 10,000 per month -> Rs 1,20,000 annual CTC' },
-  annual: { annual: '10000.00', describe: 'Rs 10,000 per year -> about Rs 833 per month' },
-});
 
 /**
  * Account resolutions the CLIENT confirmed on 2026-09-05.

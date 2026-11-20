@@ -59,13 +59,23 @@ beforeEach(async () => {
 });
 
 let seq = 0;
-async function makePerson(roles) {
+/**
+ * `portalRole` follows the HRMS role, because salary is Super-Admin-only.
+ *
+ * `employees:compensation` — the gate these sensitive fields share — resolves
+ * only for an account whose PORTAL role is unrestricted. An account holding
+ * `hrms_super_admin` in production got it from the portal bridge reading
+ * `administer_hrms` off an Admin or Super Admin, so the harness gives it the
+ * portal role that goes with it. See SUPER_ADMIN_ONLY_MODULES.
+ */
+async function makePerson(roles, portalRole = null) {
   seq += 1;
+  const role = portalRole ?? (roles.includes(R.SUPER_ADMIN) ? 'Super Admin' : 'Management');
   const user = await User.create({
     user: `Person ${seq}`,
     email: `sens${seq}@example.test`,
     password: 'irrelevant-hash',
-    role: 'Management',
+    role,
     roles,
     status: 'Active',
   });
@@ -79,7 +89,7 @@ async function makePerson(roles) {
     userId: user._id,
   });
   return {
-    user: { _id: user._id, role: 'Management', roles, status: 'Active' },
+    user: { _id: user._id, role, roles, status: 'Active' },
     employee,
     id: String(employee._id),
   };

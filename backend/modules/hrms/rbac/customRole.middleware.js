@@ -44,6 +44,7 @@
  */
 
 import { customRoleKeysForUser, resolveGrantsForRoleKeys } from './customRole.service.js';
+import { fenceSuperAdminOnly } from '../../../shared/permissions/constants.js';
 
 export async function attachCustomHrmsGrants(req, res, next) {
   try {
@@ -63,7 +64,16 @@ export async function attachCustomHrmsGrants(req, res, next) {
     req.hrmsActor = {
       ...actor,
       roleKeys: allKeys,
-      permissions: resolved.permissions,
+      /**
+       * The salary fence is re-applied here, and that is not belt-and-braces.
+       *
+       * This line REPLACES what `buildHrmsActor` computed, with rows an
+       * administrator can edit in Settings -> Roles & Permissions. Ticking
+       * `employees:compensation` for any role would otherwise hand that role
+       * every CTC, payslip and F&F amount in the company, silently undoing the
+       * fence one checkbox at a time. See SUPER_ADMIN_ONLY_MODULES.
+       */
+      permissions: fenceSuperAdminOnly(resolved.permissions, actor.portalSuperAdmin),
     };
 
     return next();

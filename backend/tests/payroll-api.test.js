@@ -104,13 +104,25 @@ function appFor(user) {
 
 let seq = 0;
 
-async function makeEmployee({ roles = [R.EMPLOYEE], status = 'active' } = {}) {
+/**
+ * `portalRole` matters since salary became Super-Admin-only.
+ *
+ * `employees:compensation` resolves only for an account whose PORTAL role is
+ * unrestricted (SUPER_ADMIN_ONLY_MODULES; the check is
+ * hrmsAccessBridge.isPortalSuperAdmin). In production nobody holds
+ * `hrms_super_admin` by accident — they hold it because the portal bridge read
+ * `administer_hrms` off an Admin, Super Admin or HR account — so a test asking
+ * for R.SUPER_ADMIN gets the portal role that goes with it, unless it says
+ * otherwise. Passing `portalRole` explicitly is how a test proves the fence.
+ */
+async function makeEmployee({ roles = [R.EMPLOYEE], status = 'active', portalRole = null } = {}) {
   seq += 1;
+  const role = portalRole ?? (roles.includes(R.SUPER_ADMIN) ? 'Super Admin' : 'Management');
   const user = await User.create({
     email: `pay${seq}@example.com`,
     password: 'x'.repeat(60),
     user: `Person ${seq}`,
-    role: 'Management',
+    role,
     roles,
     status: 'Active',
   });
@@ -123,7 +135,7 @@ async function makeEmployee({ roles = [R.EMPLOYEE], status = 'active' } = {}) {
     status,
   });
   return {
-    user: { _id: user._id, role: 'Management', roles, status: 'Active' },
+    user: { _id: user._id, role, roles, status: 'Active' },
     employee,
     id: String(employee._id),
   };
@@ -297,11 +309,16 @@ describe('authorization', () => {
       );
     });
 
-    // payroll_admin holds employees:compensation:VIEW but not EDIT, so it may
-    // read a salary and may not set one.
+    // payroll_admin designs the structures and RUNS the month, and since
+    // salary became Super-Admin-only it reads no individual's CTC at all.
     const payroll = await makeEmployee({ roles: [R.PAYROLL_ADMIN] });
     await withServer(appFor(payroll.user), async (url) => {
-      assert.equal((await get(url, `${P}/compensation/${subject.id}`)).status, 200);
+      assert.equal((await get(url, `${P}/runs`)).status, 200, 'payroll_admin still runs payroll');
+      assert.equal(
+        (await get(url, `${P}/compensation/${subject.id}`)).status,
+        403,
+        'running the month is not reading what an individual earns',
+      );
       const write = await post(url, `${P}/compensation`, {
         employeeId: subject.id,
         payGroupId: String(oid()),
@@ -309,13 +326,25 @@ describe('authorization', () => {
         ctc: '600000',
         effectiveFrom: '2026-01-01',
       });
-      assert.equal(write.status, 403, 'reading a salary is not setting one');
+      assert.equal(write.status, 403, 'and certainly not setting one');
     });
 
-    // super_admin holds both.
+    // A portal Super Admin holding hrms_super_admin: the only one who may.
     const superAdmin = await makeEmployee({ roles: [R.SUPER_ADMIN] });
     await withServer(appFor(superAdmin.user), async (url) => {
       assert.equal((await get(url, `${P}/compensation/${subject.id}`)).status, 200);
+    });
+
+    // 🔴 The role key alone is not enough. The same hrms_super_admin on an
+    // account whose PORTAL role is not unrestricted — which is what the bridge
+    // gives the HR role — is refused. This is the fence, not the matrix.
+    const hrmsOnly = await makeEmployee({ roles: [R.SUPER_ADMIN], portalRole: 'HR' });
+    await withServer(appFor(hrmsOnly.user), async (url) => {
+      assert.equal(
+        (await get(url, `${P}/compensation/${subject.id}`)).status,
+        403,
+        'hrms_super_admin without portal Super Admin reads no salary',
+      );
     });
   });
 });
@@ -1291,9 +1320,18 @@ describe('payslips', () => {
       });
     }
 
-    // payroll_admin holds payroll:view:org AND employees:compensation:view:org.
+    // payroll_admin is now in the same position: it holds payroll:view:org and
+    // no compensation grant, so it runs the month without reading the slips it
+    // produced. A payslip IS an individual's salary.
     const payroll = await makeEmployee({ roles: [R.PAYROLL_ADMIN] });
     await withServer(appFor(payroll.user), async (url) => {
+      assert.equal((await get(url, `${P}/runs`)).status, 200, 'still sees run totals');
+      assert.equal((await get(url, `${P}/payslips/${payslipId}`)).status, 403);
+      assert.equal((await get(url, `${P}/runs/${runId}/payslips`)).status, 403);
+    });
+
+    // The portal Super Admin is the one who reads them.
+    await withServer(appFor(admin.user), async (url) => {
       assert.equal((await get(url, `${P}/payslips/${payslipId}`)).status, 200);
       assert.equal((await get(url, `${P}/runs/${runId}/payslips`)).status, 200);
     });

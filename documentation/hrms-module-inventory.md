@@ -161,7 +161,7 @@ Permissions: `inbox:view:self` (baseline — everyone).
 1. **Probation block reveals when relevant.** `probationStartDate` defaults to `dateOfJoining`; `probationEndDate = probationStartDate + probationMonths`. Editing months recomputes the end date; editing the end date recomputes months. All three then move independently.
 2. **Notice block reveals only when `status = 'notice'`.** Same bidirectional `noticeMonths ↔ noticeEndDate` sync anchored on `noticeStartDate`.
 3. **Department → Reporting Manager**: the manager `<Select>` is populated from the employee list; setting a manager recomputes the denormalised `managerChain`.
-4. **Compensation section is permission-gated** — visible only with `employees:compensation:view:org`.
+4. **Compensation section is permission-gated** — visible only with `employees:compensation:view:org`, which is Super-Admin-only (see roles-and-permissions.md). Default salary: Rs 10,000/month = Rs 1,20,000 annual CTC (`shared/payroll/defaultSalary.js`).
 5. **Confirmation letter download** appears only after `confirmedAt` is set.
 6. **Custom fields render by `type`** — `text | textarea | number | date | boolean | select | multiselect`; `options[]` drives select/multiselect; `required` enforced.
 

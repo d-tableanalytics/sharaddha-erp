@@ -3,11 +3,26 @@
  */
 
 import { modulesForHrmsRoles } from '../../shared/permissions/matrix.js';
-import { HRMS_ROLE_LABELS } from '../../shared/permissions/constants.js';
+import { HRMS_ROLE_LABELS, isSuperAdminOnlyModule } from '../../shared/permissions/constants.js';
 import { describe as describeReferences } from './references/reference.service.js';
 import { registeredRetentionCategories } from './retention/retention.registry.js';
 import { registeredFileCategories } from './storage/storage.service.js';
 import { IMPLEMENTED_HRMS_MODULES } from './hrms.modules.js';
+
+/**
+ * The modules an actor may reach, with the Super-Admin-only ones removed for
+ * anyone who is not a portal Super Admin.
+ *
+ * `modulesForHrmsRoles` answers from the role keys and so knows nothing about
+ * the salary fence. Without this, an HR account (which holds
+ * `hrms_super_admin` through the portal bridge) would be told it reaches
+ * `employees:compensation` while every grant for it had already been stripped
+ * from `actor.permissions` — the payload would contradict itself.
+ */
+const reachableModules = (actor) => {
+  const permitted = modulesForHrmsRoles(actor.roleKeys);
+  return actor.portalSuperAdmin ? permitted : permitted.filter((m) => !isSuperAdminOnlyModule(m));
+};
 
 /**
  * GET /api/v1/hrms/me
@@ -34,7 +49,7 @@ export const getHrmsMe = async (req, res, next) => {
         roleKeys: actor.roleKeys,
         roleLabels: actor.roleKeys.map((k) => HRMS_ROLE_LABELS[k] ?? k),
         permissions: actor.permissions,
-        modules: modulesForHrmsRoles(actor.roleKeys),
+        modules: reachableModules(actor),
       },
     });
   } catch (error) {
@@ -55,7 +70,7 @@ export const getHrmsMe = async (req, res, next) => {
 export const getHrmsStatus = async (req, res, next) => {
   try {
     const actor = req.hrmsActor;
-    const permitted = modulesForHrmsRoles(actor.roleKeys);
+    const permitted = reachableModules(actor);
 
     res.status(200).json({
       success: true,

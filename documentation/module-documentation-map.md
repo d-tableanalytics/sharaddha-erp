@@ -928,7 +928,6 @@ Rules:
 Requires verification:
 
 - Zoho integration is active only when O2D_ZOHO_ENABLED=enabled on the Employee server; production setting not checked.
-- In the Customer Portal these screens call the Employee Portal server; they are hidden if that server's address is not configured, and the Customer Portal's web address must be allowed by the Employee server (CORS).
 
 ### Stages (`o2d.stages`)
 

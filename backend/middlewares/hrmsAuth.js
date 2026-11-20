@@ -22,7 +22,7 @@ import {
   hasHrmsPermission,
   ANONYMOUS_HRMS_ACTOR,
 } from '../shared/permissions/has-permission.js';
-import { effectiveHrmsRoleKeys } from '../utils/hrmsAccessBridge.js';
+import { effectiveHrmsRoleKeys, isPortalSuperAdmin } from '../utils/hrmsAccessBridge.js';
 import { isHrmsRoleKey } from '../shared/permissions/constants.js';
 
 // ---------------------------------------------------------------------------
@@ -110,6 +110,7 @@ export async function attachHrmsActor(req, res, next) {
         userId: user._id ?? user.id,
         roles: [],
         legacyRole: user.role,
+        portalSuperAdmin: isPortalSuperAdmin(user),
       });
       return next();
     }
@@ -124,6 +125,10 @@ export async function attachHrmsActor(req, res, next) {
       roles: roleKeys,
       legacyRole: user.role,
       employee,
+      // Salary is Super-Admin-only (SUPER_ADMIN_ONLY_MODULES). The portal role
+      // is read here to TAKE a grant away, never to add one — see the note on
+      // buildHrmsActor's parameter.
+      portalSuperAdmin: isPortalSuperAdmin(user),
     });
 
     return next();

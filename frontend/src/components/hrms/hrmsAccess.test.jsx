@@ -28,10 +28,16 @@ import {
   SCOPES as S,
 } from "@shared/permissions/constants.js";
 
-/** Put a signed-in actor into the store without touching the network. */
-const signIn = (roles, employee = null) =>
+/**
+ * Put a signed-in actor into the store without touching the network.
+ *
+ * `portalSuperAdmin` matters only for the Super-Admin-only modules (salary).
+ * In the running app it comes from the server with the actor; here a test that
+ * needs it passes it, exactly as the server would set it.
+ */
+const signIn = (roles, employee = null, portalSuperAdmin = false) =>
   useHrmsStore.setState({
-    actor: buildHrmsActor({ userId: "u1", roles, employee }),
+    actor: buildHrmsActor({ userId: "u1", roles, employee, portalSuperAdmin }),
     implementedModules: [M.DASHBOARD, M.EMPLOYEES],
     loaded: true,
     loading: false,
@@ -169,9 +175,9 @@ describe("permission-gated controls", () => {
     expect(screen.queryByRole("button", { name: "Add employee" })).toBeNull();
   });
 
-  it("Reveal is gated on compensation access, which creating employees does not imply", () => {
-    const revealVisibleFor = (roles) => {
-      signIn(roles);
+  it("Reveal is gated on compensation access, which only a portal Super Admin has", () => {
+    const revealVisibleFor = (roles, portalSuperAdmin = false) => {
+      signIn(roles, null, portalSuperAdmin);
       const { unmount } = render(
         <PermissionGate module={M.EMPLOYEES_COMPENSATION} action={A.VIEW} scope={S.ORG}>
           <button>Reveal</button>
@@ -183,10 +189,16 @@ describe("permission-gated controls", () => {
     };
 
     // The HR admin creates and edits every employee but holds no compensation
-    // grant, so a PAN stays masked for them. The payroll admin is the reverse:
-    // it may read the sensitive values and may not create anyone.
+    // grant, so a PAN stays masked for them. Since salary became
+    // Super-Admin-only the payroll admin is in the same position: it runs the
+    // month and reveals nothing.
     expect(revealVisibleFor([R.HR_ADMIN])).toBe(false);
-    expect(revealVisibleFor([R.PAYROLL_ADMIN])).toBe(true);
+    expect(revealVisibleFor([R.PAYROLL_ADMIN])).toBe(false);
+
+    // Even hrms_super_admin is not enough on its own — that key reaches HR
+    // through the portal bridge. The actor must also be a portal Super Admin.
+    expect(revealVisibleFor([R.SUPER_ADMIN])).toBe(false);
+    expect(revealVisibleFor([R.SUPER_ADMIN], true)).toBe(true);
   });
 
   it("renders the fallback rather than nothing when one is given", () => {

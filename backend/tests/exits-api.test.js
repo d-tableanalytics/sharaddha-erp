@@ -90,12 +90,19 @@ let seq = 0;
 async function makePerson(roles, over = {}) {
   seq += 1;
   const userId = oid();
+  // The portal role follows the HRMS one: an F&F amount is salary, and salary
+  // is Super-Admin-only (SUPER_ADMIN_ONLY_MODULES), so only an account whose
+  // PORTAL role is unrestricted resolves `employees:compensation`. `portalRole`
+  // in `over` overrides it; it is not an Employee field, so it is pulled out
+  // before the document is built.
+  const { portalRole, ...employeeOver } = over;
+  const role = portalRole ?? (roles.includes(R.SUPER_ADMIN) ? 'Super Admin' : 'Management');
   await User.create({
     _id: userId,
     name: over.firstName ? `${over.firstName} Person` : `Person ${seq}`,
     email: `person${seq}@example.com`,
     password: 'hashed-not-used',
-    role: 'Management',
+    role,
     roles,
     status: 'Active',
   });
@@ -106,10 +113,10 @@ async function makePerson(roles, over = {}) {
     lastName: over.lastName ?? `Person${seq}`,
     dateOfJoining: over.dateOfJoining ?? new Date('2019-01-01'),
     status: over.status ?? 'active',
-    ...over,
+    ...employeeOver,
   });
   return {
-    user: { _id: userId, role: 'Management', roles, status: 'Active' },
+    user: { _id: userId, role, roles, status: 'Active' },
     employee,
   };
 }
@@ -145,7 +152,9 @@ async function seedOrg() {
     reportingManagerId: manager.employee._id,
     managerChain: [manager.employee._id],
   });
-  return { hr, it, finance, manager, staff };
+  // The one account that may read a settlement amount: a portal Super Admin.
+  const owner = await makePerson([R.SUPER_ADMIN], { firstName: 'Olive' });
+  return { hr, it, finance, manager, staff, owner };
 }
 
 const validExit = (over = {}) => ({
@@ -1333,8 +1342,15 @@ test('🔴 HA2: settlement amounts are redacted for exit viewers without payroll
     });
   }
 
-  // The leaver and payroll (employees:compensation:view:org) see the amounts.
-  for (const viewer of [org.staff, org.finance]) {
+  // Payroll joins them: since salary became Super-Admin-only it holds no
+  // compensation grant, so an F&F amount is redacted for it too.
+  await withServer(appFor(org.finance.user), async (url) => {
+    const row = envelope(await get(url, `${P}/${id}`));
+    assert.equal(row.fullAndFinal.redacted, true, 'payroll admin no longer reads the money');
+  });
+
+  // The leaver sees their own, and the portal Super Admin sees anyone's.
+  for (const viewer of [org.staff, org.owner]) {
     await withServer(appFor(viewer.user), async (url) => {
       const row = envelope(await get(url, `${P}/${id}`));
       assert.ok(row.fullAndFinal.netPayable, 'full settlement visible');

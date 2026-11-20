@@ -1033,7 +1033,7 @@ export default [
       },
       {
         "title": "Compensation (employee salary)",
-        "detail": "Each employee's salary entry (structure, pay group, CTC) with effective dates. No screen of its own; maintained through the payroll API under 'employee compensation'."
+        "detail": "Each employee's salary entry (structure, pay group, annual CTC) with effective dates. Super Admin only. The default is Rs 10,000 a month (Rs 1,20,000 annual CTC). No screen of its own; maintained through the payroll API under 'employee compensation'."
       }
     ],
     "connections": [
@@ -1130,7 +1130,7 @@ export default [
       },
       {
         "title": "Who edits salary",
-        "detail": "Employee compensation can be viewed by Payroll Admin and Super Admin, but edited only by Super Admin.",
+        "detail": "Employee compensation is Super Admin only — viewing and editing. No other role reaches it, including Payroll Admin and HR, and ticking the permission for another role has no effect. The same restriction covers anyone else's payslip and a final-settlement amount, because each one is an individual's salary. An employee still sees their own payslip.",
         "kind": "permission",
         "verified": true
       },

@@ -298,9 +298,15 @@ test('sensitive employee data stays behind its own module, not a portal key', ()
     false,
   );
 
-  // Payroll admin is the role that does hold it.
+  // Nor does the Payroll Admin, who used to hold it: salary is Super-Admin-only
+  // now (SUPER_ADMIN_ONLY_MODULES), and running the month is a different grant.
   const payroll = buildHrmsActor({ roles: [R.PAYROLL_ADMIN], employee: { id: 'p1', managerChain: [] } });
-  assert.equal(hasHrmsPermission(payroll, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG), true);
+  assert.equal(hasHrmsPermission(payroll, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG), false);
+  assert.equal(hasHrmsPermission(payroll, M.PAYROLL, A.RUN, S.ORG), true);
+
+  // The one actor that does: a portal Super Admin holding hrms_super_admin.
+  const superAdmin = buildHrmsActor({ roles: [R.SUPER_ADMIN], portalSuperAdmin: true });
+  assert.equal(hasHrmsPermission(superAdmin, M.EMPLOYEES_COMPENSATION, A.VIEW, S.ORG), true);
 });
 
 // ---------------------------------------------------------------------------

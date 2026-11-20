@@ -302,32 +302,32 @@ Both log the Mongo host they connected to at boot. They must match.
 
 ---
 
-## 8. The Customer Portal draws FMS from this API
+## 8. FMS is served by this portal alone
 
-Staff who work in the Customer Portal (Sales above all) get the FMS screens
-there too, **without a second FMS**. There is still one engine, one set of
-scheduled jobs (§4) and one set of Work Queue mirrors, and they all live here.
-The Customer Portal only draws the screens:
+FMS (the O2D workflow) lives here and nowhere else: the engine, the scheduled
+jobs (§4), the Work Queue mirrors, the `/api/v1/o2d` routes and the screens.
 
-- **Its frontend calls `/api/v1/o2d` on this server** with the access token it
-  already holds. §1's shared `JWT_SECRET` is what makes that token valid here.
-  Its backend serves no O2D route and never will. Its portal fence strips the
-  O2D keys by design, and nothing about that fence or the `o2d` registry tag
-  changed.
-- **Who sees FMS there is decided by this server's `/auth/me`,** the server
-  that enforces it. A Customer account resolves no O2D key here either.
-- **The screens are this repository's files, copied verbatim** into
-  `Customer portal module/frontend/src/fms/` and recorded in
-  `fms-port.manifest.json`. That includes `shared/constants/o2d.js` and
-  `o2dStageFields.js`, and the O2D page tests, which run there unmodified.
+The Customer Portal used to carry a verbatim copy of these screens under
+`frontend/src/fms/`, calling `/api/v1/o2d` on this server from the browser.
+**That is gone.** Its SPA now talks only to its own API. What that means here:
 
-What that asks of this repository:
+- **No CORS entry is needed for the Customer Portal.** `CORS_ORIGINS` no longer
+  has to list `https://erp.shraddhaimpex.net` for FMS's sake. Removing it is
+  safe; leaving it costs nothing but says something untrue.
+- **Nothing to keep in step.** There is no `fms:check` / `fms:diff` /
+  `fms:sync`, no `fms-port.manifest.json`, and no second copy of
+  `shared/constants/o2d.js` to drift. Change an O2D screen freely.
+- **`/fms/o2d/...` resolves only here.** A notification link opens this SPA; it
+  is a "not found" in the Customer Portal. Emails already link to
+  `EMPLOYEE_PORTAL_URL` (`utils/portalUrl.js`), so nothing there changes.
+- **The portal fence is unchanged.** `o2d` is still tagged employee-only in the
+  registry and the Customer Portal still resolves no O2D key for anybody but a
+  wildcard holder (§3). The O2D permission keys stay in `config/permissions.js`
+  and `config/moduleRegistry.js` — those are §2 byte-identical files, and the
+  keys are stored on `roles` rows the Customer Portal's Roles & Permissions
+  screen must keep as-is rather than strip (`backend/utils/portalGrants.js`).
 
-| When you… | Do this |
-|---|---|
-| deploy | Add the Customer Portal's origin (`https://erp.shraddhaimpex.net`) to `CORS_ORIGINS`. A refused origin shows as `[CORS] refused origin` in the logs and as "FMS not offered" there. Nothing else breaks. |
-| change an O2D screen, `services/o2d/*`, or the two shared constant files | In the Customer Portal frontend: `npm run fms:diff`, then `npm run fms:sync` and its tests. `npm run fms:check` in its CI fails if someone edits a copy there instead. |
-| change an `/api/v1/o2d` response shape | Both frontends read it. The synced copy picks the change up, but only once somebody syncs. |
-
-Notification links (`/fms/o2d/orders?open=<id>`) resolve in both portals,
-because the routes are the same. Emails still link to `EMPLOYEE_PORTAL_URL`.
+One FMS → Customer Portal reference remains, and it is a database read, not a
+cross-portal call: `modules/o2d/booking.service.js` READS the shared `orders`
+collection so a Sales user can raise an O2D order from an existing booking
+(§3, §28). It writes nothing there, by design — see that file's header.
