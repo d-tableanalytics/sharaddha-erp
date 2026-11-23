@@ -476,6 +476,10 @@ describe('editing and saving', () => {
     render(<PermissionMatrix />);
 
     await screen.findByText('My Tasks');
+    // The rows come from the registry, but the ticks come from the draft, which
+    // a separate effect seeds from the selected role. Wait for the seeded state
+    // rather than for the rows alone, or the tri-state below is read too early.
+    await waitFor(() => expect(cell('My Tasks', 'view').checked).toBe(true));
 
     const moduleView = within(rowFor('FMS')).getByRole('checkbox', {
       name: /^View across all of FMS$/i,

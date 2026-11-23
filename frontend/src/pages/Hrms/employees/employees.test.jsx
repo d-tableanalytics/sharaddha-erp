@@ -133,9 +133,20 @@ function installTransport(overrides = {}) {
   });
 }
 
-const signIn = (roles, employee = null) =>
+/**
+ * `portalSuperAdmin` is the salary fence, and it is the ONLY way to an
+ * `employees:compensation` grant.
+ *
+ * `buildHrmsActor` strips that module from every HRMS role unless the PORTAL
+ * account is a Super Admin (SUPER_ADMIN_ONLY_MODULES in
+ * @shared/permissions/constants.js). So an HRMS role key alone — payroll admin
+ * included — never reveals a sensitive value, which is what the server
+ * enforces too: POST /hrms/employees/:id/reveal is gated on
+ * EMPLOYEES_COMPENSATION:view:org.
+ */
+const signIn = (roles, employee = null, { portalSuperAdmin = false } = {}) =>
   useHrmsStore.setState({
-    actor: buildHrmsActor({ userId: "u1", roles, employee }),
+    actor: buildHrmsActor({ userId: "u1", roles, employee, portalSuperAdmin }),
     implementedModules: [M.DASHBOARD, M.EMPLOYEES],
     loaded: true,
     loading: false,
@@ -596,10 +607,17 @@ describe("employee profile", () => {
     // bank account number.
     expect(screen.queryByRole("button", { name: /Reveal/i })).toBeNull();
     expect(screen.getByText(/requires compensation access/i)).toBeTruthy();
+
+    // Nor a payroll admin. Compensation is Super-Admin-only, so the authority
+    // to run the month is not the authority to read one person's bank account.
+    cleanup();
+    useHrmsStore.getState().clear();
+    await open([R.PAYROLL_ADMIN]);
+    expect(screen.queryByRole("button", { name: /Reveal/i })).toBeNull();
   });
 
   it("reveals one field at a time, through its own audited request", async () => {
-    signIn([R.PAYROLL_ADMIN]);
+    signIn([R.SUPER_ADMIN], null, { portalSuperAdmin: true });
     installTransport({
       "POST /hrms/employees/652f000000000000000000a1/reveal": (c) =>
         envelope({ field: c.data.field, value: "ABCDE1234F" }),

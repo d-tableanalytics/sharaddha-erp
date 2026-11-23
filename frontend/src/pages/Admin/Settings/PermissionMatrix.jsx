@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Save, Loader2, ShieldCheck, Plus, Trash2, Users, Store, X,
   Search, ChevronRight, ChevronDown, Folder, Copy, Pencil, Mail, MoreVertical,
@@ -174,10 +174,24 @@ function RoleBadge({ role, className = '' }) {
  * invite an admin to tick it and silently widen access they had deliberately
  * narrowed. It is always interactive — there is no locked or disabled state
  * anywhere in this matrix.
+ *
+ * ---------------------------------------------------------------------------
+ * useLayoutEffect, NOT useEffect
+ * ---------------------------------------------------------------------------
+ * A passive effect runs AFTER the browser has already painted the committed
+ * DOM, so for one frame the box shows the wrong state — a mixed module reads
+ * as clear, which is precisely the "tick it and silently widen access" misread
+ * this control exists to prevent. A layout effect writes the property during
+ * the commit, so the box is never painted in a state it is not in.
+ *
+ * It is also what makes the property safe to assert on: under a parallel
+ * `vitest run` the passive version let a query resolve on the committed rows
+ * before the effect had run, and `.indeterminate` read back `false`. That
+ * failed on CI and passed alone.
  */
 function TriCheckbox({ state, onChange, title, className = '', disabled = false }) {
   const ref = useRef(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (ref.current) ref.current.indeterminate = state === 'some';
   }, [state]);
 
