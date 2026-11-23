@@ -51,6 +51,11 @@ vi.mock("../services/checklist", () => ({
     getRoutines: vi.fn().mockResolvedValue({ data: [], total: 0 }),
     getStats: vi.fn().mockResolvedValue({}),
     getScoreboard: vi.fn().mockResolvedValue({ data: [] }),
+    // ChecklistPage calls these on mount. Without them the mock yields
+    // `undefined`, the load throws, and this file asserts "it drew" against the
+    // page's failure state — which would pass even if the page were broken.
+    getSummary: vi.fn().mockResolvedValue({}),
+    getLocations: vi.fn().mockResolvedValue([]),
   },
 }));
 vi.mock("../services/scoreboard", () => ({
