@@ -36,9 +36,11 @@ export const useAdminStore = create((set, get) => ({
 
   createUser: async (payload) => {
     try {
-      const newUser = await adminApi.createUser(payload);
+      const { user: newUser, hrms } = await adminApi.createUser(payload);
       set((state) => ({ users: [newUser, ...state.users] }));
-      return { success: true };
+      // `hrms` rides along so the screen can report the employee record that
+      // was created with the account. Null for a customer, which never gets one.
+      return { success: true, hrms };
     } catch (err) {
       return { success: false, error: err.response?.data?.message || "Failed to create user" };
     }

@@ -11,9 +11,17 @@ export const adminApi = {
     return response.data.data;
   },
 
+  /**
+   * Returns the new account AND the HRMS sync outcome beside it.
+   *
+   * `data` is still the user row, untouched - the store puts it straight into
+   * the table. `hrms` is additive: the server creates the employee record in
+   * the same request, and this is what lets the screen say so rather than
+   * leaving the administrator to go and check.
+   */
   createUser: async (payload) => {
     const response = await api.post('/users', payload);
-    return response.data.data;
+    return { user: response.data.data, hrms: response.data.hrms ?? null };
   },
 
   updateUser: async (userId, updates) => {

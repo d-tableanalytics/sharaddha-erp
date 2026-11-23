@@ -485,7 +485,19 @@ export const UserManagement = ({ audience = 'internal' }) => {
     const res = await createUser({ ...details, ...accessLevelToFields(accessLevel) });
     setSaving(false);
     if (res.success) {
-      toast.success('User created');
+      /**
+       * Say what ELSE happened.
+       *
+       * A staff account now creates its HRMS employee record in the same
+       * request, and the whole point is that HR does not type the person in
+       * again - which only works if the person who just created the account
+       * knows it is done. A customer gets no record and no extra sentence.
+       */
+      toast.success(
+        res.hrms?.action === 'created'
+          ? `User created — HRMS employee ${res.hrms.employeeCode} added`
+          : 'User created',
+      );
       setForm(emptyForm);
       setShowAdd(false);
     } else {

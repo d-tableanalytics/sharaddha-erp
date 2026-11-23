@@ -11,6 +11,7 @@ import * as service from './employee.service.js';
 import * as erasure from './employeeErasure.js';
 import { recordAudit } from '../../../utils/auditLog.js';
 import { AUDIT_ACTIONS } from '../../../shared/constants/hrms.js';
+import * as sync from './employeeSync.service.js';
 
 /**
  * GET /api/v1/hrms/employees
@@ -344,6 +345,77 @@ export const deleteCustomField = async (req, res, next) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Portal -> HRMS synchronisation
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/hrms/employees/sync/status
+ *
+ * The backlog: portal accounts that should have an employee record and do not,
+ * with the error that stopped each one. Normally empty.
+ *
+ * It exists because a retry queue nobody can see is indistinguishable from a
+ * queue that is working. "Maintain proper audit logs for synchronisation
+ * failures" is only useful if somebody can read them without a mongo shell.
+ */
+export const getSyncStatus = async (req, res, next) => {
+  try {
+    const pending = await sync.listSyncFailures({ limit: 200 });
+    res.status(200).json({
+      success: true,
+      data: {
+        pending: pending.map((job) => ({
+          userId: String(job.userId),
+          email: job.email,
+          displayName: job.displayName,
+          reason: job.reason,
+          attempts: job.attempts,
+          lastError: job.lastError,
+          lastAttemptAt: job.lastAttemptAt,
+          nextAttemptAt: job.nextAttemptAt,
+        })),
+        count: pending.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/v1/hrms/employees/sync/run
+ *
+ * Drain the backlog now, then sweep for staff accounts that never had a record
+ * at all. The same two things the crons do on a schedule, on demand — for the
+ * first deploy, and for the administrator who has just fixed whatever was
+ * making a record fail and does not want to wait for the next tick.
+ *
+ * `?dryRun=true` reports what the sweep WOULD create and writes nothing.
+ */
+export const runSync = async (req, res, next) => {
+  try {
+    const dryRun = String(req.query.dryRun ?? '') === 'true';
+    const retried = dryRun ? null : await sync.retryFailedSyncs({ limit: 200 });
+    const reconciled = await sync.reconcileEmployeeRecords({ dryRun });
+
+    await recordAudit(
+      req.user,
+      sync.SYNC_AUDIT.SWEEP,
+      dryRun
+        ? `Employee sync dry run: ${reconciled.created} account(s) would get a record.`
+        : `Employee sync run on demand: ${reconciled.created} created, `
+          + `${retried?.succeeded ?? 0} retried, ${reconciled.failed} failed.`,
+      req,
+      { meta: { dryRun, retried, reconciled } },
+    );
+
+    res.status(200).json({ success: true, data: { dryRun, retried, reconciled } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /** Which sensitive fields are on file. Presence only — never the value. */
 function sensitiveKeysPresent(dto) {
   return Object.entries(dto)
@@ -367,4 +439,6 @@ export default {
   createCustomField,
   updateCustomField,
   deleteCustomField,
+  getSyncStatus,
+  runSync,
 };

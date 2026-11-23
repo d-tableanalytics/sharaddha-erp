@@ -26,6 +26,9 @@ import {
   setCustomRolesForUser,
 } from '../rbac/customRole.service.js';
 import { requiresOptions } from '../../../shared/schemas/employee.js';
+// The status mapping lives with the rest of the portal <-> HRMS translation,
+// so the two directions cannot disagree about what `suspended` means.
+import { portalStatusForEmployeeStatus } from './employeeSync.service.js';
 import {
   HRMS_MODULES as M,
   HRMS_ACTIONS as A,
@@ -738,15 +741,43 @@ export async function updateEmployee(id, dto, actor) {
       await User.updateOne({ _id: existing.userId }, { $set: { user: displayName } }, opts);
     }
 
-    // Flipping to `inactive` — post-exit, formalities complete — suspends the
-    // login. Any other status change leaves the account alone, so HR can
-    // suspend and restore access independently of employment status.
-    if (existing.userId && dto.status === 'inactive' && existing.status !== 'inactive') {
-      await User.updateOne(
-        { _id: existing.userId },
-        { $set: { status: 'Suspended', refreshTokenHash: null, refreshSessions: [] } },
-        opts,
-      );
+    /**
+     * HRMS -> portal, the other half of requirement 5.
+     *
+     * This used to read `dto.status === 'inactive'`, and `inactive` IS NOT AN
+     * EMPLOYEE STATUS: `EMPLOYEE_STATUSES` is invited / active / probation /
+     * notice / exited / suspended, and the zod enum refuses anything else. The
+     * condition could therefore never be true, so suspending an employee from
+     * the HRMS side left their login working - the only path that actually
+     * suspended an account was `deactivateEmployee`.
+     *
+     * `portalStatusForEmployeeStatus` is the mapping, and it is deliberately
+     * partial: it answers for the statuses a LOGIN has an opinion about and
+     * returns null otherwise. Moving someone between `active`, `probation` and
+     * `notice` all mean "still working here", so the account is left alone
+     * rather than rewritten on every HR edit.
+     *
+     * Sessions are revoked only on the way DOWN. Re-activating somebody has no
+     * reason to sign anyone out, and revoking there would log out the HR
+     * administrator making the change if they happened to be editing their own
+     * record.
+     */
+    const statusChanged = dto.status !== undefined && dto.status !== existing.status;
+    if (existing.userId && statusChanged) {
+      const portalStatus = portalStatusForEmployeeStatus(dto.status);
+      if (portalStatus) {
+        const revoking = portalStatus !== 'Active';
+        await User.updateOne(
+          { _id: existing.userId },
+          {
+            $set: {
+              status: portalStatus,
+              ...(revoking ? { refreshTokenHash: null, refreshSessions: [] } : {}),
+            },
+          },
+          opts,
+        );
+      }
     }
 
     // Descendants inherit a new prefix. Skipping this is the silent RBAC bug:

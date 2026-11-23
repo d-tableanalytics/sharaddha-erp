@@ -14,6 +14,10 @@ import { runEscalationSweep, sendDailySummary } from './modules/o2d/escalation.s
 import { retryFailedInvoices } from './modules/o2d/invoicing.service.js';
 import { runScheduledBuddySweep } from './modules/workqueue/buddy.service.js';
 import { startRoleSync } from './utils/roleResolver.js';
+import {
+  retryFailedSyncs,
+  reconcileEmployeeRecords,
+} from './modules/hrms/employees/employeeSync.service.js';
 
 dotenv.config();
 
@@ -148,6 +152,29 @@ const O2D_INVOICE_RETRY_SCHEDULE = process.env.O2D_INVOICE_RETRY_SCHEDULE || '15
  */
 const BUDDY_CRON_ENABLED = process.env.WORK_QUEUE_BUDDY_CRON !== 'disabled';
 const BUDDY_CRON_SCHEDULE = process.env.WORK_QUEUE_BUDDY_SCHEDULE || '*/15 * * * *';
+
+// ───────────────────────────────────────────────────────────────────────────
+// EMPLOYEE PORTAL -> HRMS SYNC SWEEPS
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Defaults ON (`!== 'disabled'`), unlike the sweeps that send mail. The
+// reasoning is at the call site; in short, these are idempotent writes behind a
+// unique index, so a second process racing a first loses and does nothing,
+// while the cost of leaving them off is employees silently missing from HRMS.
+const EMPLOYEE_SYNC_CRON_ENABLED = process.env.HRMS_EMPLOYEE_SYNC_CRON !== 'disabled';
+// Every five minutes. The backoff on a queued job is what spaces out the actual
+// retries; this only decides how soon a job that has become due is noticed.
+const EMPLOYEE_SYNC_RETRY_SCHEDULE = process.env.HRMS_EMPLOYEE_SYNC_RETRY_SCHEDULE || '*/5 * * * *';
+// 02:30, out of the working day: the full sweep reads every account, and on a
+// healthy system it finds nothing to do.
+const EMPLOYEE_SYNC_RECONCILE_SCHEDULE = process.env.HRMS_EMPLOYEE_SYNC_RECONCILE_SCHEDULE || '30 2 * * *';
+// Pinned for the same reason every other schedule here is: node-cron reads an
+// expression in SERVER LOCAL TIME, and a container defaulting to UTC would run
+// this at 08:00 IST, in the middle of the morning.
+const EMPLOYEE_SYNC_TIMEZONE = process.env.HRMS_EMPLOYEE_SYNC_TIMEZONE || 'Asia/Kolkata';
+// Long enough for the connection pool, the role cache and the brand cache to
+// settle before a sweep starts reading every account.
+const EMPLOYEE_SYNC_BOOT_DELAY_MS = Number(process.env.HRMS_EMPLOYEE_SYNC_BOOT_DELAY_MS) || 20_000;
 
 const runBuddyRotation = () =>
   runScheduledBuddySweep()
@@ -310,6 +337,102 @@ const startServer = async () => {
     );
   } else {
     console.log('[O2D] Background sweeps DISABLED (O2D_CRON is not "enabled").');
+  }
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────
+   * EMPLOYEE PORTAL -> HRMS SYNCHRONISATION
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * Every portal write path already syncs INLINE - creating a user creates the
+   * employee in the same request. These two sweeps are what make the guarantee
+   * survive the cases an inline call cannot cover:
+   *
+   *   RETRY       a sync that failed because the database blinked. The row sits
+   *               in `employeesyncjobs` with a backoff; this drains it.
+   *   RECONCILE   accounts no inline call ever saw - everybody who existed
+   *               before this feature, anyone a script or a migration created,
+   *               and anyone whose queue row was lost. It is the backstop that
+   *               turns "every path calls the sync" into "every account has a
+   *               record", which is the claim that actually matters.
+   *
+   * ON by default, unlike the sweeps above it. Those SEND things to people, so
+   * running them in two processes means two emails; these are idempotent writes
+   * to one collection behind a unique index, so a second process racing a first
+   * loses the race and does nothing. The failure mode of leaving them off -
+   * employees quietly missing from the HRMS - is the exact thing this feature
+   * exists to prevent, so the default is the safe direction.
+   *
+   * Set HRMS_EMPLOYEE_SYNC_CRON=disabled to turn them off.
+   */
+  if (EMPLOYEE_SYNC_CRON_ENABLED) {
+    cron.schedule(EMPLOYEE_SYNC_RETRY_SCHEDULE, () => {
+      retryFailedSyncs()
+        .then((r) => {
+          // Silent when the backlog was empty, which is almost every run. A
+          // line every five minutes saying "0" is how a log stops being read.
+          if (r.attempted) {
+            console.log(
+              `[hrms:sync] Retry: ${r.succeeded} synced, ${r.stillFailing} still failing, `
+                + `${r.abandoned} abandoned (of ${r.attempted} queued).`,
+            );
+          }
+        })
+        .catch((err) => console.error('[hrms:sync] Retry sweep failed:', err.message));
+    });
+
+    cron.schedule(
+      EMPLOYEE_SYNC_RECONCILE_SCHEDULE,
+      () => {
+        reconcileEmployeeRecords()
+          .then((r) => {
+            if (r.created || r.failed) {
+              console.log(
+                `[hrms:sync] Reconciliation: ${r.created} employee record(s) created, `
+                  + `${r.failed} failed (of ${r.examined} accounts examined).`,
+              );
+            }
+          })
+          .catch((err) => console.error('[hrms:sync] Reconciliation failed:', err.message));
+      },
+      { timezone: EMPLOYEE_SYNC_TIMEZONE },
+    );
+
+    /**
+     * And once at boot, after a short delay.
+     *
+     * A deploy is exactly when the backlog is most likely to be non-empty -
+     * requests cut off mid-sync - and the first run of this feature has every
+     * pre-existing staff account to create. Waiting for the small hours would
+     * mean the first day after the deploy is the one day the directory is
+     * wrong.
+     *
+     * Delayed so it does not compete with the rest of boot, and `unref`ed so it
+     * can never hold the process open.
+     */
+    setTimeout(() => {
+      reconcileEmployeeRecords()
+        .then((r) => {
+          if (r.created || r.failed) {
+            console.log(
+              `[hrms:sync] Boot reconciliation: ${r.created} employee record(s) created, `
+                + `${r.failed} failed (of ${r.examined} accounts examined).`,
+            );
+          }
+        })
+        .catch((err) => console.error('[hrms:sync] Boot reconciliation failed:', err.message));
+    }, EMPLOYEE_SYNC_BOOT_DELAY_MS).unref();
+
+    console.log(
+      `[hrms:sync] Portal -> HRMS sync scheduled: retry ${EMPLOYEE_SYNC_RETRY_SCHEDULE}; `
+        + `reconcile ${EMPLOYEE_SYNC_RECONCILE_SCHEDULE} ${EMPLOYEE_SYNC_TIMEZONE}.`,
+    );
+  } else {
+    console.log(
+      '[hrms:sync] Background sweeps DISABLED (HRMS_EMPLOYEE_SYNC_CRON=disabled). '
+        + 'Inline synchronisation on user create/update still runs; only the retry '
+        + 'and reconciliation sweeps are off.',
+    );
   }
 
   if (BUDDY_CRON_ENABLED) {

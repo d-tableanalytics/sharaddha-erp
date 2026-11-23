@@ -34,6 +34,8 @@ import {
 import { isHrmsRoleKey } from '../../shared/permissions/constants.js';
 import { listBrands } from '../../utils/brandRegistry.js';
 import { hasPermission, PERMISSIONS } from '../../middlewares/rbac.js';
+// Keeps the HRMS employee record in step with a self-service profile edit.
+import { syncUserSafely } from '../hrms/employees/employeeSync.service.js';
 
 const MANAGES_ACCOUNTS = [
   PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_CUSTOMER_USERS,
@@ -557,6 +559,19 @@ export const updateMe = async (req, res, next) => {
       new: true,
       runValidators: true,
     }).select('-password').lean();
+
+    /**
+     * Requirement 7: the integration is the WHOLE portal, not the user-creation
+     * screen. Somebody correcting their own display name here is the same
+     * change HR would make on the employee record, so it is carried across.
+     *
+     * The sync refuses to write a one-word name over a real surname - see
+     * `nameUpdateFor` - so shortening "Priya Sharma" to "Priya" in a profile
+     * cannot damage the HRMS record.
+     */
+    if (updated && name !== undefined) {
+      await syncUserSafely(updated, { actor: req.user, req, reason: 'profile.updated' });
+    }
 
     // The same permission payload getMe returns. The client stores this
     // response AS the current user, so omitting it would blank the sidebar the

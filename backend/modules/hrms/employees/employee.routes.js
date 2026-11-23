@@ -86,6 +86,28 @@ router.patch(
 router.delete('/custom-fields/:id', canEditOrg, controller.deleteCustomField);
 
 // ---------------------------------------------------------------------------
+// Portal -> HRMS synchronisation - before /:id, see the note at the top
+// ---------------------------------------------------------------------------
+
+/**
+ * Reading the backlog is an HR question ("who is missing a record"), so it
+ * sits on `employees:edit:org` rather than on the read grant an employee holds
+ * for their own profile: the rows name other people's accounts and the errors
+ * behind them.
+ *
+ * RUNNING the sweep creates employee records, so it is gated on exactly the
+ * permission that creating one by hand needs. Anything looser would make this
+ * a way to create employees without `employees:create:org`.
+ */
+router.get('/sync/status', canEditOrg, controller.getSyncStatus);
+
+router.post(
+  '/sync/run',
+  requirePermission({ module: M.EMPLOYEES, action: A.CREATE, scope: S.ORG }),
+  controller.runSync,
+);
+
+// ---------------------------------------------------------------------------
 // Directory
 // ---------------------------------------------------------------------------
 

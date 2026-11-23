@@ -9,6 +9,15 @@ import { assertHrmsRolesAssignable } from '../../utils/hrmsRoleGuard.js';
 import { hashPassword } from '../../utils/password.js';
 import { assignRoleProblem, actOnAccountProblem, deactivateProblem, sendProblem } from '../../utils/accessGuard.js';
 import { recordAudit } from '../../utils/auditLog.js';
+/**
+ * Employee Portal -> HRMS. Every path below that creates or changes a STAFF
+ * account calls this, so the HRMS employee record appears and stays in step
+ * without HR retyping the person on the other side.
+ *
+ * It never throws and never rolls anything back: a failure leaves a row in the
+ * sync backlog, which the retry sweep drains. See employeeSync.service.js.
+ */
+import { syncUserSafely, resolvePortalOnlyDemotion } from '../hrms/employees/employeeSync.service.js';
 import {
   assignableRoleNames,
   resolveUserPermissions,
@@ -234,7 +243,25 @@ export const createUser = async (req, res, next) => {
       ...master,
     });
 
-    res.status(201).json({ success: true, data: newUser });
+    /**
+     * The HRMS half of the same person.
+     *
+     * AWAITED, so an administrator creating a salesperson sees the result in
+     * the same response rather than discovering a minute later whether HRMS
+     * knows about them. It still cannot fail this request - `syncUserSafely`
+     * reports instead of throwing - and a Customer account is skipped, because
+     * AD-4 makes a customer and an employee mutually exclusive.
+     */
+    const hrms = await syncUserSafely(newUser, {
+      actor: req.user,
+      req,
+      reason: 'user.created',
+    });
+
+    // `data` is unchanged: the admin screen stores this response AS the new
+    // user row, and the sync outcome is reported beside it rather than mixed
+    // into it.
+    res.status(201).json({ success: true, data: newUser, hrms });
   } catch (error) {
     next(error);
   }
@@ -276,14 +303,35 @@ export const updateUser = async (req, res, next) => {
       });
     }
 
-    // AD-4, same reasoning as updateUserRole: a role change must not leave the
-    // account holding HRMS roles it may no longer have.
-    if ('role' in req.body && denyIfRoleCombinationInvalid(res, req.body.role, target.roles)) return;
+    /**
+     * AD-4, same reasoning as updateUserRole: a role change must not leave the
+     * account holding HRMS roles it may no longer have.
+     *
+     * `demotion` decides what "may no longer have" means when the new role is a
+     * portal-only one. Every staff account now carries `hrms_employee` - that
+     * is what makes its employee record reachable - so without this, demoting
+     * anybody to Customer would 409 on a rule they have no screen to satisfy.
+     * See resolvePortalOnlyDemotion().
+     */
+    const demotion = 'role' in req.body
+      ? await resolvePortalOnlyDemotion(target, req.body.role)
+      : { action: 'none' };
+    if (demotion.action === 'refuse') {
+      return res.status(409).json({
+        success: false, message: demotion.message, code: demotion.code,
+      });
+    }
+    const rolesAfter = demotion.action === 'clear-roles' ? [] : target.roles;
+    if ('role' in req.body && denyIfRoleCombinationInvalid(res, req.body.role, rolesAfter)) return;
 
     const updates = {};
     for (const key of ALLOWED_UPDATES) {
       if (key in req.body) updates[key] = req.body[key];
     }
+    // Residue, cleared in the same write as the role change rather than left
+    // for a second request that might not happen.
+    if (demotion.action === 'clear-roles') updates.roles = [];
+
     // Merged per brand onto what is stored, never replaced: a form that does
     // not know about a newer brand must not revoke it. See mergeBrandAccess().
     if ('brandAccess' in updates) {
@@ -318,10 +366,26 @@ export const updateUser = async (req, res, next) => {
         }
         await recordAudit(req.user, 'User Access Changed', `${live.email}: suspended`, req,
           { meta: { userId: String(live._id), before: { status: live.status }, after: { status: 'Suspended' } } });
-        return suspend(live, updates, res);
+        return suspend(live, updates, res, req);
       }
 
       const updated = await User.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
+      /**
+       * Keep HRMS in step with whatever just changed.
+       *
+       * Unconditional rather than "only when the name or status moved", because
+       * the condition would have to be kept in step with ALLOWED_UPDATES and
+       * with what the sync maps - two lists in two files that drift. The sync
+       * computes its own diff and returns `noop` when nothing moved, so the
+       * cost of calling it on every edit is one indexed lookup.
+       *
+       * A ROLE change is the case that matters most: promoting a Customer to
+       * Sales makes them staff, and this is the moment their employee record
+       * has to exist.
+       */
+      if (updated) {
+        await syncUserSafely(updated, { actor: req.user, req, reason: 'user.updated' });
+      }
       if (updated && (('role' in updates && updates.role !== target.role) || ('status' in updates && updates.status !== target.status))) {
         await recordAudit(req.user, 'User Access Changed',
           `${target.email}: ` + [
@@ -342,17 +406,20 @@ export const updateUser = async (req, res, next) => {
     if (!updates.status || updates.status === 'Suspended') {
       // Still suspended — keep the edit in the archive so it applies on restore.
       await ArchivedUser.findByIdAndUpdate(req.params.id, updates, { new: true });
+      // The employee record is live even while the login is parked in the
+      // archive, so a name corrected on a suspended account still reaches HRMS.
+      await syncUserSafely(merged, { actor: req.user, req, reason: 'user.updated.archived' });
       return res.status(200).json({ success: true, data: asArchivedRow(merged) });
     }
 
-    return restore(merged, updates.status, res);
+    return restore(merged, updates.status, res, req);
   } catch (error) {
     next(error);
   }
 };
 
 // Move a live user into the archive and delete it from `users`.
-const suspend = async (live, updates, res) => {
+const suspend = async (live, updates, res, req = null) => {
   const snapshot = { ...live.toObject(), ...updates, status: 'Suspended' };
   // _id must not appear in the update payload — Mongo rejects writes to it even
   // when the value is unchanged. The upsert takes it from the query instead.
@@ -365,11 +432,22 @@ const suspend = async (live, updates, res) => {
   );
   await User.deleteOne({ _id: live._id });
 
+  /**
+   * Suspension must reach HRMS, or the directory keeps showing as `active`
+   * somebody who can no longer sign in - and the employee record is what
+   * payroll, leave and attendance read.
+   *
+   * Run AFTER the archive write so the two cannot disagree about whether the
+   * suspension happened, and from the SNAPSHOT, because the `users` row this
+   * came from no longer exists.
+   */
+  await syncUserSafely(snapshot, { actor: req?.user ?? null, req, reason: 'user.suspended' });
+
   return res.status(200).json({ success: true, data: asArchivedRow(snapshot) });
 };
 
 // Recreate an archived user in `users` under its original _id.
-const restore = async (merged, status, res) => {
+const restore = async (merged, status, res, req = null) => {
   const clash = await User.findOne({ email: merged.email });
   if (clash) {
     return res.status(400).json({
@@ -385,6 +463,11 @@ const restore = async (merged, status, res) => {
   const recreated = new User({ ...fields, status });
   await recreated.save({ timestamps: false, validateBeforeSave: false });
   await ArchivedUser.deleteOne({ _id: merged._id });
+
+  // Bringing the login back brings the employee back out of `suspended`. The
+  // mapping refuses to touch a record that is `exited` or still `invited`, so
+  // restoring access cannot silently un-offboard somebody.
+  await syncUserSafely(recreated, { actor: req?.user ?? null, req, reason: 'user.restored' });
 
   return res.status(200).json({ success: true, data: recreated });
 };
@@ -458,7 +541,16 @@ export const updateUserRole = async (req, res, next) => {
     // carry HRMS roles is exactly the case this catches.
     const target = await User.findById(req.params.id).select('roles role status email extraGrants').lean();
     if (!target) return res.status(404).json({ success: false, message: 'User not found' });
-    if (denyIfRoleCombinationInvalid(res, role, target.roles)) return;
+
+    // See updateUser above, and resolvePortalOnlyDemotion() for the rule.
+    const demotion = await resolvePortalOnlyDemotion(target, role);
+    if (demotion.action === 'refuse') {
+      return res.status(409).json({
+        success: false, message: demotion.message, code: demotion.code,
+      });
+    }
+    const rolesAfter = demotion.action === 'clear-roles' ? [] : target.roles;
+    if (denyIfRoleCombinationInvalid(res, role, rolesAfter)) return;
     {
       const blocked = await assignRoleProblem(req.user, target, role);
       if (blocked) return sendProblem(res, blocked);
@@ -466,11 +558,19 @@ export const updateUserRole = async (req, res, next) => {
 
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { role },
+      { role, ...(demotion.action === 'clear-roles' ? { roles: [] } : {}) },
       { new: true, runValidators: true }
     );
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    /**
+     * A role change is the one portal edit that can turn a customer into staff,
+     * or move somebody between staff roles. Either way the employee record has
+     * to exist afterwards - and a demotion TO a portal-only role is already
+     * refused above by AD-4, so this never has to delete one.
+     */
+    await syncUserSafely(user, { actor: req.user, req, reason: 'user.role_changed' });
 
     if (target.role !== role) {
       await recordAudit(req.user, 'User Access Changed', `${target.email}: role "${target.role}" → "${role}"`, req,
