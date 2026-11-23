@@ -115,6 +115,32 @@ const STATUTORY = {
   coveredStates: { pt: ["MP"], lwf: ["MP"] },
 };
 
+const EMPLOYEE = {
+  id: "e1",
+  employeeCode: "EMP001",
+  displayName: "Asha Rao",
+  designation: "Accountant",
+  departmentName: "Finance",
+};
+
+const COMPENSATION = {
+  id: "c1",
+  employeeId: "e1",
+  payGroupId: "pg1",
+  structureId: "st1",
+  ctc: 900000,
+  effectiveFrom: "2024-01-01",
+  effectiveTo: null,
+  overrides: {},
+  stateCode: "MP",
+  employeeRegime: null,
+  pfExcluded: false,
+  disabled: false,
+  exemptions: {},
+  revisionReason: null,
+  isCurrent: true,
+};
+
 // ---------------------------------------------------------------------------
 // Transport
 // ---------------------------------------------------------------------------
@@ -143,9 +169,20 @@ function installTransport(overrides = {}) {
       return envelope({ run: { ...RUNS.data[0], status: "review" }, payslipsGenerated: 1, skipped: [] });
     }
     if (key === "POST /hrms/payroll/runs") return envelope({ id: "new" });
+    // The Salary tab: the employee picker, and the one employee's salary.
+    if (key === "GET /hrms/employees") {
+      return envelope({ data: [EMPLOYEE], total: 1, page: 1, pageSize: 50 });
+    }
+    if (key === "GET /hrms/payroll/compensation/e1/current") return envelope(COMPENSATION);
+    if (key === "GET /hrms/payroll/compensation/e1") {
+      return envelope({ data: [COMPENSATION], total: 1, page: 1, pageSize: 15 });
+    }
+    if (key === "POST /hrms/payroll/compensation") return envelope({ ...COMPENSATION, id: "c2" });
     if (key.includes("/preview")) {
       return envelope({
         structureId: "st1",
+        stateCode: "MP",
+        stateCodeSource: "compensation",
         monthlyGross: 42000,
         monthlyNet: 38400,
         monthlyDeductions: 3600,
@@ -157,9 +194,17 @@ function installTransport(overrides = {}) {
   });
 }
 
-const signIn = (roles) =>
+/**
+ * `portalSuperAdmin` is what the SALARY fence reads, and nothing else here.
+ *
+ * `buildHrmsActor` strips every `employees:compensation` grant unless it is
+ * true (SUPER_ADMIN_ONLY_MODULES), so an `hrms_super_admin` whose portal
+ * account is not a Super Admin comes away without it — which is the escalation
+ * the fence exists to stop, and is asserted below.
+ */
+const signIn = (roles, { portalSuperAdmin = false } = {}) =>
   useHrmsStore.setState({
-    actor: buildHrmsActor({ userId: "u1", roles, employee: { id: "e1" } }),
+    actor: buildHrmsActor({ userId: "u1", roles, employee: { id: "e1" }, portalSuperAdmin }),
     implementedModules: [M.DASHBOARD, M.PAYROLL, M.PAYROLL_STRUCTURE],
     loaded: true,
     loading: false,
@@ -200,10 +245,12 @@ describe("the page shell", () => {
     expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Payslips"]);
   });
 
-  it("shows a payroll admin every tab", async () => {
+  it("shows a payroll admin every payroll tab — but NOT Salary", async () => {
     signIn([R.PAYROLL_ADMIN]);
     at("/hrms/payroll/overview");
     const tabs = await screen.findAllByRole("tab");
+    // Running the month is not the same authority as browsing what individuals
+    // are paid: `employees:compensation` is Super-Admin-only.
     expect(tabs.map((t) => t.textContent)).toEqual([
       "Overview",
       "Payslips",
@@ -228,6 +275,78 @@ describe("the page shell", () => {
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     // Guarded before mounting, so the request is never made.
     expect(calls.some((c) => c.url === "/hrms/payroll/runs")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Salary
+// ---------------------------------------------------------------------------
+
+describe("the Salary tab", () => {
+  it("is offered to a portal Super Admin", async () => {
+    signIn([R.SUPER_ADMIN], { portalSuperAdmin: true });
+    at("/hrms/payroll/overview");
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toContain("Salary");
+  });
+
+  it("is hidden from an hrms_super_admin whose PORTAL account is not one", async () => {
+    // The fence reads the portal role. Ticking the HRMS role is exactly the
+    // escalation SUPER_ADMIN_ONLY_MODULES exists to stop.
+    signIn([R.SUPER_ADMIN], { portalSuperAdmin: false });
+    at("/hrms/payroll/overview");
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).not.toContain("Salary");
+  });
+
+  it("is hidden from an HR admin", async () => {
+    signIn([R.HR_ADMIN]);
+    at("/hrms/payroll/overview");
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).not.toContain("Salary");
+  });
+
+  it("reached by URL without the grant redirects, and fires no salary request", async () => {
+    signIn([R.PAYROLL_ADMIN]);
+    at("/hrms/payroll/salary");
+
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(calls.some((c) => String(c.url).includes("/compensation"))).toBe(false);
+    expect(calls.some((c) => c.url === "/hrms/employees")).toBe(false);
+  });
+
+  it("shows the employee's current salary and history once one is chosen", async () => {
+    signIn([R.SUPER_ADMIN], { portalSuperAdmin: true });
+    at("/hrms/payroll/salary");
+
+    const user = userEvent.setup();
+    // The picker, by role — "Choose an employee" is also the empty state's
+    // heading, so matching on text alone is ambiguous.
+    await user.click(await screen.findByRole("button", { name: /Choose an employee/i }));
+    await user.click(await screen.findByText("Asha Rao"));
+
+    // The current figure, and the dated history beneath it.
+    expect(await screen.findByText(/Currently on/i)).toBeTruthy();
+    expect(await screen.findByText(/Salary history/i)).toBeTruthy();
+    expect(screen.getByText("2024-01-01")).toBeTruthy();
+  });
+
+  it("computes the breakdown on the SERVER, and shows what it returns", async () => {
+    signIn([R.SUPER_ADMIN], { portalSuperAdmin: true });
+    at("/hrms/payroll/salary");
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Choose an employee/i }));
+    await user.click(await screen.findByText("Asha Rao"));
+
+    // Seeded from the current compensation, so a preview is computable at once.
+    await waitFor(() =>
+      expect(calls.some((c) => c.url === "/hrms/payroll/compensation/preview")).toBe(true),
+    );
+
+    // The figures rendered are the ones the server sent — nothing is derived here.
+    expect(await screen.findByText("₹ 38,400.00")).toBeTruthy();
+    expect(screen.getByText("₹ 42,000.00")).toBeTruthy();
   });
 });
 

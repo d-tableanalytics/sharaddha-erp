@@ -32,6 +32,11 @@ export function SearchableSelect({
   label,
   className,
   emptyText = "No matches",
+  /**
+   * Hand the typed text to the parent instead of filtering here. See the note
+   * on `filtered` below. Optional; omitting it keeps the local filter.
+   */
+  onSearch = null,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -43,7 +48,31 @@ export function SearchableSelect({
     [options, value],
   );
 
+  /**
+   * `onSearch` hands the typed text to the PARENT, which is then the one
+   * filtering — by re-querying the server.
+   *
+   * Needed because this control was built for a list it has all of (a few
+   * departments, a few leave types) and an employee picker is not that: a
+   * company's staff do not fit in one response, so filtering what happened to
+   * be downloaded would silently hide everyone past the first page.
+   *
+   * When a parent takes the search over, the LOCAL filter is skipped rather
+   * than layered on top. The server matches fields this component cannot see —
+   * an employee's code or email, say — so a locally re-applied filter would
+   * discard a legitimate match for not appearing in the label.
+   *
+   * Absent (every existing caller), behaviour is exactly as before.
+   */
+  useEffect(() => {
+    if (!onSearch) return undefined;
+    const timer = setTimeout(() => onSearch(query.trim()), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
   const filtered = useMemo(() => {
+    if (onSearch) return options;
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter(
@@ -51,7 +80,7 @@ export function SearchableSelect({
         String(o.label).toLowerCase().includes(q) ||
         String(o.hint ?? "").toLowerCase().includes(q),
     );
-  }, [options, query]);
+  }, [options, query, onSearch]);
 
   useEffect(() => {
     const onDocClick = (e) => {

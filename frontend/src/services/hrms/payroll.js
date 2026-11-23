@@ -57,6 +57,16 @@ export const compensationApi = {
     hrmsClient.get(`/payroll/compensation/${employeeId}`, params),
   current: (employeeId) => hrmsClient.get(`/payroll/compensation/${employeeId}/current`),
   create: (dto) => hrmsClient.post("/payroll/compensation", dto),
+  /**
+   * What a proposed salary would pay, before it is saved.
+   *
+   * Runs the SAME engine the payroll run uses, server-side, with the same
+   * employee-specific inputs — PF exclusion, regime, overrides, declarations.
+   * Nothing is written. Deliberately not computed here: a figure an admin
+   * approves a salary on must be the one payday produces, and a browser-side
+   * copy of the arithmetic is a copy that can drift.
+   */
+  preview: (dto) => hrmsClient.post("/payroll/compensation/preview", dto),
   remove: (id) => hrmsClient.delete(`/payroll/compensation/entry/${id}`),
 };
 

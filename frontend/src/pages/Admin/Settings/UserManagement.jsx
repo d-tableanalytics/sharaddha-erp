@@ -122,7 +122,35 @@ const emptyForm = {
  * written out. A role added to permissions.js appears here automatically, and
  * cannot fall behind again.
  */
-const SALES_LEVEL = 'Sales User';
+/**
+ * ── A LABEL, NOT A ROLE ─────────────────────────────────────────────────────
+ *
+ * The role STORED on the account is and stays `'Sales'`. That string is the
+ * business key: it is in `config/permissions.js`, in the role baseline, in the
+ * `User.role` validator, in the shared RBAC contract both portals compile
+ * grants from, and on every existing Sales account in the database. Renaming it
+ * would be a migration with nothing to gain.
+ *
+ * What people here are called is a different question, and this is the only
+ * place that answers it. `accessLevelToFields()` maps the label back to
+ * `{ role: 'Sales' }` on save, so changing the wording below changes what the
+ * screen says and nothing else.
+ *
+ * 'Sales User' → 'Sales Coordinator' (2026-11-23, Employee portal only — the
+ * Customer portal still reads "Sales User" and was deliberately left alone).
+ */
+const SALES_LEVEL = 'Sales Coordinator';
+
+/**
+ * How a stored role name is shown on this screen.
+ *
+ * The Role column prints `user.role` straight from the record, so without this
+ * the dropdown would offer "Sales Coordinator" while the row beside it still
+ * said "Sales" — one account apparently holding two different roles, which
+ * reads as a bug rather than as a rename. Every other role is shown as it is
+ * stored, including roles a Super Admin invents after this was written.
+ */
+const roleLabel = (role) => (role === 'Sales' ? SALES_LEVEL : (role || 'Customer'));
 
 /**
  * The levels that ARE a customer. Both sit on the Customer role and differ only
@@ -592,7 +620,7 @@ export const UserManagement = ({ audience = 'internal' }) => {
                         </td>
                         <td className="px-6 py-4">
                           <span className="px-2 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded flex items-center gap-1 w-fit">
-                            <Shield size={12} /> {u.role || 'Customer'}
+                            <Shield size={12} /> {roleLabel(u.role)}
                           </span>
                         </td>
                         {isCustomerAudience && (
@@ -614,10 +642,10 @@ export const UserManagement = ({ audience = 'internal' }) => {
                                user as an Admin. Staff work across both MSIL and
                                Customer, so the honest value is the role held. */
                             <span
-                              title={`Customer category does not apply to a ${u.role} account — they work across both MSIL and Customer.`}
+                              title={`Customer category does not apply to a ${roleLabel(u.role)} account — they work across both MSIL and Customer.`}
                               className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-md border border-slate-200 w-fit inline-block"
                             >
-                              {u.role}
+                              {roleLabel(u.role)}
                             </span>
                           )}
                         </td>

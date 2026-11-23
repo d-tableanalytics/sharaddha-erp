@@ -9,6 +9,7 @@ import { RunsTab } from "./RunsTab";
 import { StructuresTab } from "./StructuresTab";
 import { PayGroupsTab } from "./PayGroupsTab";
 import { StatutoryTab } from "./StatutoryTab";
+import { SalaryTab } from "./SalaryTab";
 import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
 import { HRMS_ROUTE_PREFIX } from "@shared/constants/hrms.js";
 import {
@@ -38,7 +39,7 @@ import {
  * as Attendance, Leave and Org Structure already do here, so a tab is linkable
  * and survives a refresh.
  */
-const TAB_KEYS = ["overview", "payslips", "runs", "structures", "pay-groups", "statutory"];
+const TAB_KEYS = ["overview", "payslips", "salary", "runs", "structures", "pay-groups", "statutory"];
 
 export function PayrollPage() {
   const { tab } = useParams();
@@ -48,6 +49,17 @@ export function PayrollPage() {
   const canRun = can(M.PAYROLL, A.RUN, S.ORG);
   const canEditStructures = can(M.PAYROLL_STRUCTURE, A.EDIT, S.ORG);
   const seesCompanyPayroll = can(M.PAYROLL, A.VIEW, S.ORG);
+  /**
+   * Salary is its OWN gate, and a narrower one than every other tab here.
+   *
+   * `employees:compensation` is the key every salary figure in the HRMS sits
+   * behind, and it is fenced to a portal Super Admin at the server
+   * (SUPER_ADMIN_ONLY_MODULES) — a payroll admin who may run the month still
+   * may not browse individual salaries. Asking for EDIT rather than VIEW:
+   * this tab exists to configure, and a read-only copy of it would be a form
+   * whose Save button always 403s.
+   */
+  const canEditSalary = can(M.EMPLOYEES_COMPENSATION, A.EDIT, S.ORG);
 
   const tabs = useMemo(() => {
     // Overview and Payslips first, because most people who open Payroll are
@@ -56,6 +68,9 @@ export function PayrollPage() {
       { key: "overview", label: "Overview" },
       { key: "payslips", label: "Payslips" },
     ];
+    // Before Runs: setting what people are paid comes before paying them, and
+    // the Super Admin who holds this tab is usually here for it.
+    if (canEditSalary) items.push({ key: "salary", label: "Salary" });
     if (canRun) items.push({ key: "runs", label: "Runs" });
     if (canEditStructures) {
       items.push(
@@ -65,7 +80,7 @@ export function PayrollPage() {
       );
     }
     return items;
-  }, [canRun, canEditStructures]);
+  }, [canRun, canEditStructures, canEditSalary]);
 
   const active = TAB_KEYS.includes(tab) ? tab : "overview";
 
@@ -99,6 +114,7 @@ export function PayrollPage() {
 
       {active === "overview" && <PayrollOverviewTab seesCompanyPayroll={seesCompanyPayroll} />}
       {active === "payslips" && <PayslipsTab />}
+      {active === "salary" && guard(canEditSalary, <SalaryTab />)}
       {active === "runs" && guard(canRun, <RunsTab />)}
       {active === "structures" && guard(canEditStructures, <StructuresTab />)}
       {active === "pay-groups" && guard(canEditStructures, <PayGroupsTab />)}

@@ -225,6 +225,36 @@ export const createCompensationSchema = z
   })
   .strict();
 
+/**
+ * A compensation that has not been saved, for the preview.
+ *
+ * Deliberately NOT `createCompensationSchema.partial()`. It is a different
+ * request with different requirements: `effectiveFrom` is irrelevant (nothing
+ * is dated because nothing is stored), `employeeId` and `payGroupId` are not
+ * read by the computation at all, and `month`/`year` exist here and nowhere
+ * else because the statutory bundle in force depends on them.
+ *
+ * What it DOES keep is every field that changes the figure — the CTC, the
+ * structure, the state, the regime, the PF exclusion, the disability flag, the
+ * per-component overrides and the old-regime declarations. A preview that
+ * accepted fewer of those than payroll reads would be a preview of a different
+ * salary.
+ */
+export const compensationPreviewSchema = z
+  .object({
+    structureId: objectId,
+    ctc: moneyString,
+    overrides,
+    stateCode: z.enum(INDIAN_STATE_CODES).optional().nullable(),
+    employeeRegime: z.enum(['old', 'new']).optional().nullable(),
+    pfExcluded: z.boolean().default(false),
+    disabled: z.boolean().default(false),
+    exemptions: tdsExemptionsSchema,
+    month: z.number().int().min(1).max(12).optional(),
+    year: z.number().int().min(2000).max(2100).optional(),
+  })
+  .strict();
+
 export const compensationListQuerySchema = paginationQuery
   .extend({ employeeId: objectId.optional(), payGroupId: objectId.optional() })
   .strict();

@@ -43,6 +43,13 @@ export const PERMISSIONS = {
   EDIT_BOOKING_PRE_PO: "edit_booking_pre_po",
   RAISE_PO: "raise_po",
   OVERRIDE_PO_LOCK: "override_po_lock",
+  // Add a product or move a quantity on a booking whose PO is already out.
+  // Narrower than OVERRIDE_PO_LOCK and held by Sales — see the note in
+  // backend/config/permissions.js, which this mirrors. The Sales Desk itself
+  // lives in the Customer Portal; the key is mirrored here because this file
+  // is the fallback the role matrix and every guard compile against, and a key
+  // missing from it is a grant this portal would silently drop.
+  AMEND_BOOKING_POST_PO: "amend_booking_post_po",
   // See the four tier prices and choose which one a customer is offered.
   // MIRRORS backend/config/permissions.js — the server refuses the pricing
   // routes without it, so this only decides what the screen offers.
@@ -188,6 +195,7 @@ export const FALLBACK_ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_CUSTOMER_USERS,
     PERMISSIONS.EDIT_BOOKING_PRE_PO,
     PERMISSIONS.RAISE_PO,
+    PERMISSIONS.AMEND_BOOKING_POST_PO,
     PERMISSIONS.MANAGE_ORDERS,
     PERMISSIONS.VIEW_PRICING,
     PERMISSIONS.VIEW_REPORTS,

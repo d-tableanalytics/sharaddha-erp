@@ -130,6 +130,13 @@ export const getCurrentCompensation = handler(async (req, res) =>
 export const createCompensation = handler(async (req, res) =>
   ok(res, await compensation.createCompensation(req.body, contextOf(req)), 201),
 );
+/**
+ * What a proposed salary would pay. Writes nothing — a POST only because the
+ * body carries overrides and declarations that do not belong in a query string.
+ */
+export const previewCompensation = handler(async (req, res) =>
+  ok(res, await compensation.previewCompensation(req.body)),
+);
 export const deleteCompensation = handler(async (req, res) =>
   ok(res, await compensation.deleteCompensation(req.params.id, contextOf(req))),
 );
@@ -225,6 +232,7 @@ export default {
   listCompensation,
   getCurrentCompensation,
   createCompensation,
+  previewCompensation,
   deleteCompensation,
   listRuns,
   getRun,

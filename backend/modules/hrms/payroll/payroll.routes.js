@@ -52,6 +52,7 @@ import {
   updateSalaryStructureSchema,
   structurePreviewSchema,
   createCompensationSchema,
+  compensationPreviewSchema,
   compensationListQuerySchema,
   createStatutoryConfigSchema,
   updateStatutoryConfigSchema,
@@ -233,6 +234,27 @@ router.delete('/statutory/:id', canEditStructure, controller.deleteStatutoryConf
 // ---------------------------------------------------------------------------
 // Employee compensation
 // ---------------------------------------------------------------------------
+
+/**
+ * What a proposed salary would pay, before it is saved.
+ *
+ * DECLARED FIRST. `/compensation/:employeeId` is a one-segment pattern that
+ * would otherwise swallow `/compensation/preview` and try to read "preview" as
+ * an employee id. It is a GET and this is a POST, so today they cannot
+ * actually collide — the order is here so that adding a POST to the parameter
+ * route later cannot silently break this one.
+ *
+ * `canViewCompensation`, not `canEditCompensation`: it writes nothing, and
+ * seeing what a figure would pay is the same authority as seeing what someone
+ * is already paid. Both keys are fenced to a portal Super Admin regardless
+ * (SUPER_ADMIN_ONLY_MODULES).
+ */
+router.post(
+  '/compensation/preview',
+  canViewCompensation,
+  validate({ body: compensationPreviewSchema }),
+  controller.previewCompensation,
+);
 
 router.get(
   '/compensation/:employeeId',

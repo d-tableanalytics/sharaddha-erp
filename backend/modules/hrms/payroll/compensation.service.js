@@ -32,8 +32,13 @@ import Employee from '../../../models/hrms/Employee.js';
 import CompanyProfile from '../../../models/hrms/CompanyProfile.js';
 import { recordAudit } from '../../../utils/auditLog.js';
 import { AUDIT_ACTIONS, PAGE_SIZE_DEFAULT } from '../../../shared/constants/hrms.js';
-import { toDecimalString, fromDecimal } from '../../../shared/payroll/money.js';
+import { toDecimalString, fromDecimal, round2 } from '../../../shared/payroll/money.js';
 import { HrmsNotFoundError, HrmsValidationError } from '../hrms.errors.js';
+// The preview runs the REAL engine against the REAL hydrated structure and the
+// REAL statutory bundle — see previewCompensation() at the foot of this file.
+import { computePayslip } from '../../../shared/payroll/salaryEngine.js';
+import { getStructure } from './catalog.service.js';
+import { resolveEffectiveConfig } from './statutory.service.js';
 
 const idStr = (v) => (v === null || v === undefined ? null : String(v));
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
@@ -264,11 +269,127 @@ export async function deleteCompensation(id, context = {}) {
   return { id: idStr(existing._id), deleted: true };
 }
 
+/**
+ * What a proposed compensation would actually pay, before it is saved.
+ *
+ * ---------------------------------------------------------------------------
+ * 🔴 THE SAME ENGINE THE PAYROLL RUN USES. NOT A SECOND ONE.
+ * ---------------------------------------------------------------------------
+ * This calls `computePayslip` with the same inputs `run.service.js` assembles
+ * for a real month, from the same hydrated structure `getStructure` returns and
+ * against the same statutory bundle `resolveEffectiveConfig` resolves. There is
+ * no arithmetic in this function at all — it gathers inputs and hands them over.
+ *
+ * That is deliberate and it is the whole point: a preview computed by a second
+ * implementation is a preview that can lie, and the figure an admin approves a
+ * salary on must be the figure payday produces.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY NOT REUSE `previewStructure`
+ * ---------------------------------------------------------------------------
+ * `catalog.service.js:previewStructure` answers a different question — "what
+ * does this STRUCTURE yield for some CTC" — and so passes no employee-specific
+ * input: no `overrides`, no `pfExcluded`, no `employeeRegime`, no `exemptions`,
+ * and no company-default state. Every one of those changes the net figure. Used
+ * here it would quietly show PF for someone excluded from it, and old-regime
+ * TDS for someone on the new regime.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT THIS IS NOT
+ * ---------------------------------------------------------------------------
+ * `lopDays: 0` and `adjustments: []`. This previews the STANDING salary — what
+ * a full month at this compensation pays. Loss of pay comes from attendance and
+ * one-off adjustments are entered against a run, so neither is knowable while
+ * the salary is being set. The caller labels the result accordingly rather than
+ * implying a specific month's take-home.
+ *
+ * Read-only: nothing is written and no audit row is cut, because nothing
+ * happened. The route sits behind the same `employees:compensation` gate as
+ * every other salary read.
+ */
+export async function previewCompensation(input = {}) {
+  const structure = await getStructure(input.structureId);
+
+  const now = new Date();
+  const month = input.month ?? now.getUTCMonth() + 1;
+  const year = input.year ?? now.getUTCFullYear();
+  const pad = (n) => String(n).padStart(2, '0');
+  // Mid-month, matching previewStructure: a config that changes on the 1st or
+  // the 31st should not make the preview depend on which day it is run.
+  const on = `${year}-${pad(month)}-15`;
+
+  const config = await resolveEffectiveConfig(on);
+  if (!config) {
+    throw new HrmsValidationError(
+      'No statutory configuration is effective for that month, so PF, ESI, PT, LWF and TDS cannot be computed. '
+      + 'Create one under Payroll > Statutory first.',
+      [{ path: 'config', message: 'No effective statutory configuration.' }],
+    );
+  }
+
+  /**
+   * The same resolution order payroll uses: the row's own state, then the
+   * company default. AD-12 blocks rather than silently deducting zero, and a
+   * preview that hid the block would send the admin to a run that then refuses.
+   */
+  const stateCode = await resolveStateCode({ stateCode: input.stateCode ?? null });
+  if (!stateCode) {
+    throw new HrmsValidationError(
+      'No state could be resolved for professional tax and labour welfare fund. '
+      + 'Choose a state here, or set the company default state.',
+      [{ path: 'stateCode', message: 'No state resolved.' }],
+    );
+  }
+
+  const output = computePayslip({
+    annualCtc: Number(input.ctc),
+    overrides: input.overrides ?? {},
+    structureComponents: structure.components,
+    month,
+    year,
+    stateCode,
+    disabled: Boolean(input.disabled),
+    pfExcluded: Boolean(input.pfExcluded),
+    employeeRegime: input.employeeRegime ?? undefined,
+    exemptions: input.exemptions ?? {},
+    adjustments: [],
+    statutoryConfig: config.config,
+    daysInMonth: new Date(Date.UTC(year, month, 0)).getUTCDate(),
+    lopDays: 0,
+  });
+
+  return {
+    structureId: structure.id,
+    structureName: structure.name,
+    ctc: toDecimalString(input.ctc),
+    stateCode,
+    // So the screen can say WHERE the state came from rather than just showing
+    // one — "defaulted from the company" is information, not noise.
+    stateCodeSource: input.stateCode ? 'compensation' : 'company-default',
+    month,
+    year,
+    monthlyGross: output.gross,
+    monthlyNet: output.netPay,
+    monthlyDeductions: output.totalDeductions,
+    employerContributions: output.employerContributions,
+    lines: output.lines.map((l) => ({
+      componentCode: l.componentCode,
+      componentName: l.componentName,
+      type: l.type,
+      taxable: Boolean(l.taxable),
+      monthly: l.amount,
+      annual: round2(l.amount * 12),
+    })),
+    statutoryBreakdown: output.statutoryBundle,
+  };
+}
+
 export default {
   listForEmployee,
   currentForEmployee,
   listEffectiveForPayGroup,
   createCompensation,
   deleteCompensation,
+  previewCompensation,
   resolveStateCode,
 };
