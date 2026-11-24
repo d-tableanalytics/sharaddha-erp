@@ -175,7 +175,14 @@ const DELIBERATE_ADDITIONS = {
     // Booking status on the Sales Desk (Customer Portal).
     PERMISSIONS.MANAGE_ORDERS,
     ...WORK_QUEUE_DOER,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
+    // Reopens a booking's items after the PO (Customer Portal), bounded by the
+    // order status as well as the key.
+    PERMISSIONS.AMEND_BOOKING_POST_PO,
   ]),
+  // Pricing is maintained by whoever maintains the SKU (decided 2026-10-21).
+  'Inventory Manager': new Set([PERMISSIONS.MANAGE_PRICING]),
   // O2D stage 7's acknowledgement and stage 9's dispatch.
   'Warehouse User': new Set([PERMISSIONS.VIEW_O2D, PERMISSIONS.WORK_O2D_STAGE, ...WORK_QUEUE_DOER]),
   // Oversight and approval; owns no stage.
@@ -187,10 +194,17 @@ const DELIBERATE_ADDITIONS = {
     PERMISSIONS.OVERRIDE_O2D,
     ...WORK_QUEUE_DOER,
     PERMISSIONS.EXIT_O2D,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
   ]),
   // §20: read-only visibility from stage 6.
   // ...and Indent Stock Assignment (Customer Portal): they receive the stock.
-  'Import Team': new Set([PERMISSIONS.VIEW_O2D, PERMISSIONS.ASSIGN_INDENT_STOCK]),
+  'Import Team': new Set([
+    PERMISSIONS.VIEW_O2D,
+    PERMISSIONS.ASSIGN_INDENT_STOCK,
+    // Updates the SKU price schedule (decided 2026-10-21).
+    PERMISSIONS.MANAGE_PRICING,
+  ]),
 };
 
 for (const [role, before] of Object.entries(BEFORE)) {
