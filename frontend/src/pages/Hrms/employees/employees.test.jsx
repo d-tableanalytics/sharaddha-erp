@@ -906,13 +906,14 @@ describe("edit employee", () => {
     expect(screen.getByDisplayValue("Accounts Executive")).toBeTruthy();
   });
 
-  it("locks the two immutable identifiers", async () => {
+  it("locks the employee code, and the work email where there is no login", async () => {
+    // PRIYA carries no `userId`, so there is no sign-in address to re-point —
+    // the field is read-only however much permission the viewer holds.
     await open([R.HR_ADMIN]);
 
     expect(screen.getByDisplayValue("priya@shraddha.test").disabled).toBe(true);
     expect(screen.getByDisplayValue("SI-001").disabled).toBe(true);
-    // Locked on this form; the profile page is where HR changes it.
-    expect(screen.getByText(/HR can change it with Edit next to Work email/i)).toBeTruthy();
+    expect(screen.getByText(/Only HR or an administrator can change it/i)).toBeTruthy();
   });
 
   it("never pre-fills a sensitive value", async () => {
@@ -1099,5 +1100,157 @@ describe("edit employee", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "patch")).toBe(true));
     // Still on the form, with the edit intact, so the change is not lost.
     expect(screen.getByDisplayValue("Manager")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The work email ON THE EDIT FORM
+// ---------------------------------------------------------------------------
+
+/**
+ * Changing the work email from the Edit Employee form, rather than only from
+ * the dialog on the profile page.
+ *
+ * TWO THINGS THESE PIN, BOTH OF WHICH ARE EASY TO GET WRONG.
+ *
+ * It is NOT part of the form payload. `updateEmployeeSchema` is `.strict()`
+ * and omits `email`, so holding it in form state would fail the resolver with
+ * `unrecognized_keys` and block every save — including saves that never
+ * touched the email. It travels on its own endpoint, which is also where its
+ * permission, its duplicate check and its audit entry live.
+ *
+ * And it goes FIRST. It is the only field here that the server can reject for
+ * a reason the page could not know in advance — the address is taken — so
+ * running it before the profile update means that rejection leaves the record
+ * completely unchanged rather than half-saved.
+ */
+describe("editing the work email on the edit form", () => {
+  const WITH_LOGIN = { ...PRIYA, userId: "652f0000000000000000u001" };
+
+  const open = async (roles, { employee = WITH_LOGIN, actorEmployee = null, ...overrides } = {}) => {
+    signIn(roles, actorEmployee);
+    installTransport({
+      [`GET /hrms/employees/${PRIYA.id}`]: () => envelope(employee),
+      [`PATCH /hrms/employees/${PRIYA.id}`]: (c) => envelope({ ...employee, ...c.data }),
+      [`PATCH /hrms/employees/${PRIYA.id}/email`]: (c) =>
+        envelope({ ...employee, email: c.data.email }),
+      ...overrides,
+    });
+    at(`/hrms/employees/${PRIYA.id}/edit`, <EmployeeEditPage />);
+    return screen.findByDisplayValue("Priya");
+  };
+
+  const emailField = () => screen.getByDisplayValue("priya@shraddha.test");
+  const save = () => userEvent.click(screen.getAllByRole("button", { name: /Save changes/i })[0]);
+  const emailCall = () => calls.find((c) => c.url.endsWith("/email"));
+  const profileCall = () =>
+    calls.find((c) => c.method === "patch" && c.url === `/hrms/employees/${PRIYA.id}`);
+
+  const retype = async (address) => {
+    const input = emailField();
+    await userEvent.clear(input);
+    await userEvent.type(input, address);
+  };
+
+  it("is editable and prepopulated for HR", async () => {
+    await open([R.HR_ADMIN]);
+    expect(emailField().disabled).toBeFalsy();
+    expect(emailField().readOnly).toBe(false);
+  });
+
+  it("stays read-only for an employee editing their own record", async () => {
+    // `employees:edit:self` is in every role's baseline. Without the org gate
+    // an employee could re-point their own sign-in address from this form.
+    await open([R.EMPLOYEE], { actorEmployee: { id: PRIYA.id, managerChain: [] } });
+
+    expect(emailField().disabled).toBe(true);
+    expect(screen.getByText(/Only HR or an administrator can change it/i)).toBeTruthy();
+  });
+
+  it("saves a changed address on its own endpoint, and nothing else", async () => {
+    await open([R.HR_ADMIN]);
+    await retype("Priya.Sharma@Shraddha.test");
+    await save();
+
+    await waitFor(() => expect(emailCall()).toBeTruthy());
+    expect(emailCall().method).toBe("patch");
+    // Lower-cased by the shared schema, exactly as the dialog sends it.
+    expect(emailCall().data).toEqual({ email: "priya.sharma@shraddha.test" });
+    // No profile write: nothing else on the form was touched.
+    expect(profileCall()).toBeUndefined();
+  });
+
+  it("🔴 sends the email BEFORE the profile fields, and never inside them", async () => {
+    await open([R.HR_ADMIN]);
+    await retype("moved@shraddha.test");
+
+    const designation = screen.getByDisplayValue("Accounts Executive");
+    await userEvent.clear(designation);
+    await userEvent.type(designation, "Senior Accounts Executive");
+    await save();
+
+    await waitFor(() => expect(profileCall()).toBeTruthy());
+    expect(calls.indexOf(emailCall())).toBeLessThan(calls.indexOf(profileCall()));
+    expect(profileCall().data).toEqual({ designation: "Senior Accounts Executive" });
+    expect(profileCall().data).not.toHaveProperty("email");
+  });
+
+  it("🔴 a refused address leaves the rest of the record untouched", async () => {
+    await open([R.HR_ADMIN], {
+      [`PATCH /hrms/employees/${PRIYA.id}/email`]: () => {
+        const err = new Error("Request failed");
+        err.response = {
+          status: 409,
+          data: { success: false, message: "That email address is already in use.", code: "EMAIL_IN_USE" },
+        };
+        throw err;
+      },
+    });
+    await retype("rahul@shraddha.test");
+
+    const designation = screen.getByDisplayValue("Accounts Executive");
+    await userEvent.clear(designation);
+    await userEvent.type(designation, "Senior Accounts Executive");
+    await save();
+
+    // The duplicate is reported against the field that caused it…
+    expect(await screen.findByText(/already in use/i)).toBeTruthy();
+    // …and the designation was never written, so one rejection does not leave
+    // the record half-saved.
+    expect(profileCall()).toBeUndefined();
+    expect(screen.getByDisplayValue("Senior Accounts Executive")).toBeTruthy();
+  });
+
+  it("refuses a malformed address without calling the server at all", async () => {
+    await open([R.HR_ADMIN]);
+    await retype("not-an-email");
+    await save();
+
+    expect(await screen.findByText(/Enter a valid email address/i)).toBeTruthy();
+    expect(emailCall()).toBeUndefined();
+    expect(profileCall()).toBeUndefined();
+  });
+
+  it("does not call the email endpoint when the address was not changed", async () => {
+    await open([R.HR_ADMIN]);
+
+    const designation = screen.getByDisplayValue("Accounts Executive");
+    await userEvent.clear(designation);
+    await userEvent.type(designation, "Senior Accounts Executive");
+    await save();
+
+    await waitFor(() => expect(profileCall()).toBeTruthy());
+    expect(emailCall()).toBeUndefined();
+  });
+
+  it("treats a case-only retype as no change", async () => {
+    await open([R.HR_ADMIN]);
+    await retype("PRIYA@SHRADDHA.TEST");
+    await save();
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Save changes/i }).length)
+      .toBeGreaterThan(0));
+    expect(emailCall()).toBeUndefined();
+    expect(profileCall()).toBeUndefined();
   });
 });

@@ -19,9 +19,11 @@ import { EMPLOYMENT_TYPES, EMPLOYEE_STATUSES } from "@shared/constants/hrms.js";
  *   Personal → Family → Job → [Probation] → [Notice]
  *   → [Additional fields] → Address → Emergency Contacts
  *
- * Two fields are immutable once created, matching the reference's disabled
- * inputs: `email` is the login identity, and `employeeCode` is the natural key
- * every other record joins on.
+ * `employeeCode` is immutable once created — it is the natural key every other
+ * record joins on. `email` is the login identity and was immutable too; it is
+ * now editable on the edit page for HR and administrators, through `workEmail`
+ * below, because changing where an employee's mail lands should not require
+ * leaving the form they are already editing.
  */
 
 const label = (s) =>
@@ -85,6 +87,13 @@ export function EmployeeFormFields({
   customFields = [],
   managerOptions = [],
   identity = null,
+  /**
+   * The editable work email, on edit, for a viewer allowed to change it:
+   * `{ value, onChange, error }`. Null means read-only — which is both the
+   * create form (where `email` is a registered field) and any viewer without
+   * `employees:edit:org`.
+   */
+  workEmail = null,
   departments = [],
   locations = [],
   current = null,
@@ -129,23 +138,43 @@ export function EmployeeFormFields({
 
         <Field name="email" label="Work email" required>
           {/*
-            The login identity. Immutable after creation, as in the reference.
+            The login identity, and on edit it is NEVER part of form state.
 
-            On edit it is shown from `identity` and NOT registered. Both form
-            schemas are `.strict()` and the update schema omits this field, so
-            a registered value would sit in form state, fail the resolver with
-            `unrecognized_keys`, and block every save.
+            Both form schemas are `.strict()` and the update schema omits this
+            field, so a registered value would sit in form state, fail the
+            resolver with `unrecognized_keys`, and block every save — including
+            saves that never touched the email.
+
+            So the editable version is a CONTROLLED input owned by the page,
+            which submits it through the work-email endpoint rather than
+            folding it into the profile payload. `workEmail` is null whenever
+            the viewer may not change it (HR / admin only, and only for an
+            employee who actually has a login), and then the field falls back
+            to the read-only display it has always had.
           */}
-          {isEdit ? (
+          {!isEdit ? (
+            <Input {...register("email")} type="email" placeholder="name@company.com" />
+          ) : workEmail ? (
+            <Input
+              type="email"
+              value={workEmail.value}
+              onChange={(e) => workEmail.onChange(e.target.value)}
+              placeholder="name@company.com"
+              error={workEmail.error}
+              helperText={
+                workEmail.error
+                  ? undefined
+                  : "This is also the address the employee signs in with. The password is not changed and nobody is signed out."
+              }
+            />
+          ) : (
             <Input
               type="email"
               value={identity?.email ?? ""}
               readOnly
               disabled
-              helperText="The work email is the login. HR can change it with Edit next to Work email on the profile page."
+              helperText="The work email is the login. Only HR or an administrator can change it."
             />
-          ) : (
-            <Input {...register("email")} type="email" placeholder="name@company.com" />
           )}
         </Field>
         <Field name="personalEmail" label="Personal email">

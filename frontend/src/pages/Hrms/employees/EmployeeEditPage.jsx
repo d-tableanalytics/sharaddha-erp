@@ -15,7 +15,7 @@ import {
   HrmsApiError,
 } from "../../../services/hrms";
 import { useHrmsPermissions } from "../../../hooks/useHrmsPermissions";
-import { updateEmployeeSchema } from "@shared/schemas/employee.js";
+import { updateEmployeeSchema, changeWorkEmailSchema } from "@shared/schemas/employee.js";
 import {
   HRMS_MODULES as M,
   HRMS_ACTIONS as A,
@@ -51,6 +51,18 @@ export function EmployeeEditPage() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  /**
+   * The work email, held OUTSIDE react-hook-form on purpose.
+   *
+   * `updateEmployeeSchema` is `.strict()` and omits `email`, so a registered
+   * value would fail the resolver with `unrecognized_keys` and block every
+   * save — including saves that never touched the email. It also travels to a
+   * different endpoint (see `submit`), so it is not part of that payload in
+   * any case.
+   */
+  const [workEmail, setWorkEmail] = useState("");
+  const [workEmailError, setWorkEmailError] = useState(null);
+
   const methods = useForm({
     resolver: zodResolver(updateEmployeeSchema),
     mode: "onBlur",
@@ -69,6 +81,10 @@ export function EmployeeEditPage() {
       ]);
 
       setEmployee(emp);
+      // Prepopulated from the record, and reset on every (re)load so a failed
+      // save followed by a retry does not start from a stale draft.
+      setWorkEmail(emp.email ?? "");
+      setWorkEmailError(null);
       setCustomFields(fields);
       setDepartments(depts);
       setLocations(locs);
@@ -133,27 +149,105 @@ export function EmployeeEditPage() {
   const hasOrgEdit = can(M.EMPLOYEES, A.EDIT, S.ORG);
   const canEditJobDetails = hasOrgEdit || !isSelf;
 
-  const submit = methods.handleSubmit(async (values) => {
-    setSaving(true);
-    try {
-      // Only what actually changed. The immutable pair is not in form state
-      // at all, so there is nothing to strip here.
-      const dirty = methods.formState.dirtyFields;
-      const payload = Object.fromEntries(
-        Object.entries(values).filter(([k]) => dirty[k] !== undefined),
-      );
+  /**
+   * Who may change the work email here: HR and administrators only
+   * (`employees:edit:org`), and only where there is a login to re-point.
+   *
+   * The same gate the profile page's Edit link uses, and the same one the
+   * server enforces in `changeWorkEmail` — so an employee cannot change their
+   * own sign-in address by editing their own record, which `employees:edit:self`
+   * would otherwise let them reach.
+   */
+  const canEditWorkEmail = hasOrgEdit && Boolean(employee?.userId);
 
-      if (Object.keys(payload).length === 0) {
-        toast("Nothing changed.");
-        setSaving(false);
+  const submit = methods.handleSubmit(async (values) => {
+    // Only what actually changed. `email` and `employeeCode` are not in form
+    // state at all, so there is nothing to strip here.
+    const dirty = methods.formState.dirtyFields;
+    const payload = Object.fromEntries(
+      Object.entries(values).filter(([k]) => dirty[k] !== undefined),
+    );
+
+    const typed = workEmail.trim();
+    const emailChanged =
+      canEditWorkEmail && typed.toLowerCase() !== (employee.email ?? "").toLowerCase();
+
+    /*
+     * Format is checked against the SHARED schema — the one the server
+     * validates with — so the two cannot drift apart. Whether the address is
+     * already taken can only be answered by the server, and comes back below.
+     */
+    let nextEmail = null;
+    if (emailChanged) {
+      const parsed = changeWorkEmailSchema.safeParse({ email: typed });
+      if (!parsed.success) {
+        setWorkEmailError("Enter a valid email address, e.g. name@company.com.");
         return;
       }
+      nextEmail = parsed.data.email;
+    }
 
-      await employeesApi.update(id, payload);
-      toast.success("Employee updated.");
+    if (!emailChanged && Object.keys(payload).length === 0) {
+      toast("Nothing changed.");
+      return;
+    }
+
+    setSaving(true);
+    setWorkEmailError(null);
+    try {
+      /*
+       * THE EMAIL GOES FIRST, AND ON ITS OWN ENDPOINT.
+       *
+       * Its own endpoint because the work email IS the login identity: it
+       * carries its own permission, its own duplicate check across live AND
+       * archived accounts, its own guard against re-pointing a full-access
+       * account, and its own audit entry. Folding it into the profile payload
+       * would mean either duplicating all of that or losing it.
+       *
+       * First because it is the only part of this form that can be rejected
+       * for a reason the page could not know in advance — the address is
+       * taken, or the account is one this actor may not touch. Running it
+       * before the profile update means that the common rejection leaves the
+       * record completely unchanged, rather than half-saved.
+       */
+      if (nextEmail) {
+        try {
+          await employeesApi.changeWorkEmail(id, nextEmail);
+          // Kept in step so that if the profile update below fails and the
+          // user saves again, the address is not resubmitted as a fresh
+          // change — and so the form stops offering to save what is saved.
+          setEmployee((prev) => (prev ? { ...prev, email: nextEmail } : prev));
+          setWorkEmail(nextEmail);
+        } catch (err) {
+          const message = err.message ?? "Could not change the work email.";
+          setWorkEmailError(message);
+          toast.error(message);
+          return;
+        }
+      }
+
+      if (Object.keys(payload).length > 0) {
+        try {
+          await employeesApi.update(id, payload);
+        } catch (err) {
+          // The email is already saved at this point, so say so: otherwise a
+          // failure here reads as "nothing was saved" and the next attempt
+          // would be made against a record that has in fact already moved.
+          toast.error(
+            nextEmail
+              ? `The work email was updated, but the rest could not be saved: ${err.message ?? "unknown error"}`
+              : (err.message ?? "Could not save."),
+          );
+          return;
+        }
+      }
+
+      toast.success(
+        nextEmail
+          ? "Employee updated. They now sign in with the new work email and the same password."
+          : "Employee updated.",
+      );
       navigate(`/hrms/employees/${id}`);
-    } catch (err) {
-      toast.error(err.message ?? "Could not save.");
     } finally {
       setSaving(false);
     }
@@ -205,6 +299,18 @@ export function EmployeeEditPage() {
               customFields={customFields}
               managerOptions={managerOptions}
               identity={{ email: employee.email, employeeCode: employee.employeeCode }}
+              workEmail={
+                canEditWorkEmail
+                  ? {
+                    value: workEmail,
+                    onChange: (v) => {
+                      setWorkEmail(v);
+                      setWorkEmailError(null);
+                    },
+                    error: workEmailError,
+                  }
+                  : null
+              }
               departments={departments}
               locations={locations}
               current={employee}

@@ -16,6 +16,7 @@ const { default: Employee } = await import('../models/hrms/Employee.js');
 const { default: User } = await import('../models/User.js');
 const { default: ArchivedUser } = await import('../models/ArchivedUser.js');
 const { default: Delegation } = await import('../models/Delegation.js');
+const { default: O2dNotification } = await import('../models/o2d/O2dNotification.js');
 const { default: employeeRoutes } = await import('../modules/hrms/employees/employee.routes.js');
 const { hrmsAuthorizationChain, setEmployeeResolver } = await import('../middlewares/hrmsAuth.js');
 const { hrmsErrorHandler } = await import('../modules/hrms/hrms.errors.js');
@@ -107,8 +108,15 @@ test('HR changes a work email: the login address changes and nothing else does',
     assert.equal(res.body.data.email, 'new.address@example.com', 'normalised and returned');
 
     // The profile read - and so every screen hydrating from User - sees it.
+    // This is the "save, then refresh the page" case: the address survives
+    // because it was never cached anywhere, only read back from the account.
     const read = await get(url, `${P}/${target.employee._id}`);
     assert.equal(read.body.data.email, 'new.address@example.com');
+
+    // And the directory, which hydrates the same way.
+    const list = await get(url, P);
+    const row = list.body.data.data.find((e) => e.id === String(target.employee._id));
+    assert.equal(row.email, 'new.address@example.com');
   });
 
   const afterUser = await User.findById(target.employee.userId).select(SECRET).lean();
@@ -217,6 +225,54 @@ test('the collaborator snapshot on delegated tasks follows the new address', asy
   const task = await Delegation.collection.findOne({ title: 'Task' });
   assert.equal(task.inLoop[0].email, 'moved@example.com');
   assert.equal(task.inLoop[1].email, bystanderEmail, 'other collaborators untouched');
+});
+
+test('🔴 a notification still awaiting delivery is re-addressed; the sent log is not', async () => {
+  /*
+   * `O2dNotification.recipientEmail` is a snapshot, and `retryFailed` re-sends
+   * from the snapshot rather than from the account. Without this sync, a
+   * notification that failed before the change is retried at the OLD address —
+   * and a dead old mailbox is a common reason for making the change at all.
+   *
+   * The SENT row is the other half: it records where a message actually went,
+   * so rewriting it would turn the delivery log into a work of fiction.
+   */
+  const hr = await makePerson([R.HR_ADMIN]);
+  const target = await makePerson([R.EMPLOYEE]);
+  const bystander = await makePerson([R.EMPLOYEE]);
+  const userId = target.employee.userId;
+  const oldEmail = (await User.findById(userId).lean()).email;
+  const bystanderEmail = (await User.findById(bystander.employee.userId).lean()).email;
+
+  // `dedupeKey` is uniquely indexed, so each row needs its own — inserting
+  // several without one makes them all collide on null.
+  const note = (status, user = userId, email = oldEmail) => ({
+    user, recipientEmail: email, event: 'test.event', channel: 'EMAIL',
+    status, order: `O-${status}-${String(user).slice(-4)}`, title: 't', body: 'b',
+    dedupeKey: `${status}:${String(user)}`, attempts: 0, createdAt: new Date(),
+  });
+
+  await O2dNotification.collection.insertMany([
+    note('FAILED'), note('PENDING'), note('SENT'), note('SKIPPED'),
+    note('FAILED', bystander.employee.userId, bystanderEmail),
+  ]);
+
+  await withServer(appFor(hr.user), async (url) => {
+    assert.equal((await changeEmail(url, target.employee._id, 'moved@example.com')).status, 200);
+  });
+
+  const byStatus = Object.fromEntries(
+    (await O2dNotification.find({ user: userId }).lean())
+      .map((r) => [r.status, r.recipientEmail]),
+  );
+
+  assert.equal(byStatus.FAILED, 'moved@example.com', 'a retry must not go to the old address');
+  assert.equal(byStatus.PENDING, 'moved@example.com');
+  assert.equal(byStatus.SENT, oldEmail, 'the delivery log records where it actually went');
+  assert.equal(byStatus.SKIPPED, oldEmail, 'never retried, and equally a record');
+
+  const other = await O2dNotification.findOne({ user: bystander.employee.userId }).lean();
+  assert.equal(other.recipientEmail, bystanderEmail, "nobody else's notifications move");
 });
 
 test('saving the same address is a no-op success', async () => {

@@ -16,6 +16,7 @@ import Location from '../../../models/hrms/Location.js';
 import User from '../../../models/User.js';
 import ArchivedUser from '../../../models/ArchivedUser.js';
 import Delegation from '../../../models/Delegation.js';
+import O2dNotification from '../../../models/o2d/O2dNotification.js';
 import { hashPassword } from '../../../utils/password.js';
 import { isDuplicateKeyError, isTransactionUnsupported } from '../../../utils/mongoSession.js';
 import { hasHrmsPermission } from '../../../shared/permissions/has-permission.js';
@@ -1046,9 +1047,10 @@ export async function resetEmployeePassword(id, actor, portalActor = null) {
  *     email, so nobody is signed out;
  *   - roles, status and every field of the employee record.
  *
- * The one denormalised copy of a user's email in the database - the snapshot
- * on Delegation `inLoop[]` entries - is brought in step in the same
- * transaction, so a task's collaborator list does not keep the old address.
+ * The denormalised copies of a user's email are brought in step in the same
+ * transaction: the snapshot on Delegation `inLoop[]` entries, so a task's
+ * collaborator list does not keep the old address, and the address on
+ * notifications not yet delivered, so a retry does not go to the old mailbox.
  *
  * A suspended login lives in `archivedusers`, not `users`. Its email is changed
  * there, so the new address applies when the account is restored.
@@ -1124,6 +1126,25 @@ export async function changeWorkEmail(id, newEmail, actor, portalActor = null) {
         { 'inLoop.userId': emp.userId },
         { $set: { 'inLoop.$[p].email': email } },
         { arrayFilters: [{ 'p.userId': emp.userId }], ...opts },
+      );
+
+      /*
+       * Notifications NOT YET DELIVERED are re-addressed.
+       *
+       * `O2dNotification.recipientEmail` is a snapshot taken when the row is
+       * created, and `retryFailed` re-sends from that snapshot rather than
+       * from the account. So a notification that failed BEFORE this change
+       * would be retried at the old address — and a dead old mailbox is one
+       * of the commonest reasons for changing the address in the first place.
+       *
+       * SENT and SKIPPED rows are deliberately left alone: they are a record
+       * of where a message actually went, or of one that was never attempted,
+       * and rewriting history would make the delivery log a lie.
+       */
+      await O2dNotification.updateMany(
+        { user: emp.userId, status: { $in: ['PENDING', 'FAILED'] } },
+        { $set: { recipientEmail: email } },
+        opts,
       );
 
       await Employee.updateOne(
